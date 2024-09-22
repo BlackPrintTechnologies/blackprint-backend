@@ -16,7 +16,9 @@ class UsersController:
             if id:
                 query += f' and bp_user_id = {id}'
             if email:
-                query += f' and bp_email = {email}'
+                query += f"and bp_email = '{email}'"
+
+            print(query,"<==============")
             self.cursor.execute(query)
             result = self.cursor.fetchall()
             return Response.success(data=result)
@@ -25,12 +27,14 @@ class UsersController:
 
     def create_user(self, bp_name, bp_company, bp_industry, bp_email, bp_password, bp_status):
         try:
-            query = '''
+            query = f'''
                 INSERT INTO bp_users (bp_name, bp_company, bp_industry, bp_email, bp_password, bp_status)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                VALUES ('{bp_name}', '{bp_company}', '{bp_industry}', '{bp_email}', '{bp_password}', {bp_status})
                 RETURNING bp_user_id
             '''
-            self.cursor.execute(query, (bp_name, bp_company, bp_industry, bp_email, bp_password, bp_status))
+            print("query=====>", query)
+
+            self.cursor.execute(query)
             self.db_connection.commit()
             user_id = self.cursor.fetchone()['bp_user_id']
             return Response.created(data={"bp_user_id": user_id})

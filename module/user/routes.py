@@ -24,24 +24,26 @@ users_controller = UsersController()
 class User:
     @staticmethod
     def create_user(email, password):
-        hashed_password = generate_password_hash(password, method='sha256')
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
         response = users_controller.create_user(
-            bp_name=None,
-            bp_company=None,
-            bp_industry=None,
+            bp_name='',
+            bp_company='',
+            bp_industry='',
             bp_email=email,
             bp_password=hashed_password,
-            bp_status='active'
+            bp_status=1
         )
         return response
 
     @staticmethod
     def validate_user(email, password):
         response = users_controller.get_users(email=email)
+        print(response,"=======================>")
         if response[1] != 200:
             return None
         users = response[0]['data']
-        for user in users['data']:
+        print(users,"==========>")
+        for user in users:
             if user['bp_email'] == email and check_password_hash(user['bp_password'], password):
                 return user
         return None
@@ -52,7 +54,7 @@ class User:
         if response[1] != 200:
             return False
         users = response[0]['data']
-        for user in users['data']:
+        for user in users:
             if user['bp_email'] == email:
                 return True
         return False
@@ -84,6 +86,7 @@ class Signin(Resource):
         password = data.get('password')
         
         user = User.validate_user(email, password)
+        print("user========>",user)
         if not user:
             return Response.unauthorized(message='Invalid credentials')
         
@@ -91,8 +94,7 @@ class Signin(Resource):
             'id': user['bp_user_id'],
             'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
         }, SECRET_KEY, algorithm='HS256')
-        
-        return Response.success(data={'token': token, 'user': user})
+        return Response.success(data={'token': token})
 
 class ForgotPassword(Resource):
     signin_parser = reqparse.RequestParser()
@@ -115,7 +117,7 @@ class UpdateUser(Resource):
     update_parser.add_argument('industry', type=str, required=False)
     update_parser.add_argument('email', type=str, required=False)
     update_parser.add_argument('password', type=str, required=False)
-    update_parser.add_argument('status', type=str, required=False)
+    update_parser.add_argument('status', type=int, required=False)
 
     def put(self, user_id):
         data = self.update_parser.parse_args()
