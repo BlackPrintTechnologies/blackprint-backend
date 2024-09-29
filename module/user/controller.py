@@ -23,7 +23,7 @@ class UsersController:
             result = self.cursor.fetchall()
             return Response.success(data=result)
         except Exception as e:
-            self.connection.rollback()
+            self.db_connection.rollback()
             return Response.internal_server_error(message=str(e))
 
     def create_user(self, bp_name, bp_company, bp_industry, bp_email, bp_password, bp_status):
