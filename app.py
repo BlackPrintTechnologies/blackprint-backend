@@ -2,6 +2,8 @@ from flask import Flask
 from flask_restful import Resource, Api
 app = Flask(__name__)
 api = Api(app)
+from flask_cors import CORS
+CORS(app)
 
 
 from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser
@@ -16,3 +18,5 @@ api.add_resource(UpdateUser, '/user/updateuser')
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+ 
