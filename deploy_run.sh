@@ -6,9 +6,6 @@ IMAGE_NAME="flask-app"
 CONTAINER_NAME="flask-app"
 PORT_MAPPING="8000:8000"
 
-# Navigate to the repository directory
-cd $REPO_DIR || { echo "Repository directory not found"; exit 1; }
-
 # Pull the latest changes from the Git repository
 echo "Pulling latest changes from Git repository..."
 git pull || { echo "Failed to pull latest changes"; exit 1; }
