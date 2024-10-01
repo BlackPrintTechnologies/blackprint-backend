@@ -4,6 +4,7 @@ import jwt
 import json
 from utils.responseUtils import Response
 
+
 # Load configuration
 config_path = 'app.json'
 with open(config_path, 'r') as config_file:

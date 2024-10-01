@@ -28,7 +28,7 @@ class UsersController:
                 user_dict = dict(user)
                 user_dict['bp_created_on'] = user_dict['bp_created_on'].isoformat()
                 user_dict['bp_status'] = float(user_dict['bp_status']) if isinstance(user_dict['bp_status'], Decimal) else user_dict['bp_status']
-                user_dict.pop('bp_password', None)  # Remove password if it exists
+                # user_dict.pop('bp_password', None)  # Remove password if it exists
                 processed_result.append(user_dict)
 
             return Response.success(data=processed_result)
