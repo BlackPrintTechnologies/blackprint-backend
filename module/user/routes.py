@@ -9,6 +9,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response  # Assuming ResponseUtil is in response_util.py
 from module.user.controller import UsersController  # Assuming UsersController is in users_controller.py
+from decimal import Decimal
 
 # Load configuration
 config_path = 'app.json'
@@ -42,10 +43,13 @@ class User:
         if response[1] != 200:
             return None
         users = response[0]['data']
-        print(users,"==========>")
         for user in users:
             if user['bp_email'] == email and check_password_hash(user['bp_password'], password):
-                return user
+                user_dict = dict(user)
+                user_dict['bp_created_on'] = user_dict['bp_created_on'].isoformat()
+                user_dict['bp_status'] = float(user_dict['bp_status']) if isinstance(user_dict['bp_status'], Decimal) else user_dict['bp_status']
+                user_dict.pop('bp_password')
+                return user_dict
         return None
 
     @staticmethod
@@ -94,7 +98,9 @@ class Signin(Resource):
             'id': user['bp_user_id'],
             'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
         }, SECRET_KEY, algorithm='HS256')
-        return Response.success(data={'token': token})
+
+    
+        return Response.success(data={'token': token, 'user': user})
 
 class ForgotPassword(Resource):
     signin_parser = reqparse.RequestParser()

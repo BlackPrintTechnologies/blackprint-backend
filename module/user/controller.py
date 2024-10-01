@@ -2,49 +2,72 @@ from utils.dbUtils import Database
 from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
 
-
-
 class UsersController:
     def __init__(self):
         self.db = Database()
-        self.db_connection = self.db.connect()
-        self.cursor = self.db_connection.cursor(cursor_factory=RealDictCursor)
 
     def get_users(self, id=None, email=None):
+        connection = None
+        cursor = None
         try:
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
             query = 'SELECT * FROM bp_users where bp_status = 1 '
             if id:
                 query += f' and bp_user_id = {id}'
             if email:
-                query += f"and bp_email = '{email}'"
+                query += f" and bp_email = '{email}'"
 
-            print(query,"<==============")
-            self.cursor.execute(query)
-            result = self.cursor.fetchall()
+            print(query, "<==============")
+            cursor.execute(query)
+            result = cursor.fetchall()
             return Response.success(data=result)
         except Exception as e:
-            self.db_connection.rollback()
+            if connection:
+                connection.rollback()
             return Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect()
 
     def create_user(self, bp_name, bp_company, bp_industry, bp_email, bp_password, bp_status):
+        connection = None
+        cursor = None
         try:
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
             query = f'''
                 INSERT INTO bp_users (bp_name, bp_company, bp_industry, bp_email, bp_password, bp_status)
-                VALUES ('{bp_name}', '{bp_company}', '{bp_industry}', '{bp_email}', '{bp_password}', {bp_status})
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING bp_user_id
             '''
             print("query=====>", query)
 
-            self.cursor.execute(query)
-            self.db_connection.commit()
-            user_id = self.cursor.fetchone()['bp_user_id']
+            cursor.execute(query, (bp_name, bp_company, bp_industry, bp_email, bp_password, bp_status))
+            connection.commit()
+            user_id = cursor.fetchone()['bp_user_id']
             return Response.created(data={"bp_user_id": user_id})
         except Exception as e:
-            self.db_connection.rollback()
+            if connection:
+                connection.rollback()
             return Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect()
 
     def update_user(self, id, bp_name=None, bp_company=None, bp_industry=None, bp_email=None, bp_password=None, bp_status=None):
+        connection = None
+        cursor = None
         try:
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
             query = 'UPDATE bp_users SET '
             updates = []
             params = []
@@ -75,19 +98,36 @@ class UsersController:
             query += ' WHERE bp_user_id = %s'
             params.append(id)
 
-            self.cursor.execute(query, tuple(params))
-            self.db_connection.commit()
+            cursor.execute(query, tuple(params))
+            connection.commit()
             return Response.success(message="User updated successfully")
         except Exception as e:
-            self.db_connection.rollback()
+            if connection:
+                connection.rollback()
             return Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect()
 
     def delete_user(self, id):
+        connection = None
+        cursor = None
         try:
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
             query = 'DELETE FROM bp_users WHERE bp_user_id = %s'
-            self.cursor.execute(query, (id,))
-            self.db_connection.commit()
+            cursor.execute(query, (id,))
+            connection.commit()
             return Response.success(message="User deleted successfully")
         except Exception as e:
-            self.db_connection.rollback()
+            if connection:
+                connection.rollback()
             return Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect()
