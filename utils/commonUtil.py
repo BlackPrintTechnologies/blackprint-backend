@@ -30,5 +30,6 @@ def authenticate(f):
         except jwt.InvalidTokenError:
             return Response.unauthorized(message="Invalid token!")
 
-        return f(current_user, *args, **kwargs)
+        kwargs['current_user'] = current_user
+        return f(*args, **kwargs)
     return decorated_function

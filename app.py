@@ -6,7 +6,7 @@ from flask_cors import CORS
 CORS(app)
 
 
-from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser
+from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUser
 # users 
 # api.add_resource(Items, '/')
 # api.add_resource(Item, '/<int:pk>')
@@ -14,6 +14,7 @@ api.add_resource(Signup, '/user/signup')
 api.add_resource(Signin, '/user/signin')
 api.add_resource(ForgotPassword, '/user/forgot-password')
 api.add_resource(UpdateUser, '/user/updateuser')
+api.add_resource(GetUser, '/user/getuser')
 
 
 if __name__ == '__main__':

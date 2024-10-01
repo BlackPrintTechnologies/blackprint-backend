@@ -5,12 +5,10 @@ import jwt
 import datetime
 import os
 import json
-import psycopg2
-from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response  # Assuming ResponseUtil is in response_util.py
 from module.user.controller import UsersController  # Assuming UsersController is in users_controller.py
 from decimal import Decimal
-
+from utils.commonUtil import authenticate 
 # Load configuration
 config_path = 'app.json'
 with open(config_path, 'r') as config_file:
@@ -45,11 +43,7 @@ class User:
         users = response[0]['data']
         for user in users:
             if user['bp_email'] == email and check_password_hash(user['bp_password'], password):
-                user_dict = dict(user)
-                user_dict['bp_created_on'] = user_dict['bp_created_on'].isoformat()
-                user_dict['bp_status'] = float(user_dict['bp_status']) if isinstance(user_dict['bp_status'], Decimal) else user_dict['bp_status']
-                user_dict.pop('bp_password')
-                return user_dict
+                return user
         return None
 
     @staticmethod
@@ -115,6 +109,18 @@ class ForgotPassword(Resource):
         
         # Here you would normally send an email with a reset link or token
         return Response.success(message='Password reset link sent')
+
+
+
+class GetUser(Resource):
+    
+    @authenticate
+    def get(self, current_user):
+        print("user_id=====>",current_user)
+        response = users_controller.get_users(
+            id=current_user
+        )
+        return response
 
 class UpdateUser(Resource):
     update_parser = reqparse.RequestParser()

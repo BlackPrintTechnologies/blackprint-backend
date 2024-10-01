@@ -43,8 +43,9 @@ class Response:
 
     @staticmethod
     def internal_server_error(data=None, message="Internal Server Error"):
+        print(data,message)
         return {
-            "message": message,
+            "message": "Internal Server Error",
             "data": data
         }, 500
 
