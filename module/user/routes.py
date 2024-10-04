@@ -22,10 +22,10 @@ users_controller = UsersController()
 
 class User:
     @staticmethod
-    def create_user(email, password):
+    def create_user(email, password, name):
         hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
         response = users_controller.create_user(
-            bp_name='',
+            bp_name=name,
             bp_company='',
             bp_industry='',
             bp_email=email,
@@ -61,16 +61,18 @@ class Signup(Resource):
     signup_parser = reqparse.RequestParser()
     signup_parser.add_argument('email', type=str, required=True, help='Email is required')
     signup_parser.add_argument('password', type=str, required=True, help='Password is required')
+    signup_parser.add_argument('name', type=str, required=True, help='Email is required')
 
     def post(self):
         data = self.signup_parser.parse_args()
         email = data.get('email')
         password = data.get('password')
+        name = data.get('name')
         
         if User.user_exists(email):
             return Response.bad_request(message='User already exists')
         
-        response = User.create_user(email, password)
+        response = User.create_user(email, password, name)
         return response
 
 class Signin(Resource):
