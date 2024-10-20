@@ -61,7 +61,7 @@ class Signup(Resource):
     signup_parser = reqparse.RequestParser()
     signup_parser.add_argument('email', type=str, required=True, help='Email is required')
     signup_parser.add_argument('password', type=str, required=True, help='Password is required')
-    signup_parser.add_argument('name', type=str, required=True, help='Email is required')
+    signup_parser.add_argument('name', type=str, required=True, help='Name is required')
 
     def post(self):
         data = self.signup_parser.parse_args()
