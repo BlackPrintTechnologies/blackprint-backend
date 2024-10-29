@@ -6,6 +6,9 @@ api = Api(app)
 CORS(app)
 
 
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+
 from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUser
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
