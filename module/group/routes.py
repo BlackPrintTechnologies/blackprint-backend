@@ -22,10 +22,10 @@ class Group(Resource):
     update_parser.add_argument('grp_status', type=int, required=False)
 
     @authenticate
-    def get(self, current_user):
+    def get(self, current_user, grp_id=None):
         # data = self.get_parser.parse_args()
         # grp_id = data.get('grp_id')
-        response = groups_controller.get_groups(grp_id=None, user_id=current_user)
+        response = groups_controller.get_groups(grp_id=grp_id, user_id=current_user)
         return response
 
     @authenticate

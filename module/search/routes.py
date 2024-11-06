@@ -35,10 +35,10 @@ class SavedSearches(Resource):
     update_parser.add_argument('search_status', type=int, required=False)
 
     @authenticate
-    def get(self, current_user):
+    def get(self, current_user, search_id=None):
         # data = self.update_parser.parse_args()
         # search_id = data.get('id')
-        response = saved_searches_controller.get_saved_searches(id=None, user_id=current_user)
+        response = saved_searches_controller.get_saved_searches(id=search_id, user_id=current_user)
         return response
 
     @authenticate

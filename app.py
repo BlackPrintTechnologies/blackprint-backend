@@ -20,8 +20,8 @@ api.add_resource(Signin, '/user/signin')
 api.add_resource(ForgotPassword, '/user/forgot-password')
 api.add_resource(UpdateUser, '/user/updateuser')
 api.add_resource(GetUser, '/user/getuser')
-api.add_resource(SavedSearches, '/savesearch')
-api.add_resource(Group, '/group')
+api.add_resource(SavedSearches, '/savesearch', '/savesearch/<int:search_id>')
+api.add_resource(Group, '/group', '/group/<int:grp_id>')
 api.add_resource(GroupProperty, '/groupproperty')
 
 

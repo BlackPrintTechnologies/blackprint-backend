@@ -32,5 +32,6 @@ def authenticate(f):
             return Response.unauthorized(message="Invalid token!")
 
         kwargs['current_user'] = current_user
+        print(args, kwargs)
         return f(*args, **kwargs)
     return decorated_function
