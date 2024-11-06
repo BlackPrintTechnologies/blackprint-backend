@@ -23,9 +23,9 @@ class Group(Resource):
 
     @authenticate
     def get(self, current_user):
-        data = self.get_parser.parse_args()
-        grp_id = data.get('grp_id')
-        response = groups_controller.get_groups(grp_id=grp_id, user_id=current_user)
+        # data = self.get_parser.parse_args()
+        # grp_id = data.get('grp_id')
+        response = groups_controller.get_groups(grp_id=None, user_id=current_user)
         return response
 
     @authenticate
