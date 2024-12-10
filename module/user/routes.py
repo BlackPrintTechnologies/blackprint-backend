@@ -6,7 +6,7 @@ import datetime
 import os
 import json
 from utils.responseUtils import Response  # Assuming ResponseUtil is in response_util.py
-from module.user.controller import UsersController  # Assuming UsersController is in users_controller.py
+from module.user.controller import UsersController, UserQuestionareController  # Assuming UsersController is in users_controller.py
 from decimal import Decimal
 from utils.commonUtil import authenticate 
 # Load configuration
@@ -19,6 +19,7 @@ SECRET_KEY = config['SECRET_KEY']
 
 # Initialize UsersController
 users_controller = UsersController()
+user_questionare_controller = UserQuestionareController()
 
 class User:
     @staticmethod
@@ -156,3 +157,61 @@ class UpdateUser(Resource):
         )
 
         return response
+    
+
+class UserQuestionare(Resource):
+    user_questionare_parser = reqparse.RequestParser()
+    user_questionare_parser.add_argument('bp_brand_name', type=str, required=True, help='Brand name is required')
+    user_questionare_parser.add_argument('bp_category', type=str, required=True, help='Category is required')
+    user_questionare_parser.add_argument('bp_product', type=str, required=True, help='Product is required')
+    user_questionare_parser.add_argument('bp_market_segment', type=str, required=True, help='Market segment is required')
+    user_questionare_parser.add_argument('bp_target_audience', type=str, required=True, help='Target audience is required')
+    user_questionare_parser.add_argument('bp_competitor_brands', type=list, location='json', required=True, help='Competitor brands are required')
+    user_questionare_parser.add_argument('bp_complementary_brands', type=list, location='json', required=True, help='Complementary brands are required')
+
+    update_parser = reqparse.RequestParser()
+    update_parser.add_argument('bp_user_questionare_id', type=int, required=False)
+    update_parser.add_argument('bp_brand_name', type=str, required=False)
+    update_parser.add_argument('bp_category', type=str, required=False)
+    update_parser.add_argument('bp_product', type=str, required=False)
+    update_parser.add_argument('bp_market_segment', type=str, required=False)
+    update_parser.add_argument('bp_target_audience', type=str, required=False)
+    update_parser.add_argument('bp_competitor_brands', type=list, location='json', required=False)
+    update_parser.add_argument('bp_complementary_brands', type=list, location='json', required=False)
+
+    @authenticate
+    def post(self, current_user):
+        data = self.user_questionare_parser.parse_args()
+        response = user_questionare_controller.create_questionare(
+            bp_user_id=current_user,
+            bp_brand_name=data['bp_brand_name'],
+            bp_category=data['bp_category'],
+            bp_product=data['bp_product'],
+            bp_market_segment=data['bp_market_segment'],
+            bp_target_audience=data['bp_target_audience'],
+            bp_competitor_brands=data['bp_competitor_brands'],
+            bp_complementary_brands=data['bp_complementary_brands']
+        )
+        return response
+
+    @authenticate
+    def put(self, current_user):
+        data = self.update_parser.parse_args()
+        response = user_questionare_controller.update_questionare(
+            id=data.get('bp_user_questionare_id'),
+            bp_user_id=current_user,
+            bp_brand_name=data.get('bp_brand_name'),
+            bp_category=data.get('bp_category'),
+            bp_product=data.get('bp_product'),
+            bp_market_segment=data.get('bp_market_segment'),
+            bp_target_audience=data.get('bp_target_audience'),
+            bp_competitor_brands=data.get('bp_competitor_brands'),
+            bp_complementary_brands=data.get('bp_complementary_brands')
+        )
+        return response
+
+    @authenticate
+    def get(self, current_user, id=None):
+        response = user_questionare_controller.get_questionare(id=id, bp_user_id=current_user)
+        return response
+
