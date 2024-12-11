@@ -110,7 +110,7 @@ class UsersController:
             query += ', '.join(updates)
             query += ' WHERE bp_user_id = %s'
             params.append(id)
-
+            print(query, params)
             cursor.execute(query, tuple(params))
             connection.commit()
             return Response.success(message="User updated successfully")
@@ -169,7 +169,7 @@ class UserQuestionareController:
             connection.commit()
             questionare_id = cursor.fetchone()['bp_user_questionare_id']
             user_controller = UsersController()
-            user_controller.update_user(id=bp_user_id, bp_is_onboarded=True)
+            user_controller.update_user(id=bp_user_id, bp_is_onboarded=1)
             return Response.created(data={"bp_user_questionare_id": questionare_id})
         except Exception as e:
             if connection:
