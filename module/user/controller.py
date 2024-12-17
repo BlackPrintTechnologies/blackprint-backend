@@ -184,7 +184,7 @@ class UsersController:
     def send_user_verification_email(self, bp_email):
         # Here you would normally send an email with a verification link or token
         token = get_token(bp_email)
-        url = 'https://blackprint.ai/user/verify?email=' + bp_email + '&token=' + token
+        url = 'https://blackprint.ai/verify?email=' + bp_email + '&token=' + token
         print("token=====>", url)
         message = send_email(bp_email, 'Verification Email','static/verification_email_tempate.html', {'token': url})
         return Response.success(message=message)
