@@ -4,9 +4,12 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 api = Api(app)
+app.config['CORS_ENABLED'] = True
 
 # Allow CORS for specific origins (localhost:3000 in this case)
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+if app.config['CORS_ENABLED'] is True:
+    CORS(app, origins=["*"], allow_headers=["Content-Type", "x-api-key", 
+            "Access-Control-Allow-Credentials"], supports_credentials=True)
 
 # Import your routes
 from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification

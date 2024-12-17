@@ -74,7 +74,7 @@ class UsersController:
             if connection:
                 self.db.disconnect()
 
-    def update_user(self, id, bp_name=None, bp_company=None, bp_industry=None, bp_email=None, bp_password=None, bp_status=None, bp_is_onboarded=None):
+    def update_user(self, id, bp_name=None, bp_company=None, bp_industry=None, bp_email=None, bp_password=None, bp_status=None, bp_is_onboarded=None, bp_user_verified=None):
         connection = None
         cursor = None
         try:
@@ -106,7 +106,9 @@ class UsersController:
             if bp_is_onboarded is not None:
                 updates.append('bp_is_onboarded = %s')
                 params.append(bp_is_onboarded)
-
+            if bp_user_verified is not None :
+                updates.append('bp_user_verified = %s')
+                params.append(bp_user_verified)
             if not updates:
                 return Response.bad_request(message="No fields to update")
 
@@ -154,11 +156,17 @@ class UsersController:
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
+            print(bp_email,token)
             query = 'SELECT bp_email FROM bp_users WHERE bp_email = %s'
-            cursor.execute(query, (bp_email))
+            cursor.execute(query, (bp_email,))
             result = cursor.fetchone()
+            print(result)
             token_email_id = get_user_id_from_token(token)
+            print(token_email_id)
             if result['bp_email'] == token_email_id:
+                query = f"update bp_users set bp_user_verified=1 where bp_email = '{bp_email}'"
+                cursor.execute(query)
+                connection.commit()
                 return Response.success(message="User Verified")
             else:
                 return Response.not_found(message="User Verification failed")
