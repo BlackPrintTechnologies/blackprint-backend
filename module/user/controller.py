@@ -2,6 +2,8 @@ from utils.dbUtils import Database
 from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
 from decimal import Decimal
+from utils.commonUtil import  get_token, get_user_id_from_token
+from utils.emailUtils import send_email
 
 class UsersController:
     def __init__(self):
@@ -60,6 +62,7 @@ class UsersController:
             cursor.execute(query, (bp_name, bp_company, bp_industry, bp_email, bp_password, bp_status))
             connection.commit()
             user_id = cursor.fetchone()['bp_user_id']
+            self.send_user_verification_email(bp_email)
             return Response.created(data={"bp_user_id": user_id})
         except Exception as e:
             if connection:
@@ -145,7 +148,38 @@ class UsersController:
             if connection:
                 self.db.disconnect()
 
+    def verify_user(self, bp_email, token):
+        connection = None
+        cursor = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = 'SELECT bp_email FROM bp_users WHERE bp_email = %s'
+            cursor.execute(query, (bp_email))
+            result = cursor.fetchone()
+            token_email_id = get_user_id_from_token(token)
+            if result['bp_email'] == token_email_id:
+                return Response.success(message="User Verified")
+            else:
+                return Response.not_found(message="User Verification failed")
 
+        except Exception as e:
+            if connection:
+                connection.rollback()
+            return Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect()
+
+    def send_user_verification_email(self, bp_email):
+        # Here you would normally send an email with a verification link or token
+        token = get_token(bp_email)
+        url = 'https://blackprint.ai/user/verify?email=' + bp_email + '&token=' + token
+        print("token=====>", url)
+        message = send_email(bp_email, 'Verification Email','static/verification_email_tempate.html', {'token': url})
+        return Response.success(message=message)
 
 class UserQuestionareController: 
     def __init__(self):

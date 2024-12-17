@@ -10,6 +10,7 @@ psycopg2-binary = "*"
 pyjwt = "*"
 gunicorn = "*"
 flask-cors = "*"
+boto3 = "*"
 
 [dev-packages]
 

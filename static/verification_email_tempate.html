@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verification Email</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #000000;
+        color: #ffffff;
+        margin: 0;
+        padding: 0;
+      }
+      .container {
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .header {
+        text-align: center;
+        padding: 40px 0;
+      }
+      .header h1 {
+        font-size: 36px;
+        margin: 0;
+      }
+      .content {
+        text-align: center;
+        padding: 20px;
+        font-size: 18px;
+      }
+      .btn {
+        display: inline-block;
+        padding: 15px 30px;
+        margin-top: 20px;
+        background-color: #808080; /* Grey color */
+        color: #ffffff;
+        text-decoration: none;
+        font-size: 18px;
+        border-radius: 5px;
+        text-transform: uppercase;
+      }
+      .btn:hover {
+        background-color: #666666;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Blackprint Verification</h1>
+      </div>
+      <div class="content">
+        <p>Hello,</p>
+        <p>
+          This is a verification email from Blackprint. Please click the button
+          below to verify your account:
+        </p>
+        <a href="{{token}}" class="btn">Verify</a>
+      </div>
+    </div>
+  </body>
+</html>

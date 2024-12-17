@@ -8,7 +8,7 @@ import json
 from utils.responseUtils import Response  # Assuming ResponseUtil is in response_util.py
 from module.user.controller import UsersController, UserQuestionareController  # Assuming UsersController is in users_controller.py
 from decimal import Decimal
-from utils.commonUtil import authenticate 
+from utils.commonUtil import authenticate, get_token, get_user_id_from_token
 # Load configuration
 config_path = 'app.json'
 with open(config_path, 'r') as config_file:
@@ -91,12 +91,8 @@ class Signin(Resource):
         if not user:
             return Response.unauthorized(message='Invalid credentials')
         
-        token = jwt.encode({
-            'id': user['bp_user_id'],
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
-        }, SECRET_KEY, algorithm='HS256')
+        token = get_token(user['bp_user_id'])
 
-    
         return Response.success(data={'token': token, 'user': user})
 
 class ForgotPassword(Resource):
@@ -112,7 +108,6 @@ class ForgotPassword(Resource):
         
         # Here you would normally send an email with a reset link or token
         return Response.success(message='Password reset link sent')
-
 
 
 class GetUser(Resource):
@@ -134,6 +129,7 @@ class UpdateUser(Resource):
     update_parser.add_argument('password', type=str, required=False)
     update_parser.add_argument('status', type=int, required=False)
 
+    @authenticate
     def put(self, user_id):
         data = self.update_parser.parse_args()
         name = data.get('name')
@@ -157,7 +153,27 @@ class UpdateUser(Resource):
         )
 
         return response
-    
+
+class VerifyUser(Resource):
+    verify_parser = reqparse.RequestParser()
+    verify_parser.add_argument('email', type=str, required=True, help='Email is required')
+    verify_parser.add_argument('token', type=str, required=True, help='Token is required')
+
+    def post(self):
+        data = self.verify_parser.parse_args()
+        email = data.get('email')
+        token = data.get('token')
+        return users_controller.verify_user(bp_email=email, token=token) 
+
+class ResendVerification(Resource):
+    resend_parser = reqparse.RequestParser()
+    resend_parser.add_argument('email', type=str, required=True, help='Email is required')
+
+    def post(self):
+        data = self.resend_parser.parse_args()
+        email = data.get('email')
+        return users_controller.send_user_verification_email(bp_email=email)
+
 
 class UserQuestionare(Resource):
     user_questionare_parser = reqparse.RequestParser()
