@@ -8,9 +8,9 @@ api = Api(app)
 
 # Allow CORS for specific origins (localhost:3000 in this case)
 
-# CORS(app, origins=["*"], allow_headers=["Content-Type", "x-api-key", 
-#         "Access-Control-Allow-Credentials"], supports_credentials=True)
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+CORS(app, origins=["*"], allow_headers=["Content-Type", "x-api-key", 
+        "Access-Control-Allow-Credentials"], supports_credentials=True)
+# CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 
 
 # Import your routes
