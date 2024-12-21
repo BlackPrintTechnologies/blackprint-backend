@@ -7,19 +7,28 @@ class BrandController:
     def __init__(self) :
         self.db = RedshiftDatabase()
 
-    def get_brands(self, requested_polygon) :
+    def get_brands(self, lat, lng, radius) :
         connection = None
         cursor = None
         try :
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = f'''SELECT brand, ST_AsText(geometry_coords) AS geometry_wkt
-                                        FROM blackprint_db_prd.presentation.dim_places
-                                        WHERE brand IS NOT NULL
-                                        AND ST_Intersects(
-                                            geometry_coords,
-                                            ST_GeomFromText('POLYGON((-180 -90, 180 -90, 180 90, -180 90, -180 -90))', 4326)
-                                        )'''
+            query = f"""
+                SELECT 
+                    brand, 
+                    ST_AsText(geometry_coords) AS geometry_wkt
+                FROM 
+                    blackprint_db_prd.presentation.dim_places
+                WHERE 
+                    brand IS NOT NULL
+                    AND ST_Intersects(
+                        geometry_coords,
+                        ST_Buffer(
+                            ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326),
+                            {radius} / (111.32 * 1000) 
+                        )
+                    )
+            """
             print("query=====>", query)
 
             cursor.execute(query)

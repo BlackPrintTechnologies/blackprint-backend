@@ -20,10 +20,15 @@ brand_controller = BrandController()
 
 class Brands(Resource):
     create_parser = reqparse.RequestParser()
-    create_parser.add_argument('polygon', type=str, required=False, help='User ID is required')
+    create_parser.add_argument('lat', type=str, required=False, help='User ID is required')
+    create_parser.add_argument('lng', type=str, required=False, help='User ID is required')
+    create_parser.add_argument('radius', type=str, required=False, help='User ID is required')
+
 
     def post(self):
         data = self.create_parser.parse_args()
-        polygon = data.get('polygon')
-        response = brand_controller.get_brands(requested_polygon=polygon)
+        lat = data.get('lat')
+        lng = data.get('lng')
+        radius = data.get('radius')
+        response = brand_controller.get_brands(lat, lng, radius)
         return response
