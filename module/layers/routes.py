@@ -22,7 +22,7 @@ class Brands(Resource):
     create_parser = reqparse.RequestParser()
     create_parser.add_argument('polygon', type=str, required=False, help='User ID is required')
 
-    def get(self):
+    def post(self):
         data = self.create_parser.parse_args()
         polygon = data.get('polygon')
         response = brand_controller.get_brands(requested_polygon=polygon)
