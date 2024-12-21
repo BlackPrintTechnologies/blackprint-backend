@@ -16,6 +16,7 @@ CORS(app)
 from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
+from module.layers.routes import Brands
 
 # Define API routes
 api.add_resource(Signup, '/user/signup')
@@ -29,6 +30,8 @@ api.add_resource(GroupProperty, '/groupproperty')
 api.add_resource(UserQuestionare, '/user/questionare/', '/user/questionare/<int:id>')
 api.add_resource(VerifyUser, '/user/verify')  # Missing '/' added
 api.add_resource(ResendVerification, '/user/resend-verification')
+api.add_resource(Brands, '/brands')
+
 
 if __name__ == '__main__':
     app.run(debug=True)
