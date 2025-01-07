@@ -11,7 +11,7 @@ pyjwt = "*"
 gunicorn = "*"
 flask-cors = "*"
 boto3 = "*"
-
+h3 = "*"
 
 [dev-packages]
 
