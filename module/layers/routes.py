@@ -38,9 +38,6 @@ class Traffic(Resource):
     create_parser.add_argument('lat', type=str, required=False, help='User ID is required')
     create_parser.add_argument('lng', type=str, required=False, help='User ID is required')
     
-
-
-
     def post(self):
         data = self.create_parser.parse_args()
         lat = data.get('lat')
