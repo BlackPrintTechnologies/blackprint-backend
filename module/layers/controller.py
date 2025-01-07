@@ -101,6 +101,11 @@ class TrafficController:
         except Exception as e:
             print(f"Error: {e}")
             return None
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect()
 
     def get_h3_indices_within_buffer(self, buffer_geojson, resolution=11):
         buffer_coords = json.loads(buffer_geojson)['coordinates'][0]
