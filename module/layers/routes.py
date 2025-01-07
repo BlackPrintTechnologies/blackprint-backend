@@ -6,7 +6,6 @@ from utils.commonUtil import authenticate
 
 # Initialize SavedSearchesController
 brand_controller = BrandController()
-traffic_controller = TrafficController()
 # {
 #     "search_name" : "test",
 #     "search_query" : {
@@ -38,6 +37,8 @@ class Traffic(Resource):
     create_parser.add_argument('radius', type=str, required=False, help='User ID is required')
     create_parser.add_argument('lat', type=str, required=False, help='User ID is required')
     create_parser.add_argument('lng', type=str, required=False, help='User ID is required')
+    
+
 
 
     def post(self):
@@ -45,5 +46,6 @@ class Traffic(Resource):
         lat = data.get('lat')
         lng = data.get('lng')
         radius = data.get('radius')
+        traffic_controller = TrafficController()
         response = traffic_controller.get_mobility_data_within_buffer(lng, lat, radius)
         return response
