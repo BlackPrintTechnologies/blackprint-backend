@@ -12,55 +12,39 @@ class BrandController:
     def get_brand_query(catchment, fid):
         if catchment == '500':
             query = f'''WITH split_values AS (
-            SELECT SPLIT_PART((SELECT ids_pois_500m FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',', n)::INTEGER as value
-            FROM numbers
-            WHERE n <= f_count_elements((SELECT ids_pois_500m FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
-            )
-            SELECT brand, ST_AsText(geometry_coords) AS geometry_wkt FROM blackprint_db_prd.presentation.dim_places
-            WHERE id_place IN (SELECT value FROM split_values);'''
+                        SELECT SPLIT_PART((SELECT ids_pois_500m FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',', n)::INTEGER as value
+                        FROM numbers
+                        WHERE n <= f_count_elements((SELECT ids_pois_500m FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
+                        )
+                        SELECT brand, geometry_wkt FROM blackprint_db_prd.presentation.dim_places_v2
+                        WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
 
         if catchment == '1000':
             query = f'''WITH split_values AS (
-            SELECT SPLIT_PART((SELECT ids_pois_1km FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',', n)::INTEGER as value
-            FROM numbers
-            WHERE n <= f_count_elements((SELECT ids_pois_1km FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
-            )
-            SELECT brand, ST_AsText(geometry_coords) AS geometry_wkt FROM blackprint_db_prd.presentation.dim_places
-            WHERE id_place IN (SELECT value FROM split_values);'''
+                        SELECT SPLIT_PART((SELECT ids_pois_1km FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',', n)::INTEGER as value
+                        FROM numbers
+                        WHERE n <= f_count_elements((SELECT ids_pois_1km FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
+                        )
+                        SELECT brand, geometry_wkt FROM blackprint_db_prd.presentation.dim_places_v2
+                        WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
 
         if catchment == '5':
             query = f'''WITH split_values AS (
-            SELECT SPLIT_PART((SELECT ids_pois_front FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',', n)::INTEGER as value
-            FROM numbers
-            WHERE n <= f_count_elements((SELECT ids_pois_front FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
-            )
-            SELECT brand, ST_AsText(geometry_coords) AS geometry_wkt FROM blackprint_db_prd.presentation.dim_places
-            WHERE id_place IN (SELECT value FROM split_values);'''
+                        SELECT SPLIT_PART((SELECT ids_pois_front FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',', n)::INTEGER as value
+                        FROM numbers
+                        WHERE n <= f_count_elements((SELECT ids_pois_front FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
+                        )
+                        SELECT brand, geometry_wkt FROM blackprint_db_prd.presentation.dim_places_v2
+                        WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
         return query
 
-    def get_brands(self, radius, lat, lng) :
+    def get_brands(self, radius, fid): 
         connection = None
         cursor = None
         try :
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = f"""
-                        SELECT 
-                            brand, 
-                            ST_AsText(geometry_coords) AS geometry_wkt
-                        FROM 
-                            blackprint_db_prd.presentation.dim_places
-                        WHERE 
-                            brand IS NOT NULL
-                            AND ST_Intersects(
-                                geometry_coords,
-                                ST_Buffer(
-                                    ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326),
-                                    {radius} / (111.32 * 1000) 
-                                )
-                            )
-                    """
-            print("query=====>", query)
+            query = self.get_brand_query(radius, fid)
             cursor.execute(query)
             connection.commit()
             res = cursor.fetchall()
