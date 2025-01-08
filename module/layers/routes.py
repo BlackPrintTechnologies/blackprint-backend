@@ -32,14 +32,13 @@ class Brands(Resource):
 class Traffic(Resource):
     create_parser = reqparse.RequestParser()
     create_parser.add_argument('radius', type=str, required=False, help='User ID is required')
-    create_parser.add_argument('lat', type=str, required=False, help='User ID is required')
-    create_parser.add_argument('lng', type=str, required=False, help='User ID is required')
+    create_parser.add_argument('fid', type=str, required=False, help='User ID is required')
+
     
     def post(self):
         data = self.create_parser.parse_args()
-        lat = data.get('lat')
-        lng = data.get('lng')
+        fid = data.get('fid')
         radius = data.get('radius')
         traffic_controller = TrafficController()
-        response = traffic_controller.get_mobility_data_within_buffer(lng, lat, radius)
+        response = traffic_controller.get_mobility_data_within_buffer(fid,radius)
         return response
