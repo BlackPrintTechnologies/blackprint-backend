@@ -1,8 +1,7 @@
 from utils.dbUtils import RedshiftDatabase
 from utils.responseUtils import Response
 from psycopg2.extras import RealDictCursor
-import json
-import h3
+import time
 
 class BrandController: 
     def __init__(self) :
@@ -117,7 +116,7 @@ class TrafficController:
             print("query=====>", query)
             cursor.execute(query)
             result = cursor.fetchall()
-            return result
+            return Response.success(data={"response": result})
         except Exception as e:
             print(f"Error: {e}")
             return None
