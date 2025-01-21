@@ -223,7 +223,7 @@ class UserQuestionareController:
             if connection:
                 self.db.disconnect()
 
-    def update_questionare(self, id, bp_user_id=None, bp_brand_name=None, bp_category=None, bp_product=None, bp_market_segment=None, bp_target_audience=None, bp_competitor_brands=None, bp_complementary_brands=None):
+    def update_questionare(self, id=None, bp_user_id=None, bp_brand_name=None, bp_category=None, bp_product=None, bp_market_segment=None, bp_target_audience=None, bp_competitor_brands=None, bp_complementary_brands=None):
         connection = None
         cursor = None
         try:
@@ -264,8 +264,8 @@ class UserQuestionareController:
                 return Response.bad_request(message="No fields to update")
 
             query += ', '.join(updates)
-            query += ' WHERE bp_user_questionare_id = %s'
-            params.append(id)
+            query += ' WHERE bp_user_id= %s'
+            params.append(bp_user_id)
             cursor.execute(query, tuple(params))
             connection.commit()
             return Response.success(message="Questionare updated successfully")

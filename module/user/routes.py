@@ -214,7 +214,6 @@ class UserQuestionare(Resource):
     def put(self, current_user):
         data = self.update_parser.parse_args()
         response = user_questionare_controller.update_questionare(
-            id=data.get('bp_user_questionare_id'),
             bp_user_id=current_user,
             bp_brand_name=data.get('bp_brand_name'),
             bp_category=data.get('bp_category'),
