@@ -7,9 +7,8 @@ api = Api(app)
 
 
 # Allow CORS for specific origins (localhost:3000 in this case)
-
 CORS(app)
-# CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+
 
 
 # Import your routes
@@ -28,7 +27,7 @@ api.add_resource(SavedSearches, '/savesearch', '/savesearch/<int:search_id>')
 api.add_resource(Group, '/group', '/group/<int:grp_id>')
 api.add_resource(GroupProperty, '/groupproperty')
 api.add_resource(UserQuestionare, '/user/questionare/', '/user/questionare/<int:id>')
-api.add_resource(UpdateQuestionare, '/user/updatequestionare')
+api.add_resource(UpdateQuestionare, '/user/updatequestionare/')
 api.add_resource(VerifyUser, '/user/verify')  # Missing '/' added
 api.add_resource(ResendVerification, '/user/resend-verification')
 api.add_resource(Brands, '/brands')
