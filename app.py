@@ -13,7 +13,7 @@ CORS(app)
 
 
 # Import your routes
-from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification
+from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification, UpdateQuestionare
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
 from module.layers.routes import Brands, Traffic
@@ -28,6 +28,7 @@ api.add_resource(SavedSearches, '/savesearch', '/savesearch/<int:search_id>')
 api.add_resource(Group, '/group', '/group/<int:grp_id>')
 api.add_resource(GroupProperty, '/groupproperty')
 api.add_resource(UserQuestionare, '/user/questionare/', '/user/questionare/<int:id>')
+api.add_resource(UpdateQuestionare, '/user/updatequestionare')
 api.add_resource(VerifyUser, '/user/verify')  # Missing '/' added
 api.add_resource(ResendVerification, '/user/resend-verification')
 api.add_resource(Brands, '/brands')

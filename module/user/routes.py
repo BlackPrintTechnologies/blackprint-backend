@@ -230,3 +230,30 @@ class UserQuestionare(Resource):
         response = user_questionare_controller.get_questionare(id=id, bp_user_id=current_user)
         return response
 
+
+class UpdateQuestionare(Resource):
+    update_parser = reqparse.RequestParser()
+    update_parser.add_argument('bp_user_questionare_id', type=int, required=False)
+    update_parser.add_argument('bp_brand_name', type=str, required=False)
+    update_parser.add_argument('bp_category', type=str, required=False)
+    update_parser.add_argument('bp_product', type=str, required=False)
+    update_parser.add_argument('bp_market_segment', type=str, required=False)
+    update_parser.add_argument('bp_target_audience', type=str, required=False)
+    update_parser.add_argument('bp_competitor_brands', type=list, location='json', required=False)
+    update_parser.add_argument('bp_complementary_brands', type=list, location='json', required=False)
+
+    @authenticate
+    def post(self, current_user):
+        data = self.update_parser.parse_args()
+        response = user_questionare_controller.update_questionare(
+            bp_user_id=current_user,
+            bp_user_questionare_id=data['bp_user_questionare_id'],
+            bp_brand_name=data['bp_brand_name'],
+            bp_category=data['bp_category'],
+            bp_product=data['bp_product'],
+            bp_market_segment=data['bp_market_segment'],
+            bp_target_audience=data['bp_target_audience'],
+            bp_competitor_brands=data['bp_competitor_brands'],
+            bp_complementary_brands=data['bp_complementary_brands']
+        )
+        return response
