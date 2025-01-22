@@ -233,7 +233,6 @@ class UserQuestionare(Resource):
 
 class UpdateQuestionare(Resource):
     update_parser = reqparse.RequestParser()
-    update_parser.add_argument('bp_user_questionare_id', type=int, required=False)
     update_parser.add_argument('bp_brand_name', type=str, required=False)
     update_parser.add_argument('bp_category', type=str, required=False)
     update_parser.add_argument('bp_product', type=str, required=False)
@@ -247,7 +246,6 @@ class UpdateQuestionare(Resource):
         data = self.update_parser.parse_args()
         response = user_questionare_controller.update_questionare(
             bp_user_id=current_user,
-            bp_user_questionare_id=data['bp_user_questionare_id'],
             bp_brand_name=data['bp_brand_name'],
             bp_category=data['bp_category'],
             bp_product=data['bp_product'],
