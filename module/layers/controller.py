@@ -15,7 +15,7 @@ class BrandController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_500m FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
                         )
-                        SELECT brand, geometry_wkt, category1 FROM blackprint_db_prd.presentation.dim_places_v2
+                        SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
                         WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
 
         if catchment == '1000':
@@ -24,7 +24,7 @@ class BrandController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_1km FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
                         )
-                        SELECT brand, geometry_wkt, category1 FROM blackprint_db_prd.presentation.dim_places_v2
+                        SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
                         WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
 
         if catchment == '5':
@@ -33,7 +33,7 @@ class BrandController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_front FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
                         )
-                        SELECT brand, geometry_wkt, category1 FROM blackprint_db_prd.presentation.dim_places_v2
+                        SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
                         WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
         return query
 
