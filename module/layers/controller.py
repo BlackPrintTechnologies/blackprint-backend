@@ -65,45 +65,16 @@ class TrafficController:
 
     @staticmethod
     def get_traffic_query(catchment, fid):
-        query = None
-        if catchment == '500':
-            query = f'''SELECT a.fid,
-                            b.*
-                        FROM  (
-                                SELECT i.fid, o AS h3_values_circle_500m
-                                FROM blackprint_db_prd.integration.int_predio_radius_v2 i, i.h3_indexes_circle_500m o
-                                WHERE i.fid = {fid}
-                            ) a
-                        INNER JOIN (
-                                SELECT *
-                                FROM blackprint_db_prd.presentation.dataset_mobility_data_v2
-                        ) b on a.h3_values_circle_500m = b.h3_index;'''
-        if catchment == '1000':
-            query = f'''SELECT a.fid,
-                            b.*
-                        FROM  (
-                                SELECT i.fid, o AS h3_values_circle_1km
-                                FROM blackprint_db_prd.integration.int_predio_radius_v2 i, i.h3_indexes_circle_1km o
-                                WHERE i.fid = {fid}
-                            ) a
-                        INNER JOIN (
-                                SELECT *
-                                FROM blackprint_db_prd.presentation.dataset_mobility_data_v2
-                        ) b on a.h3_values_circle_1km = b.h3_index;'''
-        if catchment == '5':
-            query = f'''SELECT a.fid,
-                            b.*
-                        FROM  (
-                                SELECT i.fid, o AS h3_values_circle_5m
-                                FROM blackprint_db_prd.integration.int_predio_radius_v2 i, i.h3_indexes_buffer_dynamic o
-                                WHERE i.fid = {fid}
-                            ) a
-                        INNER JOIN (
-                                SELECT *
-                                FROM blackprint_db_prd.presentation.dataset_mobility_data_v2
-                        ) b on a.h3_values_circle_5m = b.h3_index;'''
-        
-        return query
+        """Generates SQL query based on catchment radius and fid."""
+        query_map = {
+            '500': f'''SELECT *
+                        FROM blackprint_db_prd.presentation.dataset_mobility_data_h3 where fid={fid} and type='CIRCLE_500_METERS' ''',
+            '1000': f'''SELECT *
+                        FROM blackprint_db_prd.presentation.dataset_mobility_data_h3 where fid={fid} and type='CIRCLE_1000_METERS' ''',
+            '5': f'''SELECT *
+                        FROM blackprint_db_prd.presentation.dataset_mobility_data_h3 where fid={fid} and type='FRONT_OF_STORE' '''
+        }
+        return query_map.get(catchment)
 
     def get_mobility_data_within_buffer(self, fid, radius):
         query  = self.get_traffic_query(radius, fid)
