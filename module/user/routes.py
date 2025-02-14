@@ -1,5 +1,5 @@
 from flask_restful import Resource, reqparse
-from flask import request, jsonify
+from flask import request, jsonify, make_response
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 import datetime
@@ -93,7 +93,9 @@ class Signin(Resource):
         
         token = get_token(user['bp_user_id'])
 
-        return Response.success(data={'token': token, 'user': user})
+        response = make_response(Response.success(data={'token': token, 'user': user}))
+        response.set_cookie('access_token', token, httponly=True, secure=True, samesite='Lax')
+        return response
 
 class ForgotPassword(Resource):
     signin_parser = reqparse.RequestParser()

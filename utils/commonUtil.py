@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import request, jsonify
+from flask import request, jsonify, make_response
 import jwt
 import json
 import datetime
@@ -39,9 +39,13 @@ def authenticate(f):
         try:
             current_user = get_user_id_from_token(token)
         except jwt.ExpiredSignatureError:
-            return Response.unauthorized(message="Token has expired!")
+            response = make_response(Response.unauthorized(message="Token has expired!"))
+            response.delete_cookie('access_token')
+            return response
         except jwt.InvalidTokenError:
-            return Response.unauthorized(message="Invalid token!")
+            response = make_response(Response.unauthorized(message="Invalid token!"))
+            response.delete_cookie('access_token')
+            return response
 
         kwargs['current_user'] = current_user
         print(args, kwargs)
