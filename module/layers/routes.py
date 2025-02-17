@@ -3,7 +3,14 @@ from flask import request, jsonify
 from utils.responseUtils import Response
 from module.layers.controller import BrandController, TrafficController  # Assuming SavedSearchesController is in search_controller.py
 from utils.commonUtil import authenticate
+from logsmanager.logging_config import setup_logging
+import logging
 
+# Initialize logging
+setup_logging()
+
+# Retrieve the logger
+logger = logging.getLogger(__name__)
 # Initialize SavedSearchesController
 brand_controller = BrandController()
 # {
@@ -23,10 +30,18 @@ class Brands(Resource):
     create_parser.add_argument('fid', type=str, required=False, help='User ID is required')
 
     def post(self):
+        logger.info("Received request to fetch brands.")
+
         data = self.create_parser.parse_args()
         fid = data.get('fid')
         radius = data.get('radius')
+        logger.debug(f"Parsed input: fid={fid}, radius={radius}")
+
         response = brand_controller.get_brands(radius, fid)
+        if response.status_code == 200:
+            logger.info(f"Successfully retrieved brands for fid={fid}, radius={radius}")
+        else:
+            logger.warning(f"Failed to fetch brands: {response.message}")
         return response
 
 class Traffic(Resource):
@@ -36,9 +51,15 @@ class Traffic(Resource):
 
     
     def post(self):
+        logger.info("Received request to fetch traffic data.")
         data = self.create_parser.parse_args()
         fid = data.get('fid')
         radius = data.get('radius')
+        logger.debug(f"Parsed input: fid={fid}, radius={radius}")
         traffic_controller = TrafficController()
         response = traffic_controller.get_mobility_data_within_buffer(fid,radius)
+        if response.status_code == 200:
+            logger.info(f"Successfully retrieved traffic data for fid={fid}, radius={radius}")
+        else:
+            logger.warning(f"Failed to fetch traffic data: {response.message}")
         return response

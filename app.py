@@ -1,15 +1,23 @@
 from flask import Flask
 from flask_restful import Resource, Api
 from flask_cors import CORS
+import logging
+from logsmanager.logging_config import setup_logging
+
+# Initialize logging
+setup_logging()
+
+# Retrieve the logger
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 api = Api(app)
 
-
 # Allow CORS for specific origins (localhost:3000 in this case)
 CORS(app)
 
-
+# Log application startup
+logger.info("Starting the Flask application...")
 
 # Import your routes
 from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification, UpdateQuestionare
@@ -33,7 +41,9 @@ api.add_resource(ResendVerification, '/user/resend-verification')
 api.add_resource(Brands, '/brands')
 api.add_resource(Traffic, '/traffic')
 
-
+# Log routes being added
+logger.debug("API routes have been configured.")
 
 if __name__ == '__main__':
+    logger.info("Starting the Flask development server...")
     app.run(debug=True)
