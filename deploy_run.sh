@@ -24,4 +24,3 @@ echo "Running new Docker container..."
 docker run -d -p $PORT_MAPPING --name $CONTAINER_NAME $IMAGE_NAME || { echo "Failed to run Docker container"; exit 1; }
 
 echo "Update and deployment complete."
-sudo docker run -d -p 8000:8000 --name flask-app flask-app

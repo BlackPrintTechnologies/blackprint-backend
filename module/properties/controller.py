@@ -297,7 +297,8 @@ class PropertyController :
                 "rent_price_per_m2_propiedades": result[0]["rent_price_per_m2_propiedades"],
                 "buy_price_propiedades": result[0]["buy_price_propiedades"],
                 "buy_price_per_m2_propiedades": result[0]["buy_price_per_m2_propiedades"],
-                "total_area_propiedades": result[0]["total_area_propiedades"]
+                "total_area_propiedades": result[0]["total_area_propiedades"],
+                "property_images" : []
             }
 
             pois = {
