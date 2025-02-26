@@ -40,6 +40,7 @@ class BrandController:
     def get_brands(self, radius, fid): 
         connection = None
         cursor = None
+        resp = None
         try :
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -48,16 +49,17 @@ class BrandController:
             connection.commit()
             res = cursor.fetchall()
             print("res=====>", res)
-            return Response.success(data={"response": res})
+            resp =  Response.success(data={"response": res})
         except Exception as e :
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
 class TrafficController:
     def __init__(self) :
@@ -81,18 +83,20 @@ class TrafficController:
         # Execute the query using your database connection
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             print("query=====>", query)
             cursor.execute(query)
             result = cursor.fetchall()
-            return Response.success(data={"response": result})
+            resp =  Response.success(data={"response": result})
         except Exception as e:
             print(f"Error: {e}")
-            return None
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp

@@ -24,7 +24,7 @@ from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUs
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
 from module.layers.routes import Brands, Traffic
-from module.properties.routes import Property
+from module.properties.routes import Property, PropertyDemographic
 
 # Define API routes
 api.add_resource(Signup, '/user/signup')
@@ -42,6 +42,7 @@ api.add_resource(ResendVerification, '/user/resend-verification')
 api.add_resource(Brands, '/brands')
 api.add_resource(Traffic, '/traffic')
 api.add_resource(Property, '/property')
+api.add_resource(PropertyDemographic, '/property/demographic')
 
 # Log routes being added
 logger.debug("API routes have been configured.")
