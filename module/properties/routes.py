@@ -19,7 +19,6 @@ class Property(Resource):
         response = pc.get_properties(fid)
         return response
 
-
     
 class PropertyDemographic(Resource):
     create_parser = reqparse.RequestParser()
