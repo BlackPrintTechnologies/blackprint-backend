@@ -40,11 +40,11 @@ def authenticate(f):
             current_user = get_user_id_from_token(token)
         except jwt.ExpiredSignatureError:
             response = make_response(Response.unauthorized(message="Token has expired!"))
-            response.delete_cookie('access_token')
+            response.delete_cookie('authToken')
             return response
         except jwt.InvalidTokenError:
             response = make_response(Response.unauthorized(message="Invalid token!"))
-            response.delete_cookie('access_token')
+            response.delete_cookie('authToken')
             return response
 
         kwargs['current_user'] = current_user
