@@ -94,7 +94,7 @@ class Signin(Resource):
         token = get_token(user['bp_user_id'])
 
         response = make_response(Response.success(data={'token': token, 'user': user}))
-        response.set_cookie('access_token', token, httponly=True, secure=True, samesite='Lax')
+        response.set_cookie('authToken', token, httponly=True, secure=True, samesite='Lax')
         return response
 
 class ForgotPassword(Resource):
