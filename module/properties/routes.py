@@ -16,7 +16,7 @@ class Property(Resource):
         fid = data.get('fid')
         pc = PropertyController()
         print("fid=====>", fid)
-        response = pc.get_properties(fid)
+        response = pc.get_properties(fid, current_user)
         return response
 
     
@@ -30,5 +30,5 @@ class PropertyDemographic(Resource):
         fid = data.get('fid')
         pc = PropertyController()
         print("fid=====>", fid)
-        response = pc.get_property_demographic(fid)
+        response = pc.get_property_demographic(fid, current_user)
         return response

@@ -4,6 +4,57 @@ from utils.responseUtils import Response
 from module.properties.query import QueryController
 import json
 
+
+class UserPropertyController:
+    def __init__(self):
+        self.db = Database()
+        self.redshift_db = RedshiftDatabase()
+        self.qc = QueryController()
+    
+    def get_user_properties(self, prop_status=None):
+        connection = None
+        cursor = None
+        try :
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = 'select * from bp_user_property where status = 1'
+            if prop_status:
+                query += f" and user_property_status = '{prop_status}'"
+
+            cursor.execute(query)
+            result = cursor.fetchall()
+            resp = Response.success(data=result, message='Success')
+        except Exception as e :
+            resp = Response.internal_server_error(message=str(e))
+        finally :
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect()
+            return resp
+    
+    def add_user_property(self, fid, user_id, prop_status):
+        connection = None
+        cursor = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor()
+            query = f"INSERT INTO bp_user_property (fid, user_id, user_property_status) VALUES ({fid}, {user_id}, '{prop_status}')"
+            cursor.execute(query)
+            connection.commit()
+            resp = Response.created(message='Success')
+        except Exception as e:
+            if 'unique constraint' in str(e):
+                resp = 'User property already exists'
+            else:
+                resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect()
+            return resp
+
 class PropertyController :
     def __init__(self):
         self.db = Database()
@@ -296,23 +347,29 @@ class PropertyController :
         except Exception as e :
             raise e
 
-    def get_properties(self, fid):
+    def get_properties(self, fid, current_user):
         connection = None 
         cursor = None
+        resp = None
         try :
             query = self.qc.get_property_query(fid)
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             cursor.execute(query)
             result = cursor.fetchall()
-            property_details,  market_info, pois, traffic = self.get_property_json(result)
-            result_json = {
-                "property_details": property_details,
-                "market_info": market_info,
-                "pois": pois,
-                "traffic": traffic
-            }
-            resp = Response.success(data=result_json, message='Success')
+            if not result:
+                resp =  Response.not_found(message="Property not found")
+            else :
+                property_details,  market_info, pois, traffic = self.get_property_json(result)
+                result_json = {
+                    "property_details": property_details,
+                    "market_info": market_info,
+                    "pois": pois,
+                    "traffic": traffic
+                }
+                upc = UserPropertyController()
+                upc.add_user_property(fid, current_user, 'view')
+                resp = Response.success(data=result_json, message='Success')
         except Exception as e :
             resp =  Response.internal_server_error(message=str(e))
         finally :
@@ -532,7 +589,7 @@ class PropertyController :
         except Exception as e :
             raise e
 
-    def get_property_demographic(self, fid):
+    def get_property_demographic(self, fid, current_user):
         connection = None
         cursor = None
         resp = None
@@ -545,6 +602,8 @@ class PropertyController :
             res = cursor.fetchall()
             if res:
                 response = self.get_demographic_json(res)
+                upc = UserPropertyController()
+                upc.add_user_property(fid, current_user, 'view')
                 resp =  Response.success(data=response, message='Success')
             else:
                 resp =  Response.bad_request(message="Property not found")
