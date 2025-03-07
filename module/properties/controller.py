@@ -75,6 +75,7 @@ class PropertyController :
                 "special_facilities": result[0]["special_facilities"],
                 "unit_land_value": result[0]["unit_land_value"],
                 "land_value": result[0]["land_value"],
+                "usage_desc": result[0]["usage_desc"],
                 "key_vus": result[0]["key_vus"],
                 "predominant_level": result[0]["predominant_level"],
             }
@@ -99,7 +100,6 @@ class PropertyController :
                 "total_area_propiedades": result[0]["total_area_propiedades"],
                 "block_type": result[0]["block_type"],
                 "density_d": result[0]["density_d"],
-                "usage_desc": result[0]["usage_desc"],
                 "scope": result[0]["scope"],
                 "floor_levels": result[0]["floor_levels"],
                 "open_space" : result[0]["open_space"],

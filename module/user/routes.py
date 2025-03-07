@@ -175,12 +175,6 @@ class UpdateUser(Resource):
             bp_password=password,
             bp_status=status
         )
-        if response.status_code == 200:
-            logger.info(f"User {user_id} updated successfully")
-        else:
-            logger.warning(f"Failed to update user {user_id}: {response.message}")
-
-
         return response
 
 class VerifyUser(Resource):
@@ -245,10 +239,6 @@ class UserQuestionare(Resource):
             bp_competitor_brands=data['bp_competitor_brands'],
             bp_complementary_brands=data['bp_complementary_brands']
         )
-        if response.status_code == 201:
-            logger.info(f"Successfully created questionnaire for user {current_user}")
-        else:
-            logger.warning(f"Failed to create questionnaire for user {current_user}: {response.message}")
         return response
 
     @authenticate
@@ -267,10 +257,6 @@ class UserQuestionare(Resource):
             bp_competitor_brands=data.get('bp_competitor_brands'),
             bp_complementary_brands=data.get('bp_complementary_brands')
         )
-        if response.status_code == 200:
-            logger.info(f"Successfully updated questionnaire for user {current_user}")
-        else:
-            logger.warning(f"Failed to update questionnaire for user {current_user}: {response.message}")
         return response
 
     @authenticate
@@ -305,8 +291,4 @@ class UpdateQuestionare(Resource):
             bp_competitor_brands=data['bp_competitor_brands'],
             bp_complementary_brands=data['bp_complementary_brands']
         )
-        if response.status_code == 200:
-            logger.info(f"Successfully updated questionnaire for user {current_user}")
-        else:
-            logger.warning(f"Failed to update questionnaire for user {current_user}: {response.message}")
         return response
