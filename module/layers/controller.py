@@ -60,6 +60,30 @@ class BrandController:
             if connection:
                 self.db.disconnect()
             return resp
+    
+    def search_brands(self, brand_name):
+        connection = None
+        cursor = None
+        resp = None
+        try :
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = f'''SELECT distinct brand FROM blackprint_db_prd.presentation.dim_places_v2 where brand ilike '{brand_name}%' '''
+            cursor.execute(query)
+            connection.commit()
+            res = cursor.fetchall()
+            print("res=====>", res)
+            resp =  Response.success(data=res)
+        except Exception as e :
+            if connection:
+                connection.rollback()
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect()
+            return resp
 
 class TrafficController:
     def __init__(self) :

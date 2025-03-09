@@ -275,17 +275,17 @@ class UserQuestionareController:
 
             if not updates:
                 resp = Response.bad_request(message="No fields to update")
-
-            query += ', '.join(updates)
-            query += ' WHERE bp_user_id= %s'
-            params.append(bp_user_id)
-            cursor.execute(query, tuple(params))
-            connection.commit()
-            resp =  Response.success(message="Questionare updated successfully")
+            else  :
+                query += ', '.join(updates)
+                query += ' WHERE bp_user_id= %s'
+                params.append(bp_user_id)
+                cursor.execute(query, tuple(params))
+                connection.commit()
+                resp =  Response.success(message="Questionare updated successfully")
         except Exception as e:
             if connection:
                 connection.rollback()
-            resp =  Response.internal_server_error(message=str(e))
+            resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()

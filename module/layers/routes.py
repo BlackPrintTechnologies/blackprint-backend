@@ -43,6 +43,19 @@ class Brands(Resource):
         else:
             logger.warning(f"Failed to fetch brands: {response.message}")
         return response
+    
+class SearchBrands(Resource):
+    create_parser = reqparse.RequestParser()
+    create_parser.add_argument('brand_name', type=str, required=True, help='Brand name is required', location='args')
+
+    def get(self):
+        logger.info("Received request to search brands.")
+        data = self.create_parser.parse_args()
+        brand_name = data.get('brand_name')
+        logger.debug(f"Parsed input: brand_name={brand_name}")
+
+        response = brand_controller.search_brands(brand_name)
+        return response
 
 class Traffic(Resource):
     create_parser = reqparse.RequestParser()

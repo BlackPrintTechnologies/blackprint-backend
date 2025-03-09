@@ -23,7 +23,7 @@ logger.info("Starting the Flask application...")
 from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification, UpdateQuestionare
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
-from module.layers.routes import Brands, Traffic
+from module.layers.routes import Brands, Traffic, SearchBrands
 from module.properties.routes import Property, PropertyDemographic
 
 # Define API routes
@@ -40,6 +40,7 @@ api.add_resource(UpdateQuestionare, '/user/updatequestionare/')
 api.add_resource(VerifyUser, '/user/verify')  # Missing '/' added
 api.add_resource(ResendVerification, '/user/resend-verification')
 api.add_resource(Brands, '/brands')
+api.add_resource(SearchBrands, '/searchbrands/')
 api.add_resource(Traffic, '/traffic')
 api.add_resource(Property, '/property')
 api.add_resource(PropertyDemographic, '/property/demographic')
