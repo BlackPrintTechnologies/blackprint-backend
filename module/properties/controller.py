@@ -3,7 +3,7 @@ from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
 from module.properties.query import QueryController
 import json
-
+import h3
 
 class UserPropertyController:
     def __init__(self):
@@ -347,12 +347,24 @@ class PropertyController :
         except Exception as e :
             raise e
 
-    def get_properties(self, fid, current_user):
+    def get_properties(self,current_user, fid=None, lat=None, lng=None):
         connection = None 
         cursor = None
         resp = None
         try :
-            query = self.qc.get_property_query(fid)
+            filter_query = 'where 1=1'
+            print(fid, lat, lng)
+            if fid :
+                filter_query += f''' and fid = {fid} '''
+            elif lat and lng :
+                print(lat, lng)
+                h3Index = h3.geo_to_h3(lat, lng, 13)
+                h3IndexHex = h3.h3_to_string(h3Index)
+                filter_query += f"and p.h3_indexes like '%${h3IndexHex}%  "
+            else :
+                return Response.bad_request(message="Invalid request")
+
+            query = self.qc.get_property_query(filter_query)
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             cursor.execute(query)

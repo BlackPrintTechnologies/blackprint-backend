@@ -12,6 +12,7 @@ gunicorn = "*"
 flask-cors = "*"
 boto3 = "*"
 h3 = "*"
+googlemaps = "*"
 
 [dev-packages]
 
