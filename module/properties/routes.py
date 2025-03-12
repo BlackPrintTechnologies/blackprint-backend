@@ -8,7 +8,7 @@ from utils.commonUtil import authenticate
 
 class Property(Resource):
     create_parser = reqparse.RequestParser()
-    create_parser.add_argument('fid', type=str, required=True, help='fid is required', location='args')
+    create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='args')
     create_parser.add_argument('lat', type=str, required=False, help='property_id is required', location='args')
     create_parser.add_argument('lng', type=str, required=False, help='property_id is required', location='args')
 
