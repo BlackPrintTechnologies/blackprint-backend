@@ -5,7 +5,7 @@ class QueryController :
         pass
 
     @staticmethod
-    def get_property_query(fid):
+    def get_property_query(filter):
         query = f'''
                 Select  
                 fid,
@@ -263,9 +263,7 @@ class QueryController :
                 at_rest_avg_x_hour_23_500m,
                 pedestrian_avg_x_hour_23_500m,
                 motor_vehicle_avg_x_hour_23_500m
-                FROM blackprint_db_prd.data_product.v_parcel_v3 
-                where fid = {fid}               
-        '''
+                FROM blackprint_db_prd.data_product.v_parcel_v3 ''' + filter
         return query
     
     @staticmethod
