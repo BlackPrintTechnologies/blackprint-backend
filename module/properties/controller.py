@@ -357,10 +357,9 @@ class PropertyController :
             if fid :
                 filter_query += f''' and fid = {fid} '''
             elif lat and lng :
-                print(lat, lng)
-                h3Index = h3.geo_to_h3(lat, lng, 13)
-                h3IndexHex = h3.h3_to_string(h3Index)
-                filter_query += f"and p.h3_indexes like '%${h3IndexHex}%  "
+                h3Index = h3.latlng_to_cell(float(lat), float(lng), 13)
+                h3_index_decimal = str(int(h3Index, 16))
+                filter_query += f"and h3_indexes ilike '%{h3_index_decimal}%'  "
             else :
                 return Response.bad_request(message="Invalid request")
 
@@ -380,7 +379,8 @@ class PropertyController :
                     "traffic": traffic
                 }
                 upc = UserPropertyController()
-                upc.add_user_property(fid, current_user, 'view')
+                if fid :
+                    upc.add_user_property(fid, current_user, 'view')
                 resp = Response.success(data=result_json, message='Success')
         except Exception as e :
             resp =  Response.internal_server_error(message=str(e))
