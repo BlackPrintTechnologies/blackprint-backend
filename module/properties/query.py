@@ -9,6 +9,7 @@ class QueryController :
         query = f'''
                 Select  
                 fid,
+                street_address, 
                 centroid,
                 is_on_market,
                 total_surface_area,
