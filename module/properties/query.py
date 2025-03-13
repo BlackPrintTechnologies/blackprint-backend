@@ -47,6 +47,7 @@ class QueryController :
                 block_type,
                 density_d,
                 usage_desc,
+                city_link,
                 scope,
                 brands_active_life_front,
                 brands_arts_and_entertainment_front,

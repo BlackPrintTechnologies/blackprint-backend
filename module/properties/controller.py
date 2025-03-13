@@ -108,7 +108,8 @@ class PropertyController :
                 "id_municipality": result[0]["id_municipality"],
                 "id_city_blocks": result[0]["id_city_blocks"],
                 "total_houses": result[0]["total_houses"],
-                "locality_size": result[0]["locality_size"]
+                "locality_size": result[0]["locality_size"],
+                "city_link": result[0]["city_link"]
             }
 
             pois = {
