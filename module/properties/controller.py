@@ -71,6 +71,7 @@ class PropertyController :
                 "is_on_market": result[0]["is_on_market"],
                 "total_surface_area": result[0]["total_surface_area"],
                 "total_construction_area": result[0]["total_construction_area"],
+                "street_address": result[0]["street_address"],
                 "year_built": result[0]["year_built"],
                 "special_facilities": result[0]["special_facilities"],
                 "unit_land_value": result[0]["unit_land_value"],
