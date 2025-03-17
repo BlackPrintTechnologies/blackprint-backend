@@ -313,6 +313,7 @@ class PropertyController :
                 "traffic": traffic
             }
             resp = Response.success(data=result_json, message='Success')
+            
         except Exception as e :
             resp =  Response.internal_server_error(message=str(e))
         finally :

@@ -1,5 +1,5 @@
 # migration_setup.py
-from flask import Flask
+from flask import Flask 
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import json
@@ -38,3 +38,4 @@ from models.prop_cache import BPPropCache
 from models.saved_searches import BPSavedSearches
 from models.users_questionare import BPUsersQuestionare
 from models.groups import Group
+from models.bp_user_property import BPUserProperty
