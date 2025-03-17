@@ -1,30 +1,28 @@
-import boto3
 import json
-
-# Load configuration
-config_path = 'app.json'
-with open(config_path, 'r') as config_file:
-    config = json.load(config_file)
 
 class IconMapper:
     CATEGORY_ICON_MAP = {
-        'Active Life': 'active-life.png',
-        'Arts & Entertainment': 'arts-entertainment.png',
-        'Attractions & Activities': 'attractions.png',
-        'Automotive': 'automotive.png',
-        'Eat & Drink': 'food-drink.png',
-        'Education': 'education.png',
-        'Financial Service': 'financial.png',
-        'Health & Medical': 'health-medical.png',
-        'Public Service & Government': 'government.png',
-        'Retail': 'retail.png'
+        'active_life': 'active+life.svg',
+        'arts_and_entertainment': 'arts+and+entertainment.svg',
+        'attractions_and_activities': 'attractions+and+activities.svg',
+        'automotive': 'automotive.svg',
+        'eat_and_drink': 'food.svg',
+        'education': 'education.svg',
+        'financial_service': 'financial+service.svg',
+        'health_and_medical': 'health+and+medical.svg',
+        'public_service_and_government': 'public+service+and+gov.svg',
+        'retail': 'retail.svg'
     }
 
-    S3_BUCKET = 'your-public-bucket-name'
-    S3_PREFIX = 'icons/'
+    S3_BUCKET = 'blackprint-assets'
+    S3_PREFIX = 'pois/'
 
     @classmethod
     def get_icon_url(cls, category):
         """Get the S3 URL for an icon based on the category"""
-        icon_file = cls.CATEGORY_ICON_MAP.get(category, 'default.png')
-        return f"https://{cls.S3_BUCKET}.s3.amazonaws.com/{cls.S3_PREFIX}{icon_file}"
+        icon_file = cls.CATEGORY_ICON_MAP.get(category, 'default.svg')
+        return f"https://{cls.S3_BUCKET}.s3.us-west-1.amazonaws.com/{cls.S3_PREFIX}{icon_file}"
+
+# Example Usage
+icon_url = IconMapper.get_icon_url('Active Life')
+print(icon_url)

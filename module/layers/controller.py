@@ -39,7 +39,7 @@ class BrandController:
                         SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
                         WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
         return query
-    # @cache_response(prefix='brands',expiration=3600)
+    @cache_response(prefix='brands',expiration=3600)
     def get_brands(self, radius, fid): 
         connection = None
         cursor = None
@@ -59,7 +59,7 @@ class BrandController:
                 result['icon_url'] = IconMapper.get_icon_url(result['category_1'])
                 enhanced_results.append(result)
             print("enhanced_results=====>", enhanced_results)
-            resp =  Response.success(data={"response": res})
+            resp =  Response.success(data={"response": enhanced_results}) #
         except Exception as e :
             if connection:
                 connection.rollback()
@@ -78,7 +78,7 @@ class BrandController:
         try :
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = f'''SELECT distinct brand FROM blackprint_db_prd.presentation.dim_places_v2 where brand ilike '{brand_name}%' '''
+            query = f'''SELECT distinct brand FROM blackprint_db_prd.presentation.dim_places_v2 where brand ilike '{brand_name}%'LIMIT 50'''
             cursor.execute(query)
             connection.commit()
             res = cursor.fetchall()

@@ -38,10 +38,10 @@ class Brands(Resource):
         logger.debug(f"Parsed input: fid={fid}, radius={radius}")
 
         response = brand_controller.get_brands(radius, fid)
-        if response.status_code == 200:
-            logger.info(f"Successfully retrieved brands for fid={fid}, radius={radius}")
-        else:
-            logger.warning(f"Failed to fetch brands: {response.message}")
+        # if response.status_code == 200:
+        logger.info(f"Successfully retrieved brands for fid={fid}, radius={radius}")
+        
+            # logger.warning(f"Failed to fetch brands: {response.message}")
         return response
     
 class SearchBrands(Resource):
@@ -71,8 +71,8 @@ class Traffic(Resource):
         logger.debug(f"Parsed input: fid={fid}, radius={radius}")
         traffic_controller = TrafficController()
         response = traffic_controller.get_mobility_data_within_buffer(fid,radius)
-        if response.status_code == 200:
-            logger.info(f"Successfully retrieved traffic data for fid={fid}, radius={radius}")
-        else:
-            logger.warning(f"Failed to fetch traffic data: {response.message}")
+        # if response.status_code == 200:
+        logger.info(f"Successfully retrieved traffic data for fid={fid}, radius={radius}")
+        # else:
+        #     logger.warning(f"Failed to fetch traffic data: {response.message}")
         return response

@@ -4,7 +4,8 @@ from utils.responseUtils import Response
 from module.properties.query import QueryController
 import json
 import h3
-
+from utils.cacheUtlis import cache_response
+from utils.iconUtils import IconMapper
 class UserPropertyController:
     def __init__(self):
         self.db = Database()
@@ -113,6 +114,11 @@ class PropertyController :
             }
 
             pois = {
+                #add category here for icon image
+                "category": {
+                    category: IconMapper.get_icon_url(category) 
+                    for category in IconMapper.CATEGORY_ICON_MAP
+                },
                 "front" : {
                     "brands_active_life_front": result[0]["brands_active_life_front"],
                     "brands_arts_and_entertainment_front": result[0]["brands_arts_and_entertainment_front"],
@@ -348,7 +354,7 @@ class PropertyController :
             return property_details, market_info, pois, traffic
         except Exception as e :
             raise e
-
+    @cache_response(prefix='properties',expiration=3600)
     def get_properties(self,current_user, fid=None, lat=None, lng=None):
         connection = None 
         cursor = None
@@ -602,7 +608,7 @@ class PropertyController :
             return demographic
         except Exception as e :
             raise e
-
+    @cache_response(prefix='demographic',expiration=3600)
     def get_property_demographic(self, fid, current_user):
         connection = None
         cursor = None
