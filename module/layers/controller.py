@@ -1,7 +1,10 @@
 from utils.dbUtils import RedshiftDatabase
 from utils.responseUtils import Response
 from psycopg2.extras import RealDictCursor
+from utils.iconUtils import IconMapper
+from utils.cacheUtlis import cache_response
 import time
+
 
 class BrandController: 
     def __init__(self) :
@@ -36,7 +39,7 @@ class BrandController:
                         SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
                         WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
         return query
-
+    # @cache_response(prefix='brands',expiration=3600)
     def get_brands(self, radius, fid): 
         connection = None
         cursor = None
@@ -49,6 +52,13 @@ class BrandController:
             connection.commit()
             res = cursor.fetchall()
             print("res=====>", res)
+            #new chnage 
+            # Add icon URLs to the results
+            enhanced_results = []
+            for result in res:
+                result['icon_url'] = IconMapper.get_icon_url(result['category_1'])
+                enhanced_results.append(result)
+            print("enhanced_results=====>", enhanced_results)
             resp =  Response.success(data={"response": res})
         except Exception as e :
             if connection:
