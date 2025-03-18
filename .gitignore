@@ -3,3 +3,7 @@
 /presigned_url.py
 /upload_bucket.py
 /utils/aioCacheUtils.py
+/.vscode
+app.log
+__pycache__/
+.vscode/
