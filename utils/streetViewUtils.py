@@ -4,8 +4,7 @@ import os
 from io import BytesIO
 
 # Load Google API key securely from environment variables
-GOOGLE_API_KEY="AIzaSyB7oWwJoNxt1mPMzcLRBMiRKXzzcicPerQ"
-# GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 def get_street_view_metadata(lat, lng):
     """
