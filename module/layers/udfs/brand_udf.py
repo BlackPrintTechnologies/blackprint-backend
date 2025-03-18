@@ -1,6 +1,7 @@
 import requests
 import geopandas as gpd
 from shapely import wkt
+from utils.iconUtils import IconMapper
 
 
 @fused.udf
@@ -47,6 +48,8 @@ def udf(bbox: fused.types.TileGDF = None, fid: str = None, radius: int = None):
                 {
                     "brand": item["brand"],
                     "main_category" : item['category_1'],
+                    #new changes
+                    #"icon_url": IconMapper.get_icon_url(item['category_1']),
                     "geometry": wkt.loads(item["geometry_wkt"]),
                 }
                 for item in brand_data

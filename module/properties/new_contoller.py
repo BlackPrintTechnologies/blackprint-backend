@@ -3,63 +3,13 @@ from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
 from module.properties.query import QueryController
 import json
-import h3
-from utils.cacheUtlis import cache_response
-from utils.iconUtils import IconMapper
-class UserPropertyController:
+
+
+class PropertyController:
     def __init__(self):
         self.db = Database()
         self.redshift_db = RedshiftDatabase()
-        self.qc = QueryController()
-    
-    def get_user_properties(self, prop_status=None):
-        connection = None
-        cursor = None
-        try :
-            connection = self.db.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = 'select * from bp_user_property where status = 1'
-            if prop_status:
-                query += f" and user_property_status = '{prop_status}'"
-
-            cursor.execute(query)
-            result = cursor.fetchall()
-            resp = Response.success(data=result, message='Success')
-        except Exception as e :
-            resp = Response.internal_server_error(message=str(e))
-        finally :
-            if cursor:
-                cursor.close()
-            if connection:
-                self.db.disconnect()
-            return resp
-    
-    def add_user_property(self, fid, user_id, prop_status):
-        connection = None
-        cursor = None
-        try:
-            connection = self.db.connect()
-            cursor = connection.cursor()
-            query = f"INSERT INTO bp_user_property (fid, user_id, user_property_status) VALUES ({fid}, {user_id}, '{prop_status}')"
-            cursor.execute(query)
-            connection.commit()
-            resp = Response.created(message='Success')
-        except Exception as e:
-            if 'unique constraint' in str(e):
-                resp = 'User property already exists'
-            else:
-                resp = Response.internal_server_error(message=str(e))
-        finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                self.db.disconnect()
-            return resp
-
-class PropertyController :
-    def __init__(self):
-        self.db = Database()
-        self.redshift_db = RedshiftDatabase()
+        # Initialize QueryController without any default parameters
         self.qc = QueryController()
 
     @staticmethod
@@ -72,12 +22,10 @@ class PropertyController :
                 "is_on_market": result[0]["is_on_market"],
                 "total_surface_area": result[0]["total_surface_area"],
                 "total_construction_area": result[0]["total_construction_area"],
-                "street_address": result[0]["street_address"],
                 "year_built": result[0]["year_built"],
                 "special_facilities": result[0]["special_facilities"],
                 "unit_land_value": result[0]["unit_land_value"],
                 "land_value": result[0]["land_value"],
-                "usage_desc": result[0]["usage_desc"],
                 "key_vus": result[0]["key_vus"],
                 "predominant_level": result[0]["predominant_level"],
             }
@@ -102,6 +50,7 @@ class PropertyController :
                 "total_area_propiedades": result[0]["total_area_propiedades"],
                 "block_type": result[0]["block_type"],
                 "density_d": result[0]["density_d"],
+                "usage_desc": result[0]["usage_desc"],
                 "scope": result[0]["scope"],
                 "floor_levels": result[0]["floor_levels"],
                 "open_space" : result[0]["open_space"],
@@ -109,16 +58,10 @@ class PropertyController :
                 "id_municipality": result[0]["id_municipality"],
                 "id_city_blocks": result[0]["id_city_blocks"],
                 "total_houses": result[0]["total_houses"],
-                "locality_size": result[0]["locality_size"],
-                "city_link": result[0]["city_link"]
+                "locality_size": result[0]["locality_size"]
             }
 
             pois = {
-                #add category here for icon image
-                "category": {
-                    category: IconMapper.get_icon_url(category) 
-                    for category in IconMapper.CATEGORY_ICON_MAP
-                },
                 "front" : {
                     "brands_active_life_front": result[0]["brands_active_life_front"],
                     "brands_arts_and_entertainment_front": result[0]["brands_arts_and_entertainment_front"],
@@ -354,87 +297,7 @@ class PropertyController :
             return property_details, market_info, pois, traffic
         except Exception as e :
             raise e
-    @cache_response(prefix='properties',expiration=3600)
-    def get_properties(self,current_user, fid=None, lat=None, lng=None):
-        connection = None 
-        cursor = None
-        resp = None
-        try :
-            filter_query = 'where 1=1'
-            print(fid, lat, lng)
-            if fid :
-                filter_query += f''' and fid = {fid} '''
-            elif lat and lng :
-                h3Index = h3.latlng_to_cell(float(lat), float(lng), 13)
-                h3_index_decimal = str(int(h3Index, 16))
-                filter_query += f"and h3_indexes ilike '%{h3_index_decimal}%'  "
-            else :
-                return Response.bad_request(message="Invalid request")
 
-            query = self.qc.get_property_query(filter_query)
-            connection = self.redshift_db.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-            cursor.execute(query)
-            result = cursor.fetchall()
-            if not result:
-                resp =  Response.not_found(message="Property not found")
-            else :
-                property_details,  market_info, pois, traffic = self.get_property_json(result)
-                result_json = {
-                    "property_details": property_details,
-                    "market_info": market_info,
-                    "pois": pois,
-                    "traffic": traffic
-                }
-                upc = UserPropertyController()
-                if fid :
-                    upc.add_user_property(fid, current_user, 'view')
-                resp = Response.success(data=result_json, message='Success')
-        except Exception as e :
-            resp =  Response.internal_server_error(message=str(e))
-        finally :
-            return resp
-
-    def get_property_market_info(self, fid):
-        connection = None
-        cursor = None
-        try :
-            connection = self.db.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-            spot2_query = f''' SELECT 
-                        id_market_data_spot2 as id_spot2,
-                        title as title_spot2,
-                        address as address_spot2,
-                        delegacion as delegacion_spot2,
-                        latitude as latitude_spot2,
-                        longitude as longitude_spot2,
-                        description as description_spot2,
-                        operation_type as operation_type_spot2,
-                        rent_price_clean as rent_price_mxn_spot2,
-                        rent_price_per_m2 as rent_price_per_m2_spot2,
-                        buy_price_clean as buy_price_mxn_spot2,
-                        buy_price_per_m2 as buy_price_per_m2_spot2,
-                        maintenance_price as maintenance_price_mxn_spot2,
-                        property_type as property_type_spot2,
-                        total_area_clean as total_area_spot2,
-                        amenities as amenities_spot2,
-                        pictures as pictures_spot2,
-                        url as url_spot2,
-                        parking_spaces as parking_spaces_spot2,
-                        condition as condition_spot2,
-                        FROM blackprint_db_prd.presentation.dim_market_data_spot2
-                        WHERE id_market_data_spot2 = ANY({fid}::int[])
-                        ORDER BY date_published DESC '''
-
-        except Exception as e:
-            resp =  Response.internal_server_error(message=str(e))
-        finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                self.db.disconnect()
-            return resp
-        
     @staticmethod
     def get_demographic_json(result):
         try :
@@ -608,34 +471,107 @@ class PropertyController :
             return demographic
         except Exception as e :
             raise e
-    @cache_response(prefix='demographic',expiration=3600)
-    def get_property_demographic(self, fid, current_user):
+
+    def get_properties(self, fid):
         connection = None
         cursor = None
-        resp = None
         try:
+            # Initialize QueryController with specific parameters for this method
+            qc = QueryController(
+                property=True,  # Include property fields
+                poi=True,       # Include POI fields
+                traffic=True,    # Include traffic fields
+                market_value=True,  # Include market value fields
+                demographics=True  # Include demographic fields
+            )
+            query = qc.get_property_query(fid)
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = self.qc.get_demographics_query(fid)
             cursor.execute(query)
-            connection.commit()
-            res = cursor.fetchall()
-            if res:
-                response = self.get_demographic_json(res)
-                upc = UserPropertyController()
-                upc.add_user_property(fid, current_user, 'view')
-                resp =  Response.success(data=response, message='Success')
-            else:
-                resp =  Response.bad_request(message="Property not found")
+            result = cursor.fetchall()
+            property_details, market_info, pois, traffic = self.get_property_json(result)
+            result_json = {
+                "property_details": property_details,
+                "market_info": market_info,
+                "pois": pois,
+                "traffic": traffic
+            }
+            resp = Response.success(data=result_json, message='Success')
+
         except Exception as e:
-            resp =  Response.internal_server_error(message=str(e))
+            resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.redshift_db.disconnect()
             return resp
-        
+
+    def get_property_demographic(self, fid):
+        connection = None
+        cursor = None
+        resp = None
+        try:
+            # Initialize QueryController with specific parameters for this method
+            qc = QueryController(
+                demographics=True  # Only include demographic fields
+            )
+            query = qc.get_demographics_query(fid)
+            connection = self.redshift_db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            cursor.execute(query)
+            connection.commit()
+            res = cursor.fetchall()
+            if res:
+                response = self.get_demographic_json(res)
+                resp = Response.success(data=response, message='Success')
+            else:
+                resp = Response.bad_request(message="Property not found")
+        except Exception as e:
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_db.disconnect()
+            return resp
+
+    def get_property_pois_and_demographics(self, fid):
+        connection = None
+        cursor = None
+        resp = None
+        try:
+            # Initialize QueryController with specific parameters for this method
+            qc = QueryController(
+                poi=True,       # Include POI fields
+                demographics=True  # Include demographic fields
+            )
+            query = qc.get_property_query(fid)  # Use get_property_query to include POI and demographics
+            connection = self.redshift_db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            cursor.execute(query)
+            result = cursor.fetchall()
+            if result:
+                # Parse the result (you may need to adjust this based on the fields returned)
+                property_details, _, pois, _ = self.get_property_json(result)
+                demographic_data = self.get_demographic_json(result)
+                result_json = {
+                    "property_details": property_details,
+                    "pois": pois,
+                    "demographics": demographic_data
+                }
+                resp = Response.success(data=result_json, message='Success')
+            else:
+                resp = Response.bad_request(message="Property not found")
+        except Exception as e:
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_db.disconnect()
+            return resp
+
     def get_property_pois(self):
         pass
 
