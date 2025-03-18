@@ -23,6 +23,7 @@ class QueryController :
                 total_houses,
                 locality_size,
                 floor_levels,
+                h3_indexes,
                 open_space,
                 id_land_use,
                 id_municipality,

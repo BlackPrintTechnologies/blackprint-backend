@@ -80,6 +80,7 @@ class PropertyController :
                 "usage_desc": result[0]["usage_desc"],
                 "key_vus": result[0]["key_vus"],
                 "predominant_level": result[0]["predominant_level"],
+                "h3_indexes": result[0]["h3_indexes"],
             }
 
             market_info = {
@@ -354,6 +355,7 @@ class PropertyController :
             return property_details, market_info, pois, traffic
         except Exception as e :
             raise e
+
     @cache_response(prefix='properties',expiration=3600)
     def get_properties(self,current_user, fid=None, lat=None, lng=None):
         connection = None 
