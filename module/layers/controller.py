@@ -13,7 +13,7 @@ class PropertyLayerController:
     def get_property_query():
         query = f'''
                 select   
-                fid 
+                fid,
                 centroid,
                 is_on_market,
                 total_surface_area,
@@ -45,7 +45,7 @@ class PropertyLayerController:
                 '''
         return query
     
-    @cache_response(prefix='properties_layer',expiration=3600)
+    # @cache_response(prefix='properties_layer',expiration=3600)
     def get_properties_layer_data(self):
         connection = None
         resp = None
