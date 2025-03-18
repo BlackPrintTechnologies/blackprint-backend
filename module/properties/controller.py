@@ -6,6 +6,8 @@ import json
 import h3
 from utils.cacheUtlis import cache_response
 from utils.iconUtils import IconMapper
+from utils.streetViewUtils import get_street_view_metadata
+from flask import request
 class UserPropertyController:
     def __init__(self):
         self.db = Database()
@@ -55,6 +57,7 @@ class UserPropertyController:
             if connection:
                 self.db.disconnect()
             return resp
+#creating a proxy server to get the street view image
 
 class PropertyController :
     def __init__(self):
@@ -354,7 +357,7 @@ class PropertyController :
             return property_details, market_info, pois, traffic
         except Exception as e :
             raise e
-    @cache_response(prefix='properties',expiration=3600)
+    # @cache_response(prefix='properties',expiration=3600)
     def get_properties(self,current_user, fid=None, lat=None, lng=None):
         connection = None 
         cursor = None
@@ -380,6 +383,23 @@ class PropertyController :
                 resp =  Response.not_found(message="Property not found")
             else :
                 property_details,  market_info, pois, traffic = self.get_property_json(result)
+                
+                #Adding Street View Images to property_details
+                if lat and lng:
+                    pano_id=get_street_view_metadata(float(lat),float(lng))
+                    if pano_id:
+                        headings = [0, 45, 90, 135, 180, 225, 270, 315]  # Front, front-right, right, back-right, back, back-left, left, front-left
+                        fov = 90  # Field of view
+                        size = "600x300"  # Image size
+                        base_url = request.host_url.rstrip('/')  # Get the base URL
+                        street_images = [
+                            f"{base_url}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
+                            for heading in headings
+                        ]
+                        property_details["street_images"] = street_images
+                    else:
+                        property_details["street_images"] = []
+                        
                 result_json = {
                     "property_details": property_details,
                     "market_info": market_info,
