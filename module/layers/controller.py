@@ -5,6 +5,68 @@ from utils.iconUtils import IconMapper
 from utils.cacheUtlis import cache_response
 import time
 
+class PropertyLayerController:
+    def __init__(self) :
+        self.db = RedshiftDatabase()
+    
+    @staticmethod
+    def get_property_query():
+        query = f'''
+                select   
+                fid 
+                centroid,
+                is_on_market,
+                total_surface_area,
+                total_construction_area,
+                year_built,
+                special_facilities,
+                unit_land_value,
+                land_value,
+                key_vus,
+                predominant_level,
+                total_houses,
+                locality_size,
+                floor_levels,
+                open_space,
+                id_land_use,
+                id_municipality,
+                id_city_blocks
+                from blackprint_db_prd.data_product.v_parcel_v3
+                WHERE 
+                (is_on_market != 'Off Market')
+                AND (
+                property_type_spot2 IN ('Local Comercial')
+                OR property_type_inmuebles24 IN (
+                    'Local comercial',
+                    'Local en centro comercial',
+                    'Terreno comercial'
+                )
+        )
+                '''
+        return query
+    
+    @cache_response(prefix='properties_layer',expiration=3600)
+    def get_properties_layer_data(self):
+        connection = None
+        resp = None
+        try :
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = self.get_property_query()
+            cursor.execute(query)
+            connection.commit()
+            res = cursor.fetchall()
+            resp =  Response.success(data={"response": res})
+        except Exception as e :
+            if connection:
+                connection.rollback()
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect()
+            return resp
 
 class BrandController: 
     def __init__(self) :
@@ -39,6 +101,7 @@ class BrandController:
                         SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
                         WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
         return query
+    
     @cache_response(prefix='brands',expiration=3600)
     def get_brands(self, radius, fid): 
         connection = None

@@ -1,7 +1,7 @@
 from flask_restful import Resource, reqparse
 from flask import request, jsonify
 from utils.responseUtils import Response
-from module.layers.controller import BrandController, TrafficController  # Assuming SavedSearchesController is in search_controller.py
+from module.layers.controller import BrandController, TrafficController, PropertyLayerController  # Assuming SavedSearchesController is in search_controller.py
 from utils.commonUtil import authenticate
 from logsmanager.logging_config import setup_logging
 import logging
@@ -75,4 +75,13 @@ class Traffic(Resource):
         logger.info(f"Successfully retrieved traffic data for fid={fid}, radius={radius}")
         # else:
         #     logger.warning(f"Failed to fetch traffic data: {response.message}")
+        return response
+
+class PropertyLayer(Resource):
+    create_parser = reqparse.RequestParser()
+
+    def get(self):
+        logger.info("Received request to fetch property layer data.")
+        property_layer_controller = PropertyLayerController()
+        response = property_layer_controller.get_properties_layer_data()
         return response
