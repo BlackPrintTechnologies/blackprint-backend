@@ -47,33 +47,31 @@ class UserPropertyController:
         connection = None
         cursor = None
         try:
-            print("I am in try")
             start_time = time.time()  # Start time of the function
             # Generate a cache key based on the function arguments
             # cache_key = f"add_user_property_{fid}_{user_id}_{prop_status}"
             # Check if the result is already cached
             # if cache_key in cache:
-            #     print("Returning cached result")
             #     return cache[cache_key]
             
             connection = self.db.connect()
             conn_time = time.time()  # Time after establishing connection
-            print(f"Connection Time in user: {conn_time - start_time:.4f}s")
+            # print(f"Connection Time in user: {conn_time - start_time:.4f}s")
             cursor = connection.cursor()
             query = f"INSERT INTO bp_user_property (fid, user_id, user_property_status) VALUES ({fid}, {user_id}, '{prop_status}')"
             query_gen_time = time.time()  # Time after generating query
-            print(f"Query Generation Time in user: {query_gen_time - conn_time:.4f}s")
+            # print(f"Query Generation Time in user: {query_gen_time - conn_time:.4f}s")
             
             cursor.execute(query)
             exec_time = time.time()  # Time after executing query
-            print(f"Query Execution Time in user: {exec_time - query_gen_time:.4f}s")
+            # print(f"Query Execution Time in user: {exec_time - query_gen_time:.4f}s")
             connection.commit()
             commit_time = time.time()  # Time after commit
             
             # Cache the result
             
             
-            print(f"Commit Time: {commit_time - exec_time:.4f}s")
+            # print(f"Commit Time: {commit_time - exec_time:.4f}s")
             resp = Response.created(message='Success')
             end_time = time.time()  # End time of function
             # Cache the response
@@ -89,7 +87,6 @@ class UserPropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                print(connection)
                 self.db.disconnect()
             return resp
 #creating a proxy server to get the street view image
@@ -410,7 +407,6 @@ class PropertyController :
         resp = None
         try :
             filter_query = 'where 1=1'
-            print(fid, lat, lng)
             if fid :
                 filter_query += f''' and fid = {fid} '''
             elif lat and lng :
@@ -421,18 +417,14 @@ class PropertyController :
                 return Response.bad_request(message="Invalid request")
 
             query = self.qc.get_property_query(filter_query)
-            print("Filter Query",filter_query)
-            print("Complete Query",query)
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             cursor.execute(query)
             result = cursor.fetchall()
-            print("Result I am getting",result)
             if not result:
                 resp =  Response.not_found(message="Property not found")
             else :
                 result_jsons = self.get_property_json(result)
-                print("Result Jsons",result_jsons)
                 
                 # #Adding Street View Images to property_details
                 if lat and lng:
@@ -505,6 +497,8 @@ class PropertyController :
         
     @staticmethod
     def get_demographic_json(result):
+        # print("DEMOGRAPHIC RESULT",result)
+        result = result[0]
         try :
             demographic = {
                 "general" : {
@@ -707,7 +701,7 @@ class PropertyController :
                 json_time = time.time()  # Time after JSON conversion
                 
                 upc = UserPropertyController()
-                print(f"Calling add_user_property with fid={fid}, current_user={current_user}", flush=True)
+                # print(f"Calling add_user_property with fid={fid}, current_user={current_user}", flush=True)
 
                 upc.add_user_property(fid, current_user, 'view')
                 add_property_time = time.time()  # Time after adding user property
@@ -721,14 +715,14 @@ class PropertyController :
             end_time = time.time()  # End time of function
             
             # Logging execution times
-            print(f"Total Execution Time: {end_time - start_time:.4f}s")
-            print(f"Connection Time: {conn_time - start_time:.4f}s")
-            print(f"Query Generation Time: {query_gen_time - conn_time:.4f}s")
-            print(f"Query Execution Time: {exec_time - query_gen_time:.4f}s")
-            print(f"Commit Time: {commit_time - exec_time:.4f}s")
-            print(f"Fetch Time: {fetch_time - commit_time:.4f}s")
-            print(f"JSON Conversion Time: {json_time - fetch_time:.4f}s")
-            print(f"Add User Property Time: {add_property_time - json_time:.4f}s")
+            # print(f"Total Execution Time: {end_time - start_time:.4f}s")
+            # print(f"Connection Time: {conn_time - start_time:.4f}s")
+            # print(f"Query Generation Time: {query_gen_time - conn_time:.4f}s")
+            # print(f"Query Execution Time: {exec_time - query_gen_time:.4f}s")
+            # print(f"Commit Time: {commit_time - exec_time:.4f}s")
+            # print(f"Fetch Time: {fetch_time - commit_time:.4f}s")
+            # print(f"JSON Conversion Time: {json_time - fetch_time:.4f}s")
+            # print(f"Add User Property Time: {add_property_time - json_time:.4f}s")
 
         except Exception as e:
             resp = Response.internal_server_error(message=str(e))
