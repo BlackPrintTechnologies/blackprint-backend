@@ -7,3 +7,5 @@
 app.log
 __pycache__/
 .vscode/
+/module/properties/new_controller.py
+/module/properties/new_query.py
