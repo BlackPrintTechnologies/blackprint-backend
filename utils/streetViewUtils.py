@@ -2,9 +2,16 @@ import requests
 import os
 import os 
 from io import BytesIO
+import json
 
-# Load Google API key securely from environment variables
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+
+# Load Google API key securely from app.json
+# Load configuration from app.json
+config_path = 'app.json'
+with open(config_path, 'r') as config_file:
+    config = json.load(config_file)
+    
+GOOGLE_API_KEY = config["GOOGLE_API_KEY"]
 
 def get_street_view_metadata(lat, lng):
     """
