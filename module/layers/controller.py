@@ -15,6 +15,7 @@ class PropertyLayerController:
                 select   
                 fid,
                 centroid,
+                street_address,
                 is_on_market,
                 total_surface_area,
                 total_construction_area,
