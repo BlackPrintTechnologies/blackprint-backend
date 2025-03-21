@@ -19,6 +19,7 @@ class PropertyLayerController:
                 is_on_market,
                 total_surface_area,
                 total_construction_area,
+                property_type_inmuebles24,
                 year_built,
                 special_facilities,
                 unit_land_value,
