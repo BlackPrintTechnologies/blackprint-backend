@@ -206,6 +206,7 @@ class ResendVerification(Resource):
 class UserQuestionare(Resource):
     user_questionare_parser = reqparse.RequestParser()
     user_questionare_parser.add_argument('bp_brand_name', type=str, required=True, help='Brand name is required')
+    user_questionare_parser.add_argument('bp_user_type', type=str, required=True, help='bp_user_type is required')
     user_questionare_parser.add_argument('bp_category', type=str, required=True, help='Category is required')
     user_questionare_parser.add_argument('bp_product', type=str, required=True, help='Product is required')
     user_questionare_parser.add_argument('bp_market_segment', type=str, required=True, help='Market segment is required')
@@ -216,6 +217,7 @@ class UserQuestionare(Resource):
     update_parser = reqparse.RequestParser()
     update_parser.add_argument('bp_user_questionare_id', type=int, required=False)
     update_parser.add_argument('bp_brand_name', type=str, required=False)
+    update_parser.add_argument('bp_user_type', type=str, required=False)
     update_parser.add_argument('bp_category', type=str, required=False)
     update_parser.add_argument('bp_product', type=str, required=False)
     update_parser.add_argument('bp_market_segment', type=str, required=False)
@@ -232,6 +234,7 @@ class UserQuestionare(Resource):
         response = user_questionare_controller.create_questionare(
             bp_user_id=current_user,
             bp_brand_name=data['bp_brand_name'],
+            bp_user_type=data['bp_user_type'],
             bp_category=data['bp_category'],
             bp_product=data['bp_product'],
             bp_market_segment=data['bp_market_segment'],
@@ -250,6 +253,7 @@ class UserQuestionare(Resource):
         response = user_questionare_controller.update_questionare(
             bp_user_id=current_user,
             bp_brand_name=data.get('bp_brand_name'),
+            bp_user_type=data.get('bp_user_type'),
             bp_category=data.get('bp_category'),
             bp_product=data.get('bp_product'),
             bp_market_segment=data.get('bp_market_segment'),

@@ -203,7 +203,7 @@ class UserQuestionareController:
     def __init__(self):
         self.db = Database()
 
-    def create_questionare(self, bp_user_id, bp_brand_name, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands):
+    def create_questionare(self, bp_user_id, bp_brand_name,bp_user_type, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands):
         connection = None
         cursor = None
         resp = None
@@ -213,12 +213,12 @@ class UserQuestionareController:
             
             # Insert into bp_users_questionare
             query = '''
-                INSERT INTO bp_users_questionare (bp_user_id, bp_brand_name, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands)
+                INSERT INTO bp_users_questionare (bp_user_id, bp_brand_name, bp_user_type, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING bp_user_questionare_id
             '''
             print("query=====>", query)
-            cursor.execute(query, (bp_user_id, bp_brand_name, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands))
+            cursor.execute(query, (bp_user_id, bp_brand_name, bp_user_type, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands))
             connection.commit()
             questionare_id = cursor.fetchone()['bp_user_questionare_id']
             user_controller = UsersController()
@@ -235,7 +235,7 @@ class UserQuestionareController:
                 self.db.disconnect()
             return resp
 
-    def update_questionare(self, id=None, bp_user_id=None, bp_brand_name=None, bp_category=None, bp_product=None, bp_market_segment=None, bp_target_audience=None, bp_competitor_brands=None, bp_complementary_brands=None):
+    def update_questionare(self, id=None, bp_user_id=None, bp_brand_name=None, bp_user_type=None, bp_category=None, bp_product=None, bp_market_segment=None, bp_target_audience=None, bp_competitor_brands=None, bp_complementary_brands=None):
         connection = None
         cursor = None
         resp = None
@@ -251,6 +251,9 @@ class UserQuestionareController:
             if bp_user_id is not None:
                 updates.append('bp_user_id = %s')
                 params.append(bp_user_id)
+            if bp_user_type is not None:
+                updates.append('bp_user_type = %s')
+                params.append(bp_user_type)
             if bp_brand_name is not None:
                 updates.append('bp_brand_name = %s')
                 params.append(bp_brand_name)
