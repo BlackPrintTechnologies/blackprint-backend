@@ -2,13 +2,14 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Verification Email</title>
-  <style>
+  <style type="text/css">
+    /* Simplified CSS for better email client support */
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);
+      background-color: #1a1a1a;
       color: #ffffff;
       margin: 0;
       padding: 20px;
@@ -20,26 +21,21 @@
       max-width: 600px;
       margin: 0 auto;
       padding: 30px;
-      background-color: rgba(255, 255, 255, 0.1);
+      background-color: #2a2a2a;
       border-radius: 15px;
-      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-      backdrop-filter: blur(4px);
-      border: 1px solid rgba(255, 255, 255, 0.18);
+      border: 1px solid #444444;
     }
 
     .header {
       text-align: center;
       padding: 30px 0;
-      border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 2px solid #444444;
     }
 
     .header h1 {
       font-size: 36px;
       margin: 0;
-      background: linear-gradient(45deg, #ffffff, #808080);
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: #ffffff;
       text-transform: uppercase;
       letter-spacing: 2px;
     }
@@ -52,14 +48,14 @@
 
     .content p {
       margin-bottom: 20px;
-      color: rgba(255, 255, 255, 0.9);
+      color: #dddddd;
     }
 
     .btn {
       display: inline-block;
       padding: 15px 40px;
       margin-top: 30px;
-      background: linear-gradient(45deg, #808080, #666666);
+      background-color: #666666;
       color: #ffffff;
       text-decoration: none;
       font-size: 18px;
@@ -67,25 +63,9 @@
       text-transform: uppercase;
       letter-spacing: 1px;
       font-weight: bold;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    }
-
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-      background: linear-gradient(45deg, #666666, #808080);
     }
 
     @media (max-width: 600px) {
-      body {
-        padding: 10px;
-      }
-
-      .container {
-        padding: 20px;
-      }
-
       .header h1 {
         font-size: 28px;
       }
@@ -115,6 +95,9 @@
         below to verify your account:
       </p>
       <a href="{{token}}" class="btn">Verify Account</a>
+      <p style="margin-top: 30px; font-size: 14px; color: #aaaaaa;">
+        If you didn't request this verification, please ignore this email.
+      </p>
     </div>
   </div>
 </body>
