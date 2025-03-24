@@ -2,7 +2,7 @@ from utils.dbUtils import Database
 from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
 from decimal import Decimal
-from utils.commonUtil import  get_token, get_user_id_from_token
+from utils.commonUtil import  get_token, get_user_id_from_token, PLATFORM_URL
 from utils.emailUtils import send_email
 
 class UsersController:
@@ -194,7 +194,7 @@ class UsersController:
     def send_user_verification_email(self, bp_email):
         # Here you would normally send an email with a verification link or token
         token = get_token(bp_email)
-        url = 'https://blackprint.ai/verify?email=' + bp_email + '&token=' + token
+        url = f'{PLATFORM_URL}/verify?email=' + bp_email + '&token=' + token
         print("token=====>", url)
         message = send_email(bp_email, 'Verification Email','static/verification_email_tempate.html', {'token': url})
         return Response.success(message=message)
