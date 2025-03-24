@@ -13,6 +13,7 @@ with open(config_path, 'r') as config_file:
 
 # Secret key for JWT
 SECRET_KEY = config['SECRET_KEY']
+PLATFORM_URL = config['PLATFORM_URL']
 
 def get_token(id):
     token = jwt.encode({
