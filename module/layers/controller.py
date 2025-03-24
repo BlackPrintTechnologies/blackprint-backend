@@ -1,7 +1,74 @@
 from utils.dbUtils import RedshiftDatabase
 from utils.responseUtils import Response
 from psycopg2.extras import RealDictCursor
+from utils.iconUtils import IconMapper
+from utils.cacheUtlis import cache_response
 import time
+
+class PropertyLayerController:
+    def __init__(self) :
+        self.db = RedshiftDatabase()
+    
+    @staticmethod
+    def get_property_query():
+        query = f'''
+                select   
+                fid,
+                centroid,
+                street_address,
+                is_on_market,
+                total_surface_area,
+                total_construction_area,
+                property_type_inmuebles24,
+                year_built,
+                special_facilities,
+                unit_land_value,
+                land_value,
+                key_vus,
+                predominant_level,
+                total_houses,
+                locality_size,
+                floor_levels,
+                open_space,
+                id_land_use,
+                id_municipality,
+                id_city_blocks
+                from blackprint_db_prd.data_product.v_parcel_v3
+                WHERE 
+                (is_on_market != 'Off Market')
+                AND (
+                property_type_spot2 IN ('Local Comercial')
+                OR property_type_inmuebles24 IN (
+                    'Local comercial',
+                    'Local en centro comercial',
+                    'Terreno comercial'
+                )
+        )
+                '''
+        return query
+    
+    # @cache_response(prefix='properties_layer',expiration=3600)
+    def get_properties_layer_data(self):
+        connection = None
+        resp = None
+        try :
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = self.get_property_query()
+            cursor.execute(query)
+            connection.commit()
+            res = cursor.fetchall()
+            resp =  Response.success(data={"response": res})
+        except Exception as e :
+            if connection:
+                connection.rollback()
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect()
+            return resp
 
 class BrandController: 
     def __init__(self) :
@@ -36,10 +103,12 @@ class BrandController:
                         SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
                         WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
         return query
-
+    
+    @cache_response(prefix='brands',expiration=3600)
     def get_brands(self, radius, fid): 
         connection = None
         cursor = None
+        resp = None
         try :
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -48,16 +117,48 @@ class BrandController:
             connection.commit()
             res = cursor.fetchall()
             print("res=====>", res)
-            return Response.success(data={"response": res})
+            #new chnage 
+            # Add icon URLs to the results
+            enhanced_results = []
+            for result in res:
+                result['icon_url'] = IconMapper.get_icon_url(result['category_1'])
+                enhanced_results.append(result)
+            print("enhanced_results=====>", enhanced_results)
+            resp =  Response.success(data={"response": enhanced_results}) #
         except Exception as e :
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
+    
+    def search_brands(self, brand_name):
+        connection = None
+        cursor = None
+        resp = None
+        try :
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = f'''SELECT distinct brand FROM blackprint_db_prd.presentation.dim_places_v2 where brand ilike '{brand_name}%'LIMIT 50'''
+            cursor.execute(query)
+            connection.commit()
+            res = cursor.fetchall()
+            print("res=====>", res)
+            resp =  Response.success(data=res)
+        except Exception as e :
+            if connection:
+                connection.rollback()
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect()
+            return resp
 
 class TrafficController:
     def __init__(self) :
@@ -81,18 +182,20 @@ class TrafficController:
         # Execute the query using your database connection
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             print("query=====>", query)
             cursor.execute(query)
             result = cursor.fetchall()
-            return Response.success(data={"response": result})
+            resp =  Response.success(data={"response": result})
         except Exception as e:
             print(f"Error: {e}")
-            return None
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp

@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import request, jsonify
+from flask import request, jsonify, make_response
 import jwt
 import json
 import datetime
@@ -26,6 +26,27 @@ def get_user_id_from_token(token):
     current_user = data['id']
     return current_user
 
+def get_google_street(lat, lng, address=None):
+    import googlemaps
+    gmaps = googlemaps.Client(key=config['GOOGLE_MAP_API_KEY'])
+    
+    if address:
+        geocode_result = gmaps.geocode(address)
+        if not geocode_result:
+            return None
+        location = geocode_result[0]['geometry']['location']
+        lat, lng = location['lat'], location['lng']
+    
+    reverse_geocode_result = gmaps.reverse_geocode((lat, lng))
+    formatted_address = reverse_geocode_result[0]['formatted_address']
+    
+    street_view_url = f"https://maps.googleapis.com/maps/api/streetview?size=400x200&location={lat},{lng}&fov=80&heading=70&pitch=0&key={config['GOOGLE_MAP_API_KEY']}"
+    
+    return {
+        'address': formatted_address,
+        'street_view_url': street_view_url
+    }
+
 def authenticate(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -39,9 +60,13 @@ def authenticate(f):
         try:
             current_user = get_user_id_from_token(token)
         except jwt.ExpiredSignatureError:
-            return Response.unauthorized(message="Token has expired!")
+            response = make_response(Response.unauthorized(message="Token has expired!"))
+            response.delete_cookie('authToken')
+            return response
         except jwt.InvalidTokenError:
-            return Response.unauthorized(message="Invalid token!")
+            response = make_response(Response.unauthorized(message="Invalid token!"))
+            response.delete_cookie('authToken')
+            return response
 
         kwargs['current_user'] = current_user
         print(args, kwargs)

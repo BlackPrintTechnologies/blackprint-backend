@@ -11,6 +11,7 @@ class GroupsController:
     def get_groups(self, grp_id=None, user_id=None):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -31,20 +32,22 @@ class GroupsController:
                 group_dict['updated_at'] = group_dict['updated_at'].isoformat()
                 processed_result.append(group_dict)
 
-            return Response.success(data=processed_result)
+            resp =  Response.success(data=processed_result)
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
     def create_group(self, user_id, grp_name, property_ids):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -59,20 +62,22 @@ class GroupsController:
             cursor.execute(query, (user_id, grp_name, property_ids))
             connection.commit()
             grp_id = cursor.fetchone()['grp_id']
-            return Response.created(data={"grp_id": grp_id})
+            resp =  Response.created(data={"grp_id": grp_id})
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
     def update_group(self, grp_id, grp_name=None, property_ids=None, gpr_status=None):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -100,20 +105,22 @@ class GroupsController:
 
             cursor.execute(query, tuple(params))
             connection.commit()
-            return Response.success(message="Group updated successfully")
+            resp =  Response.success(message="Group updated successfully")
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
     def delete_group(self, grp_id):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -121,20 +128,22 @@ class GroupsController:
             query = 'DELETE FROM groups WHERE grp_id = %s'
             cursor.execute(query, (grp_id,))
             connection.commit()
-            return Response.success(message="Group deleted successfully")
+            resp =  Response.success(message="Group deleted successfully")
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
     def add_property_to_group(self, grp_id, property_id):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -142,20 +151,22 @@ class GroupsController:
             query = 'UPDATE groups SET property_ids = array_append(property_ids, %s) WHERE grp_id = %s'
             cursor.execute(query, (property_id, grp_id))
             connection.commit()
-            return Response.success(message="Property added to group successfully")
+            resp =  Response.success(message="Property added to group successfully")
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
     def update_property_for_group(self, grp_id, property_id):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -168,16 +179,17 @@ class GroupsController:
             # Fetch the updated property_ids
             updated_property_ids = cursor.fetchone()['property_ids']
             
-            return Response.success(data={"property_ids": updated_property_ids}, message="Property updated successfully")
+            resp =  Response.success(data={"property_ids": updated_property_ids}, message="Property updated successfully")
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
     def remove_property_from_group(self, grp_id, property_id):
         connection = None
@@ -189,13 +201,14 @@ class GroupsController:
             query = 'UPDATE groups SET property_ids = array_remove(property_ids, %s) WHERE grp_id = %s'
             cursor.execute(query, (property_id, grp_id))
             connection.commit()
-            return Response.success(message="Property removed from group successfully")
+            resp =  Response.success(message="Property removed from group successfully")
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp

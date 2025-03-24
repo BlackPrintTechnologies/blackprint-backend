@@ -12,6 +12,7 @@ class UsersController:
     def get_users(self, id=None, email=None):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -34,20 +35,22 @@ class UsersController:
                 # user_dict.pop('bp_password', None)  # Remove password if it exists
                 processed_result.append(user_dict)
 
-            return Response.success(data=processed_result)
+            resp =  Response.success(data=processed_result)
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
     def create_user(self, bp_name, bp_company, bp_industry, bp_email, bp_password, bp_status):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -63,20 +66,22 @@ class UsersController:
             connection.commit()
             user_id = cursor.fetchone()['bp_user_id']
             self.send_user_verification_email(bp_email)
-            return Response.created(data={"bp_user_id": user_id})
+            resp = Response.created(data={"bp_user_id": user_id})
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
     def update_user(self, id, bp_name=None, bp_company=None, bp_industry=None, bp_email=None, bp_password=None, bp_status=None, bp_is_onboarded=None, bp_user_verified=None):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -110,7 +115,7 @@ class UsersController:
                 updates.append('bp_user_verified = %s')
                 params.append(bp_user_verified)
             if not updates:
-                return Response.bad_request(message="No fields to update")
+                resp =  Response.bad_request(message="No fields to update")
 
             query += ', '.join(updates)
             query += ' WHERE bp_user_id = %s'
@@ -118,20 +123,22 @@ class UsersController:
             print(query, params)
             cursor.execute(query, tuple(params))
             connection.commit()
-            return Response.success(message="User updated successfully")
+            resp =  Response.success(message="User updated successfully")
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
     def delete_user(self, id):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -139,20 +146,22 @@ class UsersController:
             query = 'DELETE FROM bp_users WHERE bp_user_id = %s'
             cursor.execute(query, (id,))
             connection.commit()
-            return Response.success(message="User deleted successfully")
+            resp =  Response.success(message="User deleted successfully")
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
     def verify_user(self, bp_email, token):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -167,19 +176,20 @@ class UsersController:
                 query = f"update bp_users set bp_user_verified=1 where bp_email = '{bp_email}'"
                 cursor.execute(query)
                 connection.commit()
-                return Response.success(message="User Verified")
+                resp =  Response.success(message="User Verified")
             else:
-                return Response.not_found(message="User Verification failed")
+                resp =  Response.not_found(message="User Verification failed")
 
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
     def send_user_verification_email(self, bp_email):
         # Here you would normally send an email with a verification link or token
@@ -193,39 +203,42 @@ class UserQuestionareController:
     def __init__(self):
         self.db = Database()
 
-    def create_questionare(self, bp_user_id, bp_brand_name, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands):
+    def create_questionare(self, bp_user_id, bp_brand_name,bp_user_type, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
             # Insert into bp_users_questionare
             query = '''
-                INSERT INTO bp_users_questionare (bp_user_id, bp_brand_name, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands)
+                INSERT INTO bp_users_questionare (bp_user_id, bp_brand_name, bp_user_type, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING bp_user_questionare_id
             '''
             print("query=====>", query)
-            cursor.execute(query, (bp_user_id, bp_brand_name, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands))
+            cursor.execute(query, (bp_user_id, bp_brand_name, bp_user_type, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands))
             connection.commit()
             questionare_id = cursor.fetchone()['bp_user_questionare_id']
             user_controller = UsersController()
             user_controller.update_user(id=bp_user_id, bp_is_onboarded=1)
-            return Response.created(data={"bp_user_questionare_id": questionare_id})
+            resp = Response.created(data={"bp_user_questionare_id": questionare_id})
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
-    def update_questionare(self, id=None, bp_user_id=None, bp_brand_name=None, bp_category=None, bp_product=None, bp_market_segment=None, bp_target_audience=None, bp_competitor_brands=None, bp_complementary_brands=None):
+    def update_questionare(self, id=None, bp_user_id=None, bp_brand_name=None, bp_user_type=None, bp_category=None, bp_product=None, bp_market_segment=None, bp_target_audience=None, bp_competitor_brands=None, bp_complementary_brands=None):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -238,6 +251,9 @@ class UserQuestionareController:
             if bp_user_id is not None:
                 updates.append('bp_user_id = %s')
                 params.append(bp_user_id)
+            if bp_user_type is not None:
+                updates.append('bp_user_type = %s')
+                params.append(bp_user_type)
             if bp_brand_name is not None:
                 updates.append('bp_brand_name = %s')
                 params.append(bp_brand_name)
@@ -261,27 +277,29 @@ class UserQuestionareController:
                 params.append(bp_complementary_brands)
 
             if not updates:
-                return Response.bad_request(message="No fields to update")
-
-            query += ', '.join(updates)
-            query += ' WHERE bp_user_id= %s'
-            params.append(bp_user_id)
-            cursor.execute(query, tuple(params))
-            connection.commit()
-            return Response.success(message="Questionare updated successfully")
+                resp = Response.bad_request(message="No fields to update")
+            else  :
+                query += ', '.join(updates)
+                query += ' WHERE bp_user_id= %s'
+                params.append(bp_user_id)
+                cursor.execute(query, tuple(params))
+                connection.commit()
+                resp =  Response.success(message="Questionare updated successfully")
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp
 
     def get_questionare(self, id=None, bp_user_id=None):
         connection = None
         cursor = None
+        resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -300,15 +318,16 @@ class UserQuestionareController:
             result = cursor.fetchall()
             
             if not result:
-                return Response.not_found(message="Questionare not found")
+                resp =  Response.not_found(message="Questionare not found")
             
-            return Response.success(data=result)
+            resp =  Response.success(data=result)
         except Exception as e:
             if connection:
                 connection.rollback()
-            return Response.internal_server_error(message=str(e))
+            resp =  Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
                 self.db.disconnect()
+            return resp

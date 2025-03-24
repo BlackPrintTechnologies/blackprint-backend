@@ -8,7 +8,7 @@ PORT_MAPPING="8000:8000"
 
 # Pull the latest changes from the Git repository
 echo "Pulling latest changes from Git repository..."
-git pull || { echo "Failed to pull latest changes"; exit 1; }
+git pull origin staging || { echo "Failed to pull latest changes"; exit 1; }
 
 # Build a new Docker image
 echo "Building new Docker image..."
@@ -24,3 +24,4 @@ echo "Running new Docker container..."
 docker run -d -p $PORT_MAPPING --name $CONTAINER_NAME $IMAGE_NAME || { echo "Failed to run Docker container"; exit 1; }
 
 echo "Update and deployment complete."
+
