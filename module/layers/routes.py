@@ -12,7 +12,7 @@ setup_logging()
 # Retrieve the logger
 logger = logging.getLogger(__name__)
 # Initialize SavedSearchesController
-brand_controller = BrandController()
+
 # {
 #     "search_name" : "test",
 #     "search_query" : {
@@ -31,7 +31,7 @@ class Brands(Resource):
 
     def post(self):
         logger.info("Received request to fetch brands.")
-
+        brand_controller = BrandController()
         data = self.create_parser.parse_args()
         fid = data.get('fid')
         radius = data.get('radius')
