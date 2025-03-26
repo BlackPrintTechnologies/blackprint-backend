@@ -40,7 +40,7 @@ class UserPropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
     
     def add_user_property(self, fid, user_id, prop_status):
@@ -48,36 +48,21 @@ class UserPropertyController:
         cursor = None
         try:
             start_time = time.time()  # Start time of the function
-            # Generate a cache key based on the function arguments
-            # cache_key = f"add_user_property_{fid}_{user_id}_{prop_status}"
-            # Check if the result is already cached
-            # if cache_key in cache:
-            #     return cache[cache_key]
-            
             connection = self.db.connect()
             conn_time = time.time()  # Time after establishing connection
             # print(f"Connection Time in user: {conn_time - start_time:.4f}s")
             cursor = connection.cursor()
             query = f"INSERT INTO bp_user_property (fid, user_id, user_property_status) VALUES ({fid}, {user_id}, '{prop_status}')"
             query_gen_time = time.time()  # Time after generating query
-            # print(f"Query Generation Time in user: {query_gen_time - conn_time:.4f}s")
-            
             cursor.execute(query)
             exec_time = time.time()  # Time after executing query
             # print(f"Query Execution Time in user: {exec_time - query_gen_time:.4f}s")
             connection.commit()
             commit_time = time.time()  # Time after commit
-            
-            # Cache the result
-            
-            
-            # print(f"Commit Time: {commit_time - exec_time:.4f}s")
             resp = Response.created(message='Success')
             end_time = time.time()  # End time of function
             # Cache the response
             # cache[cache_key] = resp
-        
-
         except Exception as e:
             if 'unique constraint' in str(e):
                 resp = 'User property already exists'
@@ -87,7 +72,7 @@ class UserPropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 #creating a proxy server to get the street view image
 
@@ -400,7 +385,7 @@ class PropertyController :
         except Exception as e :
             raise e
 
-    # # @cache_response(prefix='properties',expiration=3600)
+    # @cache_response(prefix='properties',expiration=3600)
     def get_properties(self,current_user, fid=None, lat=None, lng=None):
         connection = None 
         cursor = None
@@ -417,10 +402,15 @@ class PropertyController :
                 return Response.bad_request(message="Invalid request")
 
             query = self.qc.get_property_query(filter_query)
+            st = time.time()
             connection = self.redshift_db.connect()
+            print("time taken to connect to redshift", time.time()-st)
             cursor = connection.cursor(cursor_factory=RealDictCursor)
+            print("time for cursor creation", time.time()-st)
             cursor.execute(query)
+            print("time for query execution", time.time()-st)
             result = cursor.fetchall()
+            print("time for fetchall", time.time()-st)
             if not result:
                 resp =  Response.not_found(message="Property not found")
             else :
@@ -492,7 +482,7 @@ class PropertyController :
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
         
     @staticmethod

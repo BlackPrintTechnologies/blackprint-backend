@@ -4,7 +4,7 @@ from utils.responseUtils import Response
 from decimal import Decimal
 from utils.commonUtil import  get_token, get_user_id_from_token, PLATFORM_URL
 from utils.emailUtils import send_email
-
+import time
 class UsersController:
     def __init__(self):
         self.db = Database()
@@ -14,15 +14,14 @@ class UsersController:
         cursor = None
         resp = None
         try:
+            st = time.time()
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            
             query = 'SELECT * FROM bp_users where bp_status = 1 '
             if id:
                 query += f' and bp_user_id = {id}'
             if email:
                 query += f" and bp_email = '{email}'"
-
             print(query, "<==============")
             cursor.execute(query)
             result = cursor.fetchall()
@@ -34,7 +33,6 @@ class UsersController:
                 user_dict['bp_is_onboarded'] = float(user_dict['bp_is_onboarded']) if isinstance(user_dict['bp_is_onboarded'], Decimal) else user_dict['bp_is_onboarded']
                 # user_dict.pop('bp_password', None)  # Remove password if it exists
                 processed_result.append(user_dict)
-
             resp =  Response.success(data=processed_result)
         except Exception as e:
             if connection:
@@ -44,7 +42,7 @@ class UsersController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def create_user(self, bp_name, bp_company, bp_industry, bp_email, bp_password, bp_status):
@@ -75,7 +73,7 @@ class UsersController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def update_user(self, id, bp_name=None, bp_company=None, bp_industry=None, bp_email=None, bp_password=None, bp_status=None, bp_is_onboarded=None, bp_user_verified=None):
@@ -132,7 +130,7 @@ class UsersController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def delete_user(self, id):
@@ -155,7 +153,7 @@ class UsersController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def verify_user(self, bp_email, token):
@@ -188,7 +186,7 @@ class UsersController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def send_user_verification_email(self, bp_email):
@@ -232,7 +230,7 @@ class UserQuestionareController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def update_questionare(self, id=None, bp_user_id=None, bp_brand_name=None, bp_user_type=None, bp_category=None, bp_product=None, bp_market_segment=None, bp_target_audience=None, bp_competitor_brands=None, bp_complementary_brands=None):
@@ -293,7 +291,7 @@ class UserQuestionareController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def get_questionare(self, id=None, bp_user_id=None):
@@ -329,5 +327,5 @@ class UserQuestionareController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp

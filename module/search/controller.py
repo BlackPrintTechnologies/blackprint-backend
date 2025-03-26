@@ -40,7 +40,7 @@ class SavedSearchesController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
 
     def create_saved_search(self, user_id, search_name, search_query, search_value, search_response):
         connection = None
@@ -68,7 +68,7 @@ class SavedSearchesController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
 
     def update_saved_search(self, id, search_name=None, search_query=None, search_value=None, search_response=None, search_status=None):
         connection = None
@@ -115,7 +115,7 @@ class SavedSearchesController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
 
     def delete_saved_search(self, id):
         connection = None
@@ -136,4 +136,4 @@ class SavedSearchesController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)

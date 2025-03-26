@@ -67,7 +67,7 @@ class PropertyLayerController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
 class BrandController: 
@@ -133,7 +133,7 @@ class BrandController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
     
     def search_brands(self, brand_name):
@@ -157,7 +157,7 @@ class BrandController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
 class TrafficController:
@@ -197,5 +197,5 @@ class TrafficController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
