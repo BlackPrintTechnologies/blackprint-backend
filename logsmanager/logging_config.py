@@ -2,7 +2,39 @@ import os
 import logging
 import requests
 from logging.config import dictConfig
+from watchtower import CloudWatchLogHandler
+import json
+import boto3
 
+# Load configuration from app.json
+CONFIG_FILE = "app.json"
+with open(CONFIG_FILE, "r") as f:
+    config = json.load(f)
+    
+# AWS Configuration
+AWS_ACCESS_KEY_ID = config.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = config.get("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = config.get("AWS_REGION", "us-west-1")
+LOG_GROUP = config.get("CLOUDWATCH_LOG_GROUP", "blackprint-backend/logs")
+LOG_STREAM = config.get("CLOUDWATCH_LOG_STREAM", "blackprint-backend-application")
+
+def get_cloudwatch_handler():
+    try:
+        client = boto3.client(
+            'logs',
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            region_name=AWS_REGION
+        )
+        return CloudWatchLogHandler(
+            log_group=LOG_GROUP,
+            stream_name=LOG_STREAM,  # Fixed parameter name
+            boto3_client=client,
+            create_log_group=True
+        )
+    except Exception as e:
+        logging.error(f"Failed to initialize CloudWatch logging: {e}")
+        return None
 # Replace with your Slack webhook URL
 SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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M"
 
@@ -24,7 +56,7 @@ LOGGING_CONFIG = {
     "disable_existing_loggers": False,
     "formatters": {
         "verbose": {
-            "format": "[%(asctime)s] %(levelname)s [%(module)s:%(funcName)s:%(lineno)d] - %(message)s",
+            "format": "[%(asctime)s] %(levelname)s [%(filename)s:%(module)s:%(funcName)s:%(lineno)d] - %(message)s",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
     },
@@ -58,8 +90,19 @@ LOGGING_CONFIG = {
 def setup_logging():
     """Apply logging configuration"""
     dictConfig(LOGGING_CONFIG)
+    logger = logging.getLogger()
     logging.getLogger(__name__).info("Logging is configured.")
     
+    # Add CloudWatch handler to root logger
+    cloudwatch_handler = get_cloudwatch_handler()
+    if cloudwatch_handler:
+        logger.addHandler(cloudwatch_handler)
+        logger.info("CloudWatch logging configured successfully")
+        # Ensure the handler uses the same formatter
+        cloudwatch_handler.setFormatter(logging.Formatter(
+            "[%(asctime)s] %(levelname)s [%(filename)s:%(module)s:%(funcName)s:%(lineno)d] - %(message)s",
+            "%Y-%m-%d %H:%M:%S"
+        ))
 
 # Example usage
 if __name__ == "__main__":
