@@ -3,18 +3,26 @@ from flask_restful import Resource, Api
 from flask_cors import CORS
 import logging
 from logsmanager.logging_config import setup_logging
+from flask import Flask, g, request 
+import uuid
+app = Flask(__name__)
+api = Api(app)
 
+# Allow CORS for specific origins (localhost:3000 in this case)
+CORS(app)
+
+@app.before_request
+def before_request():
+    """Generate or get request ID for each incoming request"""
+    request.request_id = request.headers.get('X-Request-ID', str(uuid.uuid4()))
+    g.request_id = request.request_id  # Make available in Flask context
+    logger.info(f"Starting request {request.request_id}")
 # Initialize logging
 setup_logging()
 
 # Retrieve the logger
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-api = Api(app)
-
-# Allow CORS for specific origins (localhost:3000 in this case)
-CORS(app)
 
 # Log application startup
 logger.info("Starting the Flask application...")
@@ -46,6 +54,13 @@ api.add_resource(Property, '/property')
 api.add_resource(PropertyLayer, '/property/layer')
 api.add_resource(PropertyDemographic, '/property/demographic')
 api.add_resource(StreetViewImage, '/properties/street_view_image') #act as a proxy url to serve the image
+
+@app.after_request
+def after_request(response):
+    """Add request ID to response headers"""
+    response.headers['X-Request-ID'] = getattr(request, 'request_id', 'none')
+    logger.info(f"Completed request {getattr(request, 'request_id', 'none')} with status {response.status_code}")
+    return response
 
 # Log routes being added
 logger.debug("API routes have been configured.")
