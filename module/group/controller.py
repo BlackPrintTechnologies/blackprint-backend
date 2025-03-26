@@ -41,7 +41,7 @@ class GroupsController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def create_group(self, user_id, grp_name, property_ids):
@@ -71,7 +71,7 @@ class GroupsController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def update_group(self, grp_id, grp_name=None, property_ids=None, gpr_status=None):
@@ -114,7 +114,7 @@ class GroupsController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def delete_group(self, grp_id):
@@ -137,7 +137,7 @@ class GroupsController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def add_property_to_group(self, grp_id, property_id):
@@ -160,7 +160,7 @@ class GroupsController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def update_property_for_group(self, grp_id, property_id):
@@ -188,7 +188,7 @@ class GroupsController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
 
     def remove_property_from_group(self, grp_id, property_id):
@@ -210,5 +210,5 @@ class GroupsController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect()
+                self.db.disconnect(connection)
             return resp
