@@ -39,7 +39,7 @@ def get_cloudwatch_handler():
         logging.error(f"Failed to initialize CloudWatch logging: {e}")
         return None
 # Replace with your Slack webhook URL
-SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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"
+SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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"
 
 class SlackLogHandler(logging.Handler):
     def __init__(self, webhook_url):
