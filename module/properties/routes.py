@@ -51,3 +51,15 @@ class PropertyDemographic(Resource):
         print("fid=====>", fid)
         response = pc.get_property_demographic(fid, current_user)
         return response
+    
+class RequestInfo(Resource):
+    create_parser = reqparse.RequestParser()
+    create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='args')
+    @authenticate
+    def get(self, current_user):
+        data = self.create_parser.parse_args()
+        fid = data.get('fid')
+
+        pc = PropertyController()
+        response = pc.get_request_info(fid, current_user)
+        return response

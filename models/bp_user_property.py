@@ -12,6 +12,7 @@ class BPUserProperty(db.Model):
     status = db.Column(db.Integer, default=1)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    request_status = db.Column(db.Integer, default=0)
 
     # Define the unique constraint
     __table_args__ = (
