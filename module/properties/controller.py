@@ -49,6 +49,28 @@ class UserPropertyController:
             if connection:
                 self.db.disconnect(connection)
             return resp
+        
+    def request_info_for_property(self, fid, user):
+        connection = None
+        cursor = None
+        resp = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = f'''update bp_user_property set request_status = 1  where fid = {fid} and user_id = {user} returning id'''
+            cursor.execute(query)
+            connection.commit() 
+            resp = Response.success(message='Property requested successfully')
+        except Exception as e:
+            logger.error("Error fetching request info for property: %s", str(e), exc_info=True)
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+            return resp
+
     
     def add_user_property(self, fid, user_id, prop_status):
         connection = None
@@ -731,8 +753,6 @@ class PropertyController:
             return resp
 
         
-    def get_property_pois(self):
-        pass
 
     def get_property_traffic(self):
         pass
