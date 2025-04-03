@@ -38,6 +38,7 @@ def get_cloudwatch_handler():
     except Exception as e:
         logging.error(f"Failed to initialize CloudWatch logging: {e}")
         return None
+    
 # Replace with your Slack webhook URL
 SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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"
 

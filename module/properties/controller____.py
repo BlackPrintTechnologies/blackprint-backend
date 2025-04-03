@@ -15,6 +15,7 @@ from logsmanager.logging_config import setup_logging
 setup_logging()
 logger = logging.getLogger(__name__)
 logger.info("I am testing the new query controller")
+
 class UserPropertyController:
     def __init__(self):
         self.db = Database()
@@ -586,9 +587,14 @@ class PropertyController:
             # Clean up any trailing commas and spaces
             filter_query = filter_query.rstrip(', ')
             
-            query = self.qc.get_property_query(filter_query)
+            qc = QueryController(
+            poi=True,
+            traffic=True,
+            market_value=True,
+            property=True
+            )
+            query = qc.get_property_query(filter_query)
             st = time.time()
-            logger.debug("Executing query: %s", query)
             connection = self.redshift_db.connect()
             print("time taken to connect to redshift", time.time()-st)
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -656,16 +662,20 @@ class PropertyController:
             start_time = time.time()
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = self.qc.get_demographics_query(fid)
+            qc = QueryController(
+            demographics=True
+            )
+            filter_query = 'WHERE 1=1'
+            if fid:
+                filter_query += f" AND fid = {fid}"
+            query = qc.get_property_query(filter_query)
             logger.debug("Executing query: %s", query)
-
             cursor.execute(query)
             res = cursor.fetchall()
             logger.info("Fetched demographic data for fid=%s", fid)
             if res:
                 response = self.get_demographic_json(res)
                 json_time = time.time()
-                
                 upc = UserPropertyController()
                 upc.add_user_property(fid, current_user, 'view')
                 add_property_time = time.time()
