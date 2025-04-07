@@ -49,6 +49,7 @@ class SearchBrands(Resource):
     create_parser.add_argument('brand_name', type=str, required=True, help='Brand name is required', location='args')
 
     def get(self):
+        brand_controller = BrandController()
         logger.info("Received request to search brands.")
         data = self.create_parser.parse_args()
         brand_name = data.get('brand_name')
