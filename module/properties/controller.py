@@ -449,25 +449,25 @@ class PropertyController:
                 result_jsons = self.get_property_json(result)
                 
                 # #Adding Street View Images to property_details
-                if lat and lng:
-                    pano_id=get_street_view_metadata(float(lat),float(lng))
-                    if pano_id:
-                        headings = [0, 45, 90, 135, 180, 225, 270, 315]  # Front, front-right, right, back-right, back, back-left, left, front-left
-                        fov = 90  # Field of view
-                        size = "600x300"  # Image size
-                        base_url = request.host_url.rstrip('/')  # Get the base URL
-                        street_images = [
-                            f"{base_url}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
-                            for heading in headings
-                        ]
-                        result_jsons[0]["property_details"]["street_images"] = street_images
-                    else:
-                        result_jsons[0]["property_details"]["street_images"] = []
-                        
-                if fid:
-                    result_json = result_jsons[0]
-                else :
-                    result_json = result_jsons
+                for res_json in result_jsons :
+                    res_json["property_details"]["street_images"] = []
+                    prop_lat, prop_lng = res_json["property_details"]["lat"], res_json["property_details"]["lng"]
+                    if prop_lat and prop_lng:
+                        pano_id=get_street_view_metadata(float(prop_lat),float(prop_lng))
+                        if pano_id:
+                            headings = [0, 45, 90, 135, 180, 225, 270, 315]
+                            fov = 90  # Field of view
+                            size = "600x300"  # Image size
+                            base_url = request.host_url.rstrip('/')  # Get the base URL
+                            street_images = [
+                                f"{base_url}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
+                                for heading in headings
+                            ]
+                            res_json["property_details"]["street_images"] = street_images
+                        else:
+                            res_json["property_details"]["street_images"] = []
+
+                result_json = result_jsons
                 upc = UserPropertyController()
                 if fid :
                     upc.add_user_property(fid, current_user, 'view')
