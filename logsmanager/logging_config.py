@@ -107,6 +107,18 @@ LOGGING_CONFIG = {
             "handlers": ["console", "file", "slack"],
             "level": "DEBUG",
         },
+        "botocore": {
+            "level": "INFO",
+            "propagate": True
+        },
+        "boto3": {
+            "level": "INFO",
+            "propagate": True
+        },
+        "urllib3": {
+            "level": "INFO",
+            "propagate": True
+        },
     },
 }
 
