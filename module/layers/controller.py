@@ -47,7 +47,7 @@ class PropertyLayerController:
                 '''
         return query
     
-    @cache_response(prefix='properties_layer',expiration=3600)
+    # @cache_response(prefix='properties_layer',expiration=3600)
     def get_properties_layer_data(self):
         connection = None
         resp = None
