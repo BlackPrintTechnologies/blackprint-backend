@@ -415,8 +415,10 @@ class PropertyController:
 
     # @cache_response(prefix='properties',expiration=3600)
     def get_properties(self,current_user, fid=None, lat=None, lng=None):
-        connection = None 
-        cursor = None
+        redshift_connection = None 
+        pg_connection = None
+        redshift_cursor = None
+        pg_cursor = None
         resp = None
         try:
             logger.info("Fetching properties for user=%s, fid=%s, lat=%s, lng=%s", current_user, fid, lat, lng)
@@ -434,52 +436,80 @@ class PropertyController:
             query = self.qc.get_property_query(filter_query)
             st = time.time()
             logger.debug("Executing query: %s", query)
-            connection = self.redshift_db.connect()
-            print("time taken to connect to redshift", time.time()-st)
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-            print("time for cursor creation", time.time()-st)
-            cursor.execute(query)
-            print("time for query execution", time.time()-st)
-            result = cursor.fetchall()
-            print("time for fetchall", time.time()-st)
+            redshift_connection = self.redshift_db.connect()
+            redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
+            redshift_cursor.execute(query)
+            result = redshift_cursor.fetchall()
+            
             logger.info("Fetched %d properties", len(result))
             if not result:
                 resp = Response.not_found(message="Property not found")
             else:
+                # Get user brands from PostgreSQL database
+                competitor_brands = []
+                complementary_brands = []
+                try:
+                    current_user = 2
+                    pg_connection = self.db.connect()  # Using PostgreSQL connection
+                    pg_cursor = pg_connection.cursor(cursor_factory=RealDictCursor)
+                    user_brands_query = f"""
+                        SELECT bp_competitor_brands, bp_complementary_brands
+                        FROM bp_users_questionare
+                        WHERE bp_user_id = {current_user}
+                        LIMIT 1
+                    """
+                    pg_cursor.execute(user_brands_query)
+                    brand_data = pg_cursor.fetchone()
+                    logger.info("Brand data: current user %s  %s", current_user, brand_data)
+                    if brand_data:
+                        competitor_brands = brand_data.get('bp_competitor_brands', [])
+                        complementary_brands = brand_data.get('bp_complementary_brands', [])
+                except Exception as e:
+                    logger.warning(f"Could not fetch user brands: {str(e)}")
+                    # Continue without user brands data
+                
                 result_jsons = self.get_property_json(result)
                 
-                # #Adding Street View Images to property_details
-                for res_json in result_jsons :
+                # Adding Street View Images and pois info to property_details
+                for res_json in result_jsons:
                     res_json["property_details"]["street_images"] = []
                     prop_lat, prop_lng = res_json["property_details"]["lat"], res_json["property_details"]["lng"]
                     if prop_lat and prop_lng:
-                        pano_id=get_street_view_metadata(float(prop_lat),float(prop_lng))
+                        pano_id = get_street_view_metadata(float(prop_lat), float(prop_lng))
                         if pano_id:
                             headings = [0, 45, 90, 135, 180, 225, 270, 315]
-                            fov = 90  # Field of view
-                            size = "600x300"  # Image size
-                            base_url = request.host_url.rstrip('/')  # Get the base URL
+                            fov = 90
+                            size = "600x300"
+                            base_url = request.host_url.rstrip('/')
                             street_images = [
                                 f"{base_url}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
                                 for heading in headings
                             ]
                             res_json["property_details"]["street_images"] = street_images
-                        else:
-                            res_json["property_details"]["street_images"] = []
+                    
+                    # Add POI brand info to property_details
+                    res_json["property_details"]["poi_brands_info"] = {
+                        "competitor_brands": competitor_brands,
+                        "complementary_brands": complementary_brands,
+                    }
 
                 result_json = result_jsons
                 upc = UserPropertyController()
-                if fid :
+                if fid:
                     upc.add_user_property(fid, current_user, 'view')
                 resp = Response.success(data=result_json, message='Success')
         except Exception as e:
             logger.error("Error fetching properties: %s", str(e), exc_info=True)
             resp = Response.internal_server_error(message=str(e))
         finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                self.redshift_db.disconnect(connection)
+            if redshift_cursor:
+                redshift_cursor.close()
+            if pg_cursor:
+                pg_cursor.close()
+            if redshift_connection:
+                self.redshift_db.disconnect(redshift_connection)
+            if pg_connection:
+                self.db.disconnect(pg_connection)
             return resp
 
     def get_property_market_info(self, fid):
