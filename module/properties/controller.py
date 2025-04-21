@@ -102,6 +102,59 @@ class UserPropertyController:
                 self.db.disconnect(connection)
             return resp
 
+    #get request properties by user
+    def get_requested_properties(self, user_id):
+        """Get all properties that have been requested by a specific user"""
+        connection = None
+        cursor = None
+        try:
+            logger.info("Fetching requested properties for user_id: %s", user_id)
+            connection = self.redshift_db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            # First get all requested property FIDs for the user
+            fid_query = f'''
+                SELECT fid 
+                FROM bp_user_property 
+                WHERE user_id = {user_id} 
+                AND request_status = true
+            '''
+            cursor.execute(fid_query)
+            fid_results = cursor.fetchall()
+            
+            if not fid_results:
+                logger.info("No requested properties found for user_id: %s", user_id)
+                return Response.success(data=[], message='No requested properties found')
+            
+            # Extract FIDs and create filter for property query
+            fids = [str(result['fid']) for result in fid_results]
+            fid_filter = f"WHERE fid IN ({','.join(fids)})"
+            
+            # Get full property details using existing query controller
+            property_query = self.qc.get_property_query(fid_filter)
+            cursor.execute(property_query)
+            property_results = cursor.fetchall()
+            
+            # Process results using existing property JSON formatter
+            if property_results:
+                property_controller = PropertyController()
+                formatted_results = property_controller.get_property_json(property_results)
+                logger.info("Successfully fetched %d requested properties", len(formatted_results))
+                resp = Response.success(data=formatted_results, message='Success')
+            else:
+                logger.warning("No property details found for requested FIDs")
+                resp = Response.success(data=[], message='No property details found')
+                
+        except Exception as e:
+            logger.error("Error fetching requested properties: %s", str(e), exc_info=True)
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_db.disconnect(connection)
+            return resp
+
 class PropertyController:
     def __init__(self):
         self.db = Database()
