@@ -107,20 +107,27 @@ class UserPropertyController:
         """Get all properties that have been requested by a specific user"""
         connection = None
         cursor = None
+        redshift_connection = None
+        redshift_cursor = None
         try:
             logger.info("Fetching requested properties for user_id: %s", user_id)
-            connection = self.redshift_db.connect()
+            # First get all requested property FIDs from PostgreSQL
+            connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            # First get all requested property FIDs for the user
             fid_query = f'''
                 SELECT fid 
                 FROM bp_user_property 
                 WHERE user_id = {user_id} 
-                AND request_status = true
+                AND request_status = 1
+
+
+                
             '''
+            #AND request_status = true
             cursor.execute(fid_query)
             fid_results = cursor.fetchall()
+            logger.info("FID result I am getting %s",fid_results)
             
             if not fid_results:
                 logger.info("No requested properties found for user_id: %s", user_id)
@@ -130,10 +137,12 @@ class UserPropertyController:
             fids = [str(result['fid']) for result in fid_results]
             fid_filter = f"WHERE fid IN ({','.join(fids)})"
             
-            # Get full property details using existing query controller
+            # Get full property details from Redshift using existing query controller
+            redshift_connection = self.redshift_db.connect()
+            redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
             property_query = self.qc.get_property_query(fid_filter)
-            cursor.execute(property_query)
-            property_results = cursor.fetchall()
+            redshift_cursor.execute(property_query)
+            property_results = redshift_cursor.fetchall()
             
             # Process results using existing property JSON formatter
             if property_results:
@@ -152,7 +161,11 @@ class UserPropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                self.redshift_db.disconnect(connection)
+                self.db.disconnect(connection)
+            if redshift_cursor:
+                redshift_cursor.close()
+            if redshift_connection:
+                self.redshift_db.disconnect(redshift_connection)
             return resp
 
 class PropertyController:
