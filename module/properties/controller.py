@@ -109,6 +109,7 @@ class UserPropertyController:
         cursor = None
         redshift_connection = None
         redshift_cursor = None
+        resp = None  # Initialize resp at the start
         try:
             logger.info("Fetching requested properties for user_id: %s", user_id)
             # First get all requested property FIDs from PostgreSQL
@@ -120,18 +121,15 @@ class UserPropertyController:
                 FROM bp_user_property 
                 WHERE user_id = {user_id} 
                 AND request_status = 1
-
-
-                
             '''
-            #AND request_status = true
             cursor.execute(fid_query)
             fid_results = cursor.fetchall()
-            logger.info("FID result I am getting %s",fid_results)
+            logger.info("FID result I am getting %s", fid_results)
             
             if not fid_results:
                 logger.info("No requested properties found for user_id: %s", user_id)
-                return Response.success(data=[], message='No requested properties found')
+                resp = Response.success(data=[], message='No requested properties found')
+                return resp
             
             # Extract FIDs and create filter for property query
             fids = [str(result['fid']) for result in fid_results]
