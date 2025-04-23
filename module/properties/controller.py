@@ -135,17 +135,20 @@ class UserPropertyController:
             fids = [str(result['fid']) for result in fid_results]
             fid_filter = f"WHERE fid IN ({','.join(fids)})"
             
+            
             # Get full property details from Redshift using existing query controller
             redshift_connection = self.redshift_db.connect()
             redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
             property_query = self.qc.get_property_query(fid_filter)
+            logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
             redshift_cursor.execute(property_query)
             property_results = redshift_cursor.fetchall()
-            
+            logger.info("Properties result i am getting %s",property_results[0])
             # Process results using existing property JSON formatter
             if property_results:
                 property_controller = PropertyController()
                 formatted_results = property_controller.get_property_json(property_results)
+                logger.info("formated result %s",formatted_results)
                 logger.info("Successfully fetched %d requested properties", len(formatted_results))
                 resp = Response.success(data=formatted_results, message='Success')
             else:
