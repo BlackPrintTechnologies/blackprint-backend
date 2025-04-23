@@ -1,3 +1,4 @@
+print("I am testing the new query controller")
 class QueryController:
     def __init__(self, poi=False, traffic=False, market_value=False, property=False, demographics=False, table=None):
         self.poi = poi
@@ -7,20 +8,30 @@ class QueryController:
         self.demographics = demographics
         self.table = table if table else "blackprint_db_prd.data_product.v_parcel_v3"
 
-    def get_property_query(self, fid):
-        base_query = f"SELECT fid FROM {self.table} WHERE fid = {fid}"
+    def get_property_query(self, filter):
+        # Ensure filter doesn't end with a comma
+        if filter and filter.strip().endswith(','):
+            filter = filter.strip()[:-1]
+            
+        # Start with base fields
+        base_query = f"SELECT fid, street_address"
         
+        # Add additional fields based on flags
         if self.property:
-            base_query = self._add_property_fields(base_query)
+            base_query += ", " + self._add_property_fields("")
         if self.poi:
-            base_query = self._add_poi_fields(base_query)
+            base_query += ", " + self._add_poi_fields("")
         if self.traffic:
-            base_query = self._add_traffic_fields(base_query)
+            base_query += ", " + self._add_traffic_fields("")
         if self.market_value:
-            base_query = self._add_market_value_fields(base_query)
+            base_query += ", " + self._add_market_value_fields("")
         if self.demographics:
-            base_query = self._add_demographics_fields(base_query)
+            base_query += ", " + self._add_demographics_fields("")
+            
+        # Add FROM clause and filter
+        base_query += f" FROM {self.table} {filter}"
         
+        print("base_query", base_query)
         return base_query
 
     def _add_property_fields(self, query):
@@ -38,12 +49,13 @@ class QueryController:
             total_houses,
             locality_size,
             floor_levels,
+            h3_indexes,
             open_space,
             id_land_use,
             id_municipality,
             id_city_blocks
-        """
-        return query + ", " + property_fields
+        """.strip().rstrip(',')
+        return property_fields
 
     def _add_poi_fields(self, query):
         poi_fields = """
@@ -77,8 +89,8 @@ class QueryController:
             brands_health_and_medical_1km,
             brands_public_service_and_government_1km,
             brands_retail_1km
-        """
-        return query + ", " + poi_fields
+        """.strip().rstrip(',')
+        return poi_fields
 
     def _add_traffic_fields(self, query):
         traffic_fields = """
@@ -268,8 +280,8 @@ class QueryController:
             at_rest_avg_x_hour_23_500m,
             pedestrian_avg_x_hour_23_500m,
             motor_vehicle_avg_x_hour_23_500m
-        """
-        return query + ", " + traffic_fields
+        """.strip().rstrip(',')
+        return traffic_fields
 
     def _add_market_value_fields(self, query):
         market_value_fields = """
@@ -293,9 +305,10 @@ class QueryController:
             block_type,
             density_d,
             usage_desc,
-            scope
-        """
-        return query + ", " + market_value_fields
+            scope,
+            city_link
+        """.strip().rstrip(',')
+        return market_value_fields
 
     def _add_demographics_fields(self, query):
         demographics_fields = """
@@ -303,109 +316,111 @@ class QueryController:
             predominant_level,
             ageb_code,
             vivtot,
-            vivtot_colonia,
-            vivtot_alcaldia,
             prom_ocup,
-            prom_ocup_colonia,
-            prom_ocup_alcaldia,
             pro_ocup_c,
+            vivtot_colonia,
+            prom_ocup_colonia,
             pro_ocup_c_colonia,
+            prom_ocup_alcaldia,
             pro_ocup_c_alcaldia,
             ses_ab,
-            ses_ab_colonia,
-            ses_ab_alcaldia,
             ses_c_plus,
-            ses_c_plus_colonia,
-            ses_c_plus_alcaldia,
             ses_c,
-            ses_c_colonia,
-            ses_c_alcaldia,
             ses_c_minus,
-            ses_c_minus_colonia,
-            ses_c_minus_alcaldia,
             ses_d,
-            ses_d_colonia,
-            ses_d_alcaldia,
             ses_d_plus,
-            ses_d_plus_colonia,
-            ses_d_plus_alcaldia,
             ses_e,
+            ses_ab_colonia,
+            ses_c_plus_colonia,
+            ses_c_colonia,
+            ses_c_minus_colonia,
+            ses_d_colonia,
+            ses_d_plus_colonia,
             ses_e_colonia,
+            ses_ab_alcaldia,
+            ses_c_plus_alcaldia,
+            ses_c_alcaldia,
+            ses_c_minus_alcaldia,
+            ses_d_alcaldia,
+            ses_d_plus_alcaldia,
             ses_e_alcaldia,
             pobtot,
-            pobtot_colonia,
-            pobtot_alcaldia,
             pobmas,
-            pobmas_colonia,
-            pobmas_alcaldia,
             pobfem,
+            pobtot_colonia,
+            pobmas_colonia,
             pobfem_colonia,
+            pobtot_alcaldia,
+            pobmas_alcaldia,
             pobfem_alcaldia,
             p_3a5,
-            p_3a5_colonia,
-            p_3a5_alcaldia,
-            p3a5_noa,
-            p3a5_noa_colonia,
-            p3a5_noa_alcaldia,
             p_6a11,
-            p_6a11_colonia,
-            p_6a11_alcaldia,
-            p6a11_noa,
-            p6a11_noa_colonia,
-            p6a11_noa_alcaldia,
             p_12a14,
-            p_12a14_colonia,
-            p_12a14_alcaldia,
-            p12a14noa,
-            p12a14noa_colonia,
-            p12a14noa_alcaldia,
             p_15a17,
-            p_15a17_colonia,
-            p_15a17_alcaldia,
-            p15a17a,
-            p15a17a_colonia,
-            p15a17a_alcaldia,
             p_18a24,
-            p_18a24_colonia,
-            p_18a24_alcaldia,
+            p3a5_noa,
+            p6a11_noa,
+            p12a14noa,
+            p15a17a,
             p18a24a,
+            p_3a5_colonia,
+            p_6a11_colonia,
+            p_12a14_colonia,
+            p_15a17_colonia,
+            p_18a24_colonia,
+            p3a5_noa_colonia,
+            p6a11_noa_colonia,
+            p12a14noa_colonia,
+            p15a17a_colonia,
             p18a24a_colonia,
+            p_3a5_alcaldia,
+            p_6a11_alcaldia,
+            p_12a14_alcaldia,
+            p_15a17_alcaldia,
+            p_18a24_alcaldia,
+            p3a5_noa_alcaldia,
+            p6a11_noa_alcaldia,
+            p12a14noa_alcaldia,
+            p15a17a_alcaldia,
             p18a24a_alcaldia,
             pea,
-            pea_colonia,
-            pea_alcaldia,
             pea_m,
-            pea_m_colonia,
-            pea_m_alcaldia,
             pea_f,
-            pea_f_colonia,
-            pea_f_alcaldia,
             pe_inac,
-            pe_inac_colonia,
-            pe_inac_alcaldia,
             pe_inac_m,
-            pe_inac_m_colonia,
-            pe_inac_m_alcaldia,
             pe_inac_f,
+            pea_colonia,
+            pea_m_colonia,
+            pea_f_colonia,
+            pe_inac_colonia,
+            pe_inac_m_colonia,
             pe_inac_f_colonia,
+            pea_alcaldia,
+            pea_m_alcaldia,
+            pea_f_alcaldia,
+            pe_inac_alcaldia,
+            pe_inac_m_alcaldia,
             pe_inac_f_alcaldia,
             pocupada,
-            pocupada_colonia,
-            pocupada_alcaldia,
             pocupada_m,
-            pocupada_m_colonia,
-            pocupada_m_alcaldia,
             pocupada_f,
-            pocupada_f_colonia,
-            pocupada_f_alcaldia,
             pdesocup,
-            pdesocup_colonia,
-            pdesocup_alcaldia,
             pdesocup_m,
-            pdesocup_m_colonia,
-            pdesocup_m_alcaldia,
             pdesocup_f,
+            pocupada_colonia,
+            pocupada_m_colonia,
+            pocupada_f_colonia,
+            pdesocup_colonia,
+            pdesocup_m_colonia,
             pdesocup_f_colonia,
+            pocupada_alcaldia,
+            pocupada_m_alcaldia,
+            pocupada_f_alcaldia,
+            pdesocup_alcaldia,
+            pdesocup_m_alcaldia,
             pdesocup_f_alcaldia
-        """
-        return query + ", " + demographics_fields
+        """.strip().rstrip(',')
+        return demographics_fields
+
+    def get_demographics_query(self, fid):
+        return f"SELECT * FROM {self.table} WHERE fid = {fid}"
