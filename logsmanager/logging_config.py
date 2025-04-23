@@ -40,7 +40,7 @@ def get_cloudwatch_handler():
         return None
     
 # Replace with your Slack webhook URL
-SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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"
+SLACK_WEBHOOK_URL = config.get("SLACK_WEBHOOK_URL")
 
 class SlackLogHandler(logging.Handler):
     def __init__(self, webhook_url):
