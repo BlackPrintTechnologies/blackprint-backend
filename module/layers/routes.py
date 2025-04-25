@@ -53,7 +53,7 @@ class SearchBrands(Resource):
         data = self.create_parser.parse_args()
         brand_name = data.get('brand_name')
         logger.debug(f"Parsed input: brand_name={brand_name}")
-
+        brand_controller = BrandController()
         response = brand_controller.search_brands(brand_name)
         return response
 
