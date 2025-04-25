@@ -1,7 +1,7 @@
 from flask_restful import Resource, reqparse
 from flask import request, jsonify,send_file
 from utils.responseUtils import Response
-from module.properties.controller import PropertyController  # Assuming SavedSearchesController is in search_controller.py
+from module.properties.controller import PropertyController, UserPropertyController  # Assuming SavedSearchesController is in search_controller.py
 from utils.commonUtil import authenticate
 from utils.streetViewUtils import get_street_view_image
 
@@ -54,12 +54,11 @@ class PropertyDemographic(Resource):
     
 class RequestInfo(Resource):
     create_parser = reqparse.RequestParser()
-    create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='args')
+    create_parser.add_argument('fid', type=str, required=False, help='fid is required')
     @authenticate
-    def get(self, current_user):
+    def post(self, current_user):
+        upc = UserPropertyController()
         data = self.create_parser.parse_args()
         fid = data.get('fid')
-
-        pc = PropertyController()
-        response = pc.get_request_info(fid, current_user)
+        response = upc.request_info_for_property(fid, current_user)
         return response

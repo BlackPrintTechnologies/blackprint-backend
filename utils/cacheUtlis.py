@@ -123,11 +123,16 @@ def cache_response(prefix, expiration=None):
 
                     if result:
                         logging.info(f"Cache hit for key: {cache_key}. Returning cached response.")
+                        cached_data = json.loads(result[0])
+                        # Return only the response data, not the status code
+                        return cached_data[0] if isinstance(cached_data, list) else cached_data
 
-                        return jsonify(json.loads(result[0]))  # Return cached JSON response
                     logging.info(f"Cache miss for key: {cache_key}. Executing function '{f.__name__}'...")
                     # If not cached, execute the function
                     response = f(*args, **kwargs)
+                    
+                    # If response is a tuple (response, status_code), only cache the response
+                    cache_data = response[0] if isinstance(response, tuple) else response
 
                     # Cache the response
                     cursor.execute("""
@@ -136,7 +141,7 @@ def cache_response(prefix, expiration=None):
                         ON CONFLICT (key) DO UPDATE SET
                             value = EXCLUDED.value,
                             expiration = EXCLUDED.expiration
-                    """, (cache_key, json.dumps(response), expiration))
+                    """, (cache_key, json.dumps(cache_data), expiration))
                     conn.commit()
                     logging.info(f"Response cached for key: {cache_key}, expires in {expiration} seconds.")
 

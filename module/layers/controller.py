@@ -52,6 +52,7 @@ class PropertyLayerController:
         connection = None
         resp = None
         try :
+            print("get_properties_layer_data=====>")
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = self.get_property_query()
