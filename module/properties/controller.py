@@ -80,12 +80,12 @@ class UserPropertyController:
             logger.info("Adding user property with fid=%s, user_id=%s, status=%s", fid, user_id, prop_status)
             start_time = time.time()
             connection = db
-            # cursor = connection.cursor()
-            # query = f"INSERT INTO bp_user_property (fid, user_id, user_property_status) VALUES ({fid}, {user_id}, '{prop_status}')"
-            # logger.debug("Executing query: %s", query)
+            cursor = connection.cursor()
+            query = f"INSERT INTO bp_user_property (fid, user_id, user_property_status) VALUES ({fid}, {user_id}, '{prop_status}')"
+            logger.debug("Executing query: %s", query)
 
-            # cursor.execute(query)
-            # connection.commit()
+            cursor.execute(query)
+            connection.commit()
             logger.info("User property added successfully")
             resp = Response.created(message='Success')
             end_time = time.time()
