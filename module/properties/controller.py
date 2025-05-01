@@ -774,7 +774,7 @@ class PropertyController:
         try:
             logger.info("Fetching demographic data for fid=%s, user=%s", fid, current_user)
             start_time = time.time()
-            connection = redshift_connection.connect()
+            connection = redshift_connection
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = self.qc.get_demographics_query(fid)
             logger.debug("Executing query: %s", query)
@@ -800,23 +800,14 @@ class PropertyController:
                 logger.info("No property found")
             end_time = time.time()  # End time of function
             
-            # Logging execution times
-            # print(f"Total Execution Time: {end_time - start_time:.4f}s")
-            # print(f"Connection Time: {conn_time - start_time:.4f}s")
-            # print(f"Query Generation Time: {query_gen_time - conn_time:.4f}s")
-            # print(f"Query Execution Time: {exec_time - query_gen_time:.4f}s")
-            # print(f"Commit Time: {commit_time - exec_time:.4f}s")
-            # print(f"Fetch Time: {fetch_time - commit_time:.4f}s")
-            # print(f"JSON Conversion Time: {json_time - fetch_time:.4f}s")
-            # print(f"Add User Property Time: {add_property_time - json_time:.4f}s")
-
+            
         except Exception as e:
             resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
-            if connection:
-                redshift_connection.disconnect(connection)
+            # if connection:
+            #     redshift_connection.disconnect(connection)
                 # redshift_connection.disconnect(connection)
             return resp
 
