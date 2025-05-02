@@ -16,12 +16,13 @@ from logsmanager.logging_config import setup_logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
+redshift_connection = RedshiftDatabase().connect()
+db = Database().connect()
+
+
 class UserPropertyController:
     def __init__(self):
-        self.db = Database()
-        self.redshift_db = RedshiftDatabase()
-        # self.db = postgres_pool
-        # self.redshift_db = redshift_pool
+        
         self.qc = QueryController()
     
     def get_user_properties(self, prop_status=None):
@@ -29,7 +30,7 @@ class UserPropertyController:
         cursor = None
         try:
             logger.info("Fetching user properties with status: %s", prop_status)
-            connection = self.db.connect()
+            connection = db
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = 'SELECT * FROM bp_user_property WHERE status = 1'
             if prop_status:
@@ -47,7 +48,7 @@ class UserPropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect(connection)
+                db.disconnect(connection)
             return resp
         
     def request_info_for_property(self, fid, user):
@@ -55,7 +56,7 @@ class UserPropertyController:
         cursor = None
         resp = None
         try:
-            connection = self.db.connect()
+            connection = db
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = f'''update bp_user_property set request_status = 1  where fid = {fid} and user_id = {user} returning id'''
             cursor.execute(query)
@@ -68,7 +69,7 @@ class UserPropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect(connection)
+                db.disconnect(connection)
             return resp
     
     def add_user_property(self, fid, user_id, prop_status):
@@ -77,7 +78,7 @@ class UserPropertyController:
         try:
             logger.info("Adding user property with fid=%s, user_id=%s, status=%s", fid, user_id, prop_status)
             start_time = time.time()
-            connection = self.db.connect()
+            connection = db
             cursor = connection.cursor()
             query = f"INSERT INTO bp_user_property (fid, user_id, user_property_status) VALUES ({fid}, {user_id}, '{prop_status}')"
             logger.debug("Executing query: %s", query)
@@ -97,16 +98,81 @@ class UserPropertyController:
         finally:
             if cursor:
                 cursor.close()
+            return resp
+
+    #get request properties by user
+    def get_requested_properties(self, user_id):
+        """Get all properties that have been requested by a specific user"""
+        connection = None
+        cursor = None
+        redshift_connection = None
+        redshift_cursor = None
+        resp = None  # Initialize resp at the start
+        try:
+            logger.info("Fetching requested properties for user_id: %s", user_id)
+            # First get all requested property FIDs from PostgreSQL
+            connection = db
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            fid_query = f'''
+                SELECT fid 
+                FROM bp_user_property 
+                WHERE user_id = {user_id} 
+                AND request_status = 1
+            '''
+            cursor.execute(fid_query)
+            fid_results = cursor.fetchall()
+            logger.info("FID result I am getting %s", fid_results)
+            
+            if not fid_results:
+                logger.info("No requested properties found for user_id: %s", user_id)
+                resp = Response.success(data=[], message='No requested properties found')
+                return resp
+            
+            # Extract FIDs and create filter for property query
+            fids = [str(result['fid']) for result in fid_results]
+            fid_filter = f"WHERE fid IN ({','.join(fids)})"
+            
+            
+            # Get full property details from Redshift using existing query controller
+            redshift_connection = redshift_connection
+            redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
+            property_query = self.qc.get_property_query(fid_filter)
+            logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
+            redshift_cursor.execute(property_query)
+            property_results = redshift_cursor.fetchall()
+            logger.info("Properties result i am getting %s",property_results[0])
+            # Process results using existing property JSON formatter
+            if property_results:
+                property_controller = PropertyController()
+                formatted_results = property_controller.get_property_json(property_results)
+                logger.info("formated result %s",formatted_results)
+                logger.info("Successfully fetched %d requested properties", len(formatted_results))
+                resp = Response.success(data=formatted_results, message='Success')
+            else:
+                logger.warning("No property details found for requested FIDs")
+                resp = Response.success(data=[], message='No property details found')
+                
+        except Exception as e:
+            logger.error("Error fetching requested properties: %s", str(e), exc_info=True)
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
             if connection:
-                self.db.disconnect(connection)
+                db.disconnect(connection)
+            if redshift_cursor:
+                redshift_cursor.close()
+            if redshift_connection:
+                redshift_connection.disconnect(redshift_connection)
             return resp
 
 class PropertyController:
     def __init__(self):
-        self.db = Database()
-        self.redshift_db = RedshiftDatabase()
-        # self.db = postgres_pool
-        # self.redshift_db = redshift_pool
+        db = Database()
+        redshift_connection = RedshiftDatabase()
+        # db = postgres_pool
+        # redshift_connection = redshift_pool
         self.qc = QueryController()
 
     @staticmethod
@@ -431,23 +497,21 @@ class PropertyController:
                 return Response.bad_request(message="Invalid request")
 
             query = self.qc.get_property_query(filter_query)
-            st = time.time()
+        #     st = time.time()
             logger.debug("Executing query: %s", query)
-            connection = self.redshift_db.connect()
-            print("time taken to connect to redshift", time.time()-st)
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-            print("time for cursor creation", time.time()-st)
+            cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
+        #     print("time for cursor creation", time.time()-st)
             cursor.execute(query)
-            print("time for query execution", time.time()-st)
+        #     print("time for query execution", time.time()-st)
             result = cursor.fetchall()
-            print("time for fetchall", time.time()-st)
-            logger.info("Fetched %d properties", len(result))
+        #     print("time for fetchall", time.time()-st)
+        #     logger.info("Fetched %d properties", len(result))
             if not result:
                 resp = Response.not_found(message="Property not found")
             else:
                 result_jsons = self.get_property_json(result)
                 
-                # #Adding Street View Images to property_details
+        #         # #Adding Street View Images to property_details
                 for res_json in result_jsons :
                     res_json["property_details"]["street_images"] = []
                     prop_lat, prop_lng = res_json["property_details"]["lat"], res_json["property_details"]["lng"]
@@ -478,14 +542,18 @@ class PropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                self.redshift_db.disconnect(connection)
+                redshift_connection.disconnect(connection)
+            pass
+            # logger.info("Time taken to fetch properties: %s", time.time()-st)
             return resp
+        resp = Response.success(message='Success')
+        return resp
 
     def get_property_market_info(self, fid):
         connection = None
         cursor = None
         try:
-            connection = self.db.connect()
+            connection = db
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             spot2_query = f''' SELECT 
                         id_market_data_spot2 as id_spot2,
@@ -518,7 +586,7 @@ class PropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect(connection)
+                db.disconnect(connection)
             return resp
         
     @staticmethod
@@ -705,7 +773,7 @@ class PropertyController:
         try:
             logger.info("Fetching demographic data for fid=%s, user=%s", fid, current_user)
             start_time = time.time()
-            connection = self.redshift_db.connect()
+            connection = redshift_connection
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = self.qc.get_demographics_query(fid)
             logger.debug("Executing query: %s", query)
@@ -731,24 +799,15 @@ class PropertyController:
                 logger.info("No property found")
             end_time = time.time()  # End time of function
             
-            # Logging execution times
-            # print(f"Total Execution Time: {end_time - start_time:.4f}s")
-            # print(f"Connection Time: {conn_time - start_time:.4f}s")
-            # print(f"Query Generation Time: {query_gen_time - conn_time:.4f}s")
-            # print(f"Query Execution Time: {exec_time - query_gen_time:.4f}s")
-            # print(f"Commit Time: {commit_time - exec_time:.4f}s")
-            # print(f"Fetch Time: {fetch_time - commit_time:.4f}s")
-            # print(f"JSON Conversion Time: {json_time - fetch_time:.4f}s")
-            # print(f"Add User Property Time: {add_property_time - json_time:.4f}s")
-
+            
         except Exception as e:
             resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
-            if connection:
-                self.redshift_db.disconnect(connection)
-                # self.redshift_db.disconnect(connection)
+            # if connection:
+            #     redshift_connection.disconnect(connection)
+                # redshift_connection.disconnect(connection)
             return resp
 
         

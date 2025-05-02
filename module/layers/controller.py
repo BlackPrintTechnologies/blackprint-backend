@@ -120,6 +120,7 @@ class BrandController:
             print("res=====>", res)
             #new chnage 
             # Add icon URLs to the results
+            
             enhanced_results = []
             for result in res:
                 result['icon_url'] = IconMapper.get_icon_url(result['category_1'])
