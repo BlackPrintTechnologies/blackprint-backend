@@ -70,7 +70,6 @@ class UserPropertyController:
             if connection:
                 self.db.disconnect(connection)
             return resp
-
     
     def add_user_property(self, fid, user_id, prop_status):
         connection = None
