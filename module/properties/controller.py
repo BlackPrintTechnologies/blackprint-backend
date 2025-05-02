@@ -804,7 +804,6 @@ class PropertyController:
                 cursor.close()
             if connection:
                 self.redshift_connection.disconnect(connection)
-                self.redshift_connection.disconnect(connection)
             return resp
 
     def get_property_traffic(self):
