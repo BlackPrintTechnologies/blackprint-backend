@@ -109,7 +109,7 @@ class UserPropertyController:
         """Get all properties that have been requested by a specific user"""
         connection = None
         cursor = None
-        self.redshift_connection = None
+        redshift_connection = None
         redshift_cursor = None
         resp = None  # Initialize resp at the start
         try:
@@ -119,7 +119,7 @@ class UserPropertyController:
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
             fid_query = f'''
-                SELECT fid 
+                SELECT *
                 FROM bp_user_property 
                 WHERE user_id = {user_id} 
                 AND request_status = 1
@@ -138,8 +138,8 @@ class UserPropertyController:
             fid_filter = f"WHERE fid IN ({','.join(fids)})"
             
             # Get full property details from Redshift using existing query controller
-            self.redshift_connection = self.redshift_connection
-            redshift_cursor = self.redshift_connection.cursor(cursor_factory=RealDictCursor)
+            redshift_connection = self.redshift_connection.connect()
+            redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
             property_query = self.qc.get_property_query(fid_filter)
             logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
             redshift_cursor.execute(property_query)
@@ -149,9 +149,19 @@ class UserPropertyController:
             if property_results:
                 property_controller = PropertyController()
                 formatted_results = property_controller.get_property_json(property_results)
-                logger.info("formated result %s",formatted_results)
-                logger.info("Successfully fetched %d requested properties", len(formatted_results))
-                resp = Response.success(data=formatted_results, message='Success')
+                final_res = []
+                for result in formatted_results:
+                    fid = result['property_details']['fid']
+                    for item in fid_results:
+                        if item['fid'] == fid:
+                            for key, value in item.items():
+                                if isinstance(value, datetime):
+                                    item[key] = value.isoformat()
+                            result['property_details'] = {**result['property_details'], **item}
+                            final_res.append(result['property_details'])
+                logger.info("formated result %s",final_res)
+                logger.info("Successfully fetched %d requested properties", len(final_res))
+                resp = Response.success(data=final_res, message='Success')
             else:
                 logger.warning("No property details found for requested FIDs")
                 resp = Response.success(data=[], message='No property details found')
@@ -163,11 +173,11 @@ class UserPropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                self.self.db.disconnect(connection)
+                self.db.disconnect(connection)
             if redshift_cursor:
                 redshift_cursor.close()
-            if self.redshift_connection:
-                self.redshift_connection.disconnect(self.redshift_connection)
+            if redshift_connection:
+                self.redshift_connection.disconnect(redshift_connection)
             return resp
 
 class PropertyController:
