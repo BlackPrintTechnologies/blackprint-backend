@@ -69,5 +69,5 @@ logger.debug("API routes have been configured.")
 
 if __name__ == '__main__':
     logger.info("Starting the Flask development server.....")
-    logger.error("This is an  test error message. for slack integration")
+    logger.error("Logs Check for production")
     app.run(debug=True)
