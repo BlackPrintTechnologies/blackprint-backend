@@ -8,7 +8,7 @@ import h3
 from utils.cacheUtlis import cache_response
 from utils.iconUtils import IconMapper
 from utils.streetViewUtils import get_street_view_metadata
-from flask import request
+# from flask import request
 import time
 from datetime import datetime
 import logging
@@ -16,6 +16,12 @@ from logsmanager.logging_config import setup_logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
+config_path = 'app.json'
+with open(config_path, 'r') as config_file:
+    config = json.load(config_file)
+
+# Secret key for JWT
+BASE_URL = config['BASE_URL']
 
 class UserPropertyController:
     def __init__(self):
@@ -518,9 +524,9 @@ class PropertyController:
                             headings = [0, 45, 90, 135, 180, 225, 270, 315]
                             fov = 90  # Field of view
                             size = "600x300"  # Image size
-                            base_url = request.host_url.rstrip('/')  # Get the base URL
+                            # base_url = request.host_url.rstrip('/')  # Get the base URL
                             street_images = [
-                                f"{base_url}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
+                                f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
                                 for heading in headings
                             ]
                             res_json["property_details"]["street_images"] = street_images
