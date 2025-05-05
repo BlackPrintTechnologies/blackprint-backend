@@ -124,6 +124,7 @@ class UserPropertyController:
                 WHERE user_id = {user_id} 
                 AND request_status = 1
             '''
+            # print("FID QUERY I AM GETTING %s", fid_query)
             cursor.execute(fid_query)
             fid_results = cursor.fetchall()
             logger.info("FID result I am getting %s", fid_results)
@@ -144,11 +145,12 @@ class UserPropertyController:
             logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
             redshift_cursor.execute(property_query)
             property_results = redshift_cursor.fetchall()
-            logger.info("Properties result i am getting %s",property_results[0])
+            # logger.info("Properties result i am getting %s",property_results[0])
             # Process results using existing property JSON formatter
             if property_results:
                 property_controller = PropertyController()
                 formatted_results = property_controller.get_property_json(property_results)
+                print("Formatted results I am getting %s",len(formatted_results))
                 final_res = []
                 for result in formatted_results:
                     fid = result['property_details']['fid']
@@ -495,12 +497,12 @@ class PropertyController:
                     } 
                     }
                 
-            resp.append( {
-                        "property_details": property_details,
-                        "market_info": market_info,
-                        "pois": pois,
-                        "traffic": traffic
-                    })
+                resp.append( {
+                            "property_details": property_details,
+                            "market_info": market_info,
+                            "pois": pois,
+                            "traffic": traffic
+                        })
             return resp
         except Exception as e:
             logger.error("Error processing property JSON: %s", str(e), exc_info=True)
