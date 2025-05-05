@@ -152,6 +152,21 @@ class UserPropertyController:
                 final_res = []
                 for result in formatted_results:
                     fid = result['property_details']['fid']
+                    prop_lat, prop_lng = result["property_details"]["lat"], result["property_details"]["lng"]
+                    if prop_lat and prop_lng:
+                        pano_id=get_street_view_metadata(float(prop_lat),float(prop_lng))
+                        if pano_id:
+                            headings = [0, 45, 90, 135, 180, 225, 270, 315]
+                            fov = 90  # Field of view
+                            size = "600x300"  # Image size
+                            # base_url = request.host_url.rstrip('/')  # Get the base URL
+                            street_images = [
+                                f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
+                                for heading in headings
+                            ]
+                            result["property_details"]["street_images"] = street_images
+                        else:
+                            result["property_details"]["street_images"] = []
                     for item in fid_results:
                         if item['fid'] == fid:
                             for key, value in item.items():
