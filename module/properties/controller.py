@@ -127,7 +127,7 @@ class UserPropertyController:
             # print("FID QUERY I AM GETTING %s", fid_query)
             cursor.execute(fid_query)
             fid_results = cursor.fetchall()
-            logger.info("FID result I am getting %s", fid_results)
+            # logger.info("FID result I am getting %s", fid_results)
             
             if not fid_results:
                 logger.info("No requested properties found for user_id: %s", user_id)
@@ -142,7 +142,7 @@ class UserPropertyController:
             redshift_connection = self.redshift_connection.connect()
             redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
             property_query = self.qc.get_property_query(fid_filter)
-            logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
+            # logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
             redshift_cursor.execute(property_query)
             property_results = redshift_cursor.fetchall()
             # logger.info("Properties result i am getting %s",property_results[0])
@@ -176,7 +176,7 @@ class UserPropertyController:
                                     item[key] = value.isoformat()
                             result['property_details'] = {**result['property_details'], **item}
                             final_res.append(result['property_details'])
-                logger.info("formated result %s",final_res)
+                # logger.info("formated result %s",final_res)
                 logger.info("Successfully fetched %d requested properties", len(final_res))
                 resp = Response.success(data=final_res, message='Success')
             else:
