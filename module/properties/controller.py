@@ -102,6 +102,8 @@ class UserPropertyController:
         finally:
             if cursor:
                 cursor.close()
+            if connection:
+                self.db.disconnect(connection)
             return resp
 
     #get request properties by user
@@ -585,7 +587,7 @@ class PropertyController:
         connection = None
         cursor = None
         try:
-            connection = self.db
+            connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             spot2_query = f''' SELECT 
                         id_market_data_spot2 as id_spot2,

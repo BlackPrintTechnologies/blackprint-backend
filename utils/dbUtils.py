@@ -33,7 +33,7 @@ class Database:
             'port': config['DB_PORT']
         }
         self._pool = psycopg2.pool.SimpleConnectionPool(
-            1, 20, **self.db_config
+            1, 40, **self.db_config
         )
 
     def connect(self, db_name=None):
@@ -69,7 +69,7 @@ class RedshiftDatabase:
             'port': config['AWS_PORT']
         }
         self._pool = psycopg2.pool.SimpleConnectionPool(
-            1, 20, **self.db_config
+            1, 40, **self.db_config
         )
 
     def connect(self, db_name=None):
