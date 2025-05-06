@@ -5,6 +5,7 @@ from module.layers.controller import BrandController, TrafficController, Propert
 from utils.commonUtil import authenticate
 from logsmanager.logging_config import setup_logging
 import logging
+import time
 
 
 # Initialize logging
@@ -84,5 +85,7 @@ class PropertyLayer(Resource):
     def get(self):
         logger.info("Received request to fetch property layer data.")
         property_layer_controller = PropertyLayerController()
+        start = time.time()
         response = property_layer_controller.get_properties_layer_data()
+        logger.info(f"Data fetched in {time.time() - start:.2f} seconds")
         return response

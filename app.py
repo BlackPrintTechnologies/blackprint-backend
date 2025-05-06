@@ -4,12 +4,17 @@ from flask_cors import CORS
 import logging
 from logsmanager.logging_config import setup_logging
 from flask import Flask, g, request 
+from flask_compress import Compress
 import uuid
 app = Flask(__name__)
 api = Api(app)
 
 # Allow CORS for specific origins (localhost:3000 in this case)
 CORS(app)
+Compress(app)  # Enable compression
+app.config['COMPRESS_ALGORITHM'] = 'gzip'
+app.config['COMPRESS_LEVEL'] = 1  # 1 (fastest) to 9 (best compression)
+app.config['COMPRESS_MIMETYPES'] = ['text/html', 'application/json']
 
 @app.before_request
 def before_request():
