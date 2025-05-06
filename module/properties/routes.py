@@ -62,3 +62,11 @@ class RequestInfo(Resource):
         fid = data.get('fid')
         response = upc.request_info_for_property(fid, current_user)
         return response
+    
+#route for get requested property
+class RequestedProperties(Resource):
+    @authenticate
+    def get(self, current_user):
+        upc = UserPropertyController()
+        response = upc.get_requested_properties(current_user)
+        return response

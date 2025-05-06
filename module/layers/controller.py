@@ -47,7 +47,7 @@ class PropertyLayerController:
                 '''
         return query
     
-    # @cache_response(prefix='properties_layer',expiration=3600)
+    @cache_response(prefix='properties_layer',expiration=360000)
     def get_properties_layer_data(self):
         connection = None
         resp = None
@@ -120,6 +120,7 @@ class BrandController:
             print("res=====>", res)
             #new chnage 
             # Add icon URLs to the results
+            
             enhanced_results = []
             for result in res:
                 result['icon_url'] = IconMapper.get_icon_url(result['category_1'])

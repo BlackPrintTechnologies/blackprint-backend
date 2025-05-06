@@ -8,7 +8,7 @@ import h3
 from utils.cacheUtlis import cache_response
 from utils.iconUtils import IconMapper
 from utils.streetViewUtils import get_street_view_metadata
-from flask import request
+# from flask import request
 import time
 from datetime import datetime
 import logging
@@ -16,13 +16,18 @@ from logsmanager.logging_config import setup_logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
+config_path = 'app.json'
+with open(config_path, 'r') as config_file:
+    config = json.load(config_file)
+
+# Secret key for JWT
+BASE_URL = config['BASE_URL']
+
 class UserPropertyController:
     def __init__(self):
-        self.db = Database()
-        self.redshift_db = RedshiftDatabase()
-        # self.db = postgres_pool
-        # self.redshift_db = redshift_pool
         self.qc = QueryController()
+        self.db = Database()
+        self.redshift_connection = RedshiftDatabase()
     
     def get_user_properties(self, prop_status=None):
         connection = None
@@ -70,7 +75,6 @@ class UserPropertyController:
             if connection:
                 self.db.disconnect(connection)
             return resp
-
     
     def add_user_property(self, fid, user_id, prop_status):
         connection = None
@@ -102,12 +106,105 @@ class UserPropertyController:
                 self.db.disconnect(connection)
             return resp
 
+    #get request properties by user
+    def get_requested_properties(self, user_id):
+        """Get all properties that have been requested by a specific user"""
+        connection = None
+        cursor = None
+        redshift_connection = None
+        redshift_cursor = None
+        resp = None  # Initialize resp at the start
+        try:
+            logger.info("Fetching requested properties for user_id: %s", user_id)
+            # First get all requested property FIDs from PostgreSQL
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            fid_query = f'''
+                SELECT *
+                FROM bp_user_property 
+                WHERE user_id = {user_id} 
+                AND request_status = 1
+            '''
+            # print("FID QUERY I AM GETTING %s", fid_query)
+            cursor.execute(fid_query)
+            fid_results = cursor.fetchall()
+            logger.info("FID result I am getting %s", fid_results)
+            
+            if not fid_results:
+                logger.info("No requested properties found for user_id: %s", user_id)
+                resp = Response.success(data=[], message='No requested properties found')
+                return resp
+            
+            # Extract FIDs and create filter for property query
+            fids = [str(result['fid']) for result in fid_results]
+            fid_filter = f"WHERE fid IN ({','.join(fids)})"
+            
+            # Get full property details from Redshift using existing query controller
+            redshift_connection = self.redshift_connection.connect()
+            redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
+            property_query = self.qc.get_property_query(fid_filter)
+            logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
+            redshift_cursor.execute(property_query)
+            property_results = redshift_cursor.fetchall()
+            # logger.info("Properties result i am getting %s",property_results[0])
+            # Process results using existing property JSON formatter
+            if property_results:
+                property_controller = PropertyController()
+                formatted_results = property_controller.get_property_json(property_results)
+                print("Formatted results I am getting %s",len(formatted_results))
+                final_res = []
+                for result in formatted_results:
+                    fid = result['property_details']['fid']
+                    prop_lat, prop_lng = result["property_details"]["lat"], result["property_details"]["lng"]
+                    if prop_lat and prop_lng:
+                        pano_id=get_street_view_metadata(float(prop_lat),float(prop_lng))
+                        if pano_id:
+                            headings = [0, 45, 90, 135, 180, 225, 270, 315]
+                            fov = 90  # Field of view
+                            size = "600x300"  # Image size
+                            # base_url = request.host_url.rstrip('/')  # Get the base URL
+                            street_images = [
+                                f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
+                                for heading in headings
+                            ]
+                            result["property_details"]["street_images"] = street_images
+                        else:
+                            result["property_details"]["street_images"] = []
+                    for item in fid_results:
+                        if item['fid'] == fid:
+                            for key, value in item.items():
+                                if isinstance(value, datetime):
+                                    item[key] = value.isoformat()
+                            result['property_details'] = {**result['property_details'], **item}
+                            final_res.append(result['property_details'])
+                logger.info("formated result %s",final_res)
+                logger.info("Successfully fetched %d requested properties", len(final_res))
+                resp = Response.success(data=final_res, message='Success')
+            else:
+                logger.warning("No property details found for requested FIDs")
+                resp = Response.success(data=[], message='No property details found')
+                
+        except Exception as e:
+            logger.error("Error fetching requested properties: %s", str(e), exc_info=True)
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+            if redshift_cursor:
+                redshift_cursor.close()
+            if redshift_connection:
+                self.redshift_connection.disconnect(redshift_connection)
+            return resp
+
 class PropertyController:
     def __init__(self):
         self.db = Database()
-        self.redshift_db = RedshiftDatabase()
+        self.redshift_connection = RedshiftDatabase()
         # self.db = postgres_pool
-        # self.redshift_db = redshift_pool
+        # self.redshift_connection = redshift_pool
         self.qc = QueryController()
 
     @staticmethod
@@ -402,12 +499,12 @@ class PropertyController:
                     } 
                     }
                 
-            resp.append( {
-                        "property_details": property_details,
-                        "market_info": market_info,
-                        "pois": pois,
-                        "traffic": traffic
-                    })
+                resp.append( {
+                            "property_details": property_details,
+                            "market_info": market_info,
+                            "pois": pois,
+                            "traffic": traffic
+                        })
             return resp
         except Exception as e:
             logger.error("Error processing property JSON: %s", str(e), exc_info=True)
@@ -416,6 +513,7 @@ class PropertyController:
     # @cache_response(prefix='properties',expiration=3600)
     def get_properties(self,current_user, fid=None, lat=None, lng=None):
         connection = None 
+        redshift_connection = None
         cursor = None
         resp = None
         try:
@@ -432,23 +530,22 @@ class PropertyController:
                 return Response.bad_request(message="Invalid request")
 
             query = self.qc.get_property_query(filter_query)
-            st = time.time()
-            logger.debug("Executing query: %s", query)
-            connection = self.redshift_db.connect()
-            print("time taken to connect to redshift", time.time()-st)
+        #     st = time.time()
+            # logger.debug("Executing query: %s", query)
+            connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            print("time for cursor creation", time.time()-st)
+        #   print("time for cursor creation", time.time()-st)
             cursor.execute(query)
-            print("time for query execution", time.time()-st)
+        #     print("time for query execution", time.time()-st)
             result = cursor.fetchall()
-            print("time for fetchall", time.time()-st)
-            logger.info("Fetched %d properties", len(result))
+        #     print("time for fetchall", time.time()-st)
+        #     logger.info("Fetched %d properties", len(result))
             if not result:
                 resp = Response.not_found(message="Property not found")
             else:
                 result_jsons = self.get_property_json(result)
                 
-                # #Adding Street View Images to property_details
+        #         # #Adding Street View Images to property_details
                 for res_json in result_jsons :
                     res_json["property_details"]["street_images"] = []
                     prop_lat, prop_lng = res_json["property_details"]["lat"], res_json["property_details"]["lng"]
@@ -458,9 +555,9 @@ class PropertyController:
                             headings = [0, 45, 90, 135, 180, 225, 270, 315]
                             fov = 90  # Field of view
                             size = "600x300"  # Image size
-                            base_url = request.host_url.rstrip('/')  # Get the base URL
+                            # base_url = request.host_url.rstrip('/')  # Get the base URL
                             street_images = [
-                                f"{base_url}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
+                                f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
                                 for heading in headings
                             ]
                             res_json["property_details"]["street_images"] = street_images
@@ -479,8 +576,12 @@ class PropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                self.redshift_db.disconnect(connection)
+                self.redshift_connection.disconnect(connection)
+            pass
+            # logger.info("Time taken to fetch properties: %s", time.time()-st)
             return resp
+        resp = Response.success(message='Success')
+        return resp
 
     def get_property_market_info(self, fid):
         connection = None
@@ -706,7 +807,7 @@ class PropertyController:
         try:
             logger.info("Fetching demographic data for fid=%s, user=%s", fid, current_user)
             start_time = time.time()
-            connection = self.redshift_db.connect()
+            connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = self.qc.get_demographics_query(fid)
             logger.debug("Executing query: %s", query)
@@ -726,33 +827,19 @@ class PropertyController:
                 
                 resp = Response.success(data=response, message='Success')
                 
-
             else:
                 resp = Response.bad_request(message="Property not found")
                 logger.info("No property found")
             end_time = time.time()  # End time of function
             
-            # Logging execution times
-            # print(f"Total Execution Time: {end_time - start_time:.4f}s")
-            # print(f"Connection Time: {conn_time - start_time:.4f}s")
-            # print(f"Query Generation Time: {query_gen_time - conn_time:.4f}s")
-            # print(f"Query Execution Time: {exec_time - query_gen_time:.4f}s")
-            # print(f"Commit Time: {commit_time - exec_time:.4f}s")
-            # print(f"Fetch Time: {fetch_time - commit_time:.4f}s")
-            # print(f"JSON Conversion Time: {json_time - fetch_time:.4f}s")
-            # print(f"Add User Property Time: {add_property_time - json_time:.4f}s")
-
         except Exception as e:
             resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
-                self.redshift_db.disconnect(connection)
-                # self.redshift_db.disconnect(connection)
+                self.redshift_connection.disconnect(connection)
             return resp
-
-        
 
     def get_property_traffic(self):
         pass
