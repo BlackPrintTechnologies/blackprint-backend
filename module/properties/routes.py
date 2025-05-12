@@ -52,21 +52,52 @@ class PropertyDemographic(Resource):
         response = pc.get_property_demographic(fid, current_user)
         return response
     
-class RequestInfo(Resource):
-    create_parser = reqparse.RequestParser()
-    create_parser.add_argument('fid', type=str, required=False, help='fid is required')
-    @authenticate
-    def post(self, current_user):
-        upc = UserPropertyController()
-        data = self.create_parser.parse_args()
-        fid = data.get('fid')
-        response = upc.request_info_for_property(fid, current_user)
-        return response
+
     
+class UserProperty(Resource):
+    get_parser = reqparse.RequestParser()
+    get_parser.add_argument('prop_status', type=str, required=False, help='status is required')
+    update_parser = reqparse.RequestParser()
+    update_parser.add_argument('fid', type=str, required=False, help='fid is required')
+    update_parser.add_argument('prop_status', type=str, required=False, help='status is required')
+
+    @authenticate
+    def get(self, current_user):
+        data = self.get_parser.parse_args()
+        fid = data.get('fid')
+        prop_status = data.get('prop_status')
+        upc = UserPropertyController()
+        response = upc.get_user_properties(current_user, prop_status)
+        return response
+
+    @authenticate
+    def put(self, current_user):
+        data = self.update_parser.parse_args()
+        fid = data.get('fid')
+        prop_status = data.get('prop_status')
+        upc = UserPropertyController()
+        response = upc.update_property_status(current_user, fid, prop_status)
+        return response
+
 #route for get requested property
 class RequestedProperties(Resource):
     @authenticate
     def get(self, current_user):
         upc = UserPropertyController()
         response = upc.get_requested_properties(current_user)
+        return response
+    
+
+class UpdateRequestInfo(Resource):
+    create_parser = reqparse.RequestParser()
+    create_parser.add_argument('fid', type=str, required=False, help='fid is required')
+    create_parser.add_argument('request_status', type=int, required=False, help='status is required')
+
+    @authenticate
+    def post(self, current_user):
+        upc = UserPropertyController()
+        data = self.create_parser.parse_args()
+        fid = data.get('fid')
+        request_status = data.get('request_status')
+        response = upc.update_property_request_status(fid, current_user, request_status)
         return response
