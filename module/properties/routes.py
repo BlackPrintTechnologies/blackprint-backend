@@ -56,7 +56,7 @@ class PropertyDemographic(Resource):
     
 class UserProperty(Resource):
     get_parser = reqparse.RequestParser()
-    get_parser.add_argument('prop_status', type=str, required=False, help='status is required')
+    get_parser.add_argument('prop_status', type=str, required=False, help='status is required', location='args')
     update_parser = reqparse.RequestParser()
     update_parser.add_argument('fid', type=str, required=False, help='fid is required')
     update_parser.add_argument('prop_status', type=str, required=False, help='status is required')
