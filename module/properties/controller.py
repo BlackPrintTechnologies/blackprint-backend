@@ -120,6 +120,8 @@ class UserPropertyController:
                 query += f" AND user_id = {user_id}"
             if prop_status:
                 query += f" AND user_property_status = '{prop_status}'"
+            
+            query += "order by updated_at desc"
             logger.debug("Executing query: %s", query)
             cursor.execute(query)
             result = cursor.fetchall()
@@ -142,7 +144,7 @@ class UserPropertyController:
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = f'''update bp_user_property set request_status = {request_status}  where fid = {fid} and user_id = {user} returning id'''
+            query = f'''update bp_user_property set request_status = {request_status},  updated_at = now()  where fid = {fid} and user_id = {user} returning id'''
             cursor.execute(query)
             connection.commit() 
             resp = Response.success(message='Property requested successfully')
@@ -198,7 +200,7 @@ class UserPropertyController:
             start_time = time.time()
             connection = self.db.connect()
             cursor = connection.cursor()
-            query = f"UPDATE bp_user_property SET user_property_status = '{prop_status}' WHERE fid = {fid} AND user_id = {user_id}"
+            query = f"UPDATE bp_user_property SET user_property_status = '{prop_status}', updated_at = now()  WHERE fid = {fid} AND user_id = {user_id}"
             logger.debug("Executing query: %s", query)
             cursor.execute(query)
             connection.commit()
@@ -229,13 +231,14 @@ class UserPropertyController:
             # First get all requested property FIDs from PostgreSQL
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            
             fid_query = f'''
                 SELECT *
                 FROM bp_user_property 
                 WHERE user_id = {user_id} 
                 AND request_status = 1
+                order by updated_at desc
             '''
+            query += "order by updated_at desc"
             # print("FID QUERY I AM GETTING %s", fid_query)
             cursor.execute(fid_query)
             fid_results = cursor.fetchall()
