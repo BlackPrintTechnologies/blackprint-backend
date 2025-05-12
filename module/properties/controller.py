@@ -238,7 +238,6 @@ class UserPropertyController:
                 AND request_status = 1
                 order by updated_at desc
             '''
-            query += "order by updated_at desc"
             # print("FID QUERY I AM GETTING %s", fid_query)
             cursor.execute(fid_query)
             fid_results = cursor.fetchall()
