@@ -28,116 +28,24 @@ class UserPropertyController:
         self.qc = QueryController()
         self.db = Database()
         self.redshift_connection = RedshiftDatabase()
-    
-    def get_user_properties(self, prop_status=None):
-        connection = None
-        cursor = None
-        try:
-            logger.info("Fetching user properties with status: %s", prop_status)
-            connection = self.db.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = 'SELECT * FROM bp_user_property WHERE status = 1'
-            if prop_status:
-                query += f" AND user_property_status = '{prop_status}'"
-            logger.debug("Executing query: %s", query)
+        self.user_property_status = ['view', 'shortlisted', 'not_interested', 'finalized']
 
-            cursor.execute(query)
-            result = cursor.fetchall()
-            logger.info("Fetched %d user properties", len(result))
-            resp = Response.success(data=result, message='Success')
-        except Exception as e:
-            logger.error("Error fetching user properties: %s", str(e), exc_info=True)
-            resp = Response.internal_server_error(message=str(e))
-        finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                self.db.disconnect(connection)
-            return resp
-        
-    def request_info_for_property(self, fid, user):
-        connection = None
-        cursor = None
-        resp = None
-        try:
-            connection = self.db.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = f'''update bp_user_property set request_status = 1  where fid = {fid} and user_id = {user} returning id'''
-            cursor.execute(query)
-            connection.commit() 
-            resp = Response.success(message='Property requested successfully')
-        except Exception as e:
-            logger.error("Error fetching request info for property: %s", str(e), exc_info=True)
-            resp = Response.internal_server_error(message=str(e))
-        finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                self.db.disconnect(connection)
-            return resp
-    
-    def add_user_property(self, fid, user_id, prop_status):
-        connection = None
-        cursor = None
-        try:
-            logger.info("Adding user property with fid=%s, user_id=%s, status=%s", fid, user_id, prop_status)
-            start_time = time.time()
-            connection = self.db.connect()
-            cursor = connection.cursor()
-            query = f"INSERT INTO bp_user_property (fid, user_id, user_property_status) VALUES ({fid}, {user_id}, '{prop_status}')"
-            logger.debug("Executing query: %s", query)
-
-            cursor.execute(query)
-            connection.commit()
-            logger.info("User property added successfully")
-            resp = Response.created(message='Success')
-            end_time = time.time()
-            logger.debug("Execution time for add_user_property: %.4f seconds", end_time - start_time)
-        except Exception as e:
-            logger.error("Error adding user property: %s", str(e), exc_info=True)
-            if 'unique constraint' in str(e):
-                resp = 'User property already exists'
-            else:
-                resp = Response.internal_server_error(message=str(e))
-        finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                self.db.disconnect(connection)
-            return resp
-
-    #get request properties by user
-    def get_requested_properties(self, user_id):
-        """Get all properties that have been requested by a specific user"""
+    def get_additional_property_details(self, properties):
         connection = None
         cursor = None
         redshift_connection = None
         redshift_cursor = None
         resp = None  # Initialize resp at the start
         try:
-            logger.info("Fetching requested properties for user_id: %s", user_id)
-            # First get all requested property FIDs from PostgreSQL
-            connection = self.db.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-            
-            fid_query = f'''
-                SELECT *
-                FROM bp_user_property 
-                WHERE user_id = {user_id} 
-                AND request_status = 1
-            '''
+            logger.info("Fetching additional properties : %s", properties)
             # print("FID QUERY I AM GETTING %s", fid_query)
-            cursor.execute(fid_query)
-            fid_results = cursor.fetchall()
-            logger.info("FID result I am getting %s", fid_results)
-            
-            if not fid_results:
-                logger.info("No requested properties found for user_id: %s", user_id)
-                resp = Response.success(data=[], message='No requested properties found')
+            if not properties:
+                logger.info("No requested properties found for user_id: %s", properties)
+                resp = Response.success(data=[], message='No properties found')
                 return resp
             
             # Extract FIDs and create filter for property query
-            fids = [str(result['fid']) for result in fid_results]
+            fids = [str(result['fid']) for result in properties]
             fid_filter = f"WHERE fid IN ({','.join(fids)})"
             
             # Get full property details from Redshift using existing query controller
@@ -171,7 +79,7 @@ class UserPropertyController:
                             result["property_details"]["street_images"] = street_images
                         else:
                             result["property_details"]["street_images"] = []
-                    for item in fid_results:
+                    for item in properties:
                         if item['fid'] == fid:
                             for key, value in item.items():
                                 if isinstance(value, datetime):
@@ -185,6 +93,155 @@ class UserPropertyController:
                 logger.warning("No property details found for requested FIDs")
                 resp = Response.success(data=[], message='No property details found')
                 
+        except Exception as e:
+            logger.error("Error fetching requested properties: %s", str(e), exc_info=True)
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+            if redshift_cursor:
+                redshift_cursor.close()
+            if redshift_connection:
+                self.redshift_connection.disconnect(redshift_connection)
+            return resp
+
+    
+    def get_user_properties(self, user_id,  prop_status=None):
+        connection = None
+        cursor = None
+        try:
+            logger.info("Fetching user properties with status: %s", prop_status)
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = 'SELECT * FROM bp_user_property WHERE status = 1'
+            if user_id:
+                query += f" AND user_id = {user_id}"
+            if prop_status:
+                query += f" AND user_property_status = '{prop_status}'"
+            
+            query += "order by updated_at desc"
+            logger.debug("Executing query: %s", query)
+            cursor.execute(query)
+            result = cursor.fetchall()
+            logger.info("Fetched %d user properties", len(result))
+            resp = self.get_additional_property_details(result)
+        except Exception as e:
+            logger.error("Error fetching user properties: %s", str(e), exc_info=True)
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+            return resp
+        
+    def update_property_request_status(self, fid, user, request_status=1):
+        connection = None
+        cursor = None
+        resp = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = f'''update bp_user_property set request_status = {request_status},  updated_at = now()  where fid = {fid} and user_id = {user} returning id'''
+            cursor.execute(query)
+            connection.commit() 
+            resp = Response.success(message='Property requested successfully')
+        except Exception as e:
+            logger.error("Error fetching request info for property: %s", str(e), exc_info=True)
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+            return resp
+
+    def add_user_property(self, fid, user_id, prop_status):
+        connection = None
+        cursor = None
+        try:
+            logger.info("Adding user property with fid=%s, user_id=%s, status=%s", fid, user_id, prop_status)
+            start_time = time.time()
+            connection = self.db.connect()
+            cursor = connection.cursor()
+            query = f"INSERT INTO bp_user_property (fid, user_id, user_property_status) VALUES ({fid}, {user_id}, '{prop_status}')"
+            logger.debug("Executing query: %s", query)
+
+            cursor.execute(query)
+            connection.commit()
+            logger.info("User property added successfully")
+            resp = Response.created(message='Success')
+            end_time = time.time()
+            logger.debug("Execution time for add_user_property: %.4f seconds", end_time - start_time)
+        except Exception as e:
+            logger.error("Error adding user property: %s", str(e), exc_info=True)
+            if 'unique constraint' in str(e):
+                resp = 'User property already exists'
+            else:
+                resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+            return resp
+        
+    def update_property_status(self, user_id, fid , prop_status='view'):
+        connection = None
+        cursor = None
+        resp = None
+        try:
+            if prop_status not in self.user_property_status:
+                logger.error("Invalid property status: %s", prop_status)
+                return Response.bad_request(message='Invalid property status')
+            logger.info("Shortlisting property with fid=%s for user_id=%s", fid, user_id)
+            start_time = time.time()
+            connection = self.db.connect()
+            cursor = connection.cursor()
+            query = f"UPDATE bp_user_property SET user_property_status = '{prop_status}', updated_at = now()  WHERE fid = {fid} AND user_id = {user_id}"
+            logger.debug("Executing query: %s", query)
+            cursor.execute(query)
+            connection.commit()
+            logger.info("Property shortlisted successfully")
+            resp = Response.success(message='Success')
+            end_time = time.time()
+            logger.debug("Execution time for shortlist_property: %.4f seconds", end_time - start_time)
+        except Exception as e:
+            logger.error("Error shortlisting property: %s", str(e), exc_info=True)
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+            return resp
+
+    #get request properties by user
+    def get_requested_properties(self, user_id):
+        """Get all properties that have been requested by a specific user"""
+        connection = None
+        cursor = None
+        redshift_connection = None
+        redshift_cursor = None
+        resp = None  # Initialize resp at the start
+        try:
+            logger.info("Fetching requested properties for user_id: %s", user_id)
+            # First get all requested property FIDs from PostgreSQL
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            fid_query = f'''
+                SELECT *
+                FROM bp_user_property 
+                WHERE user_id = {user_id} 
+                AND request_status = 1
+                order by updated_at desc
+            '''
+            # print("FID QUERY I AM GETTING %s", fid_query)
+            cursor.execute(fid_query)
+            fid_results = cursor.fetchall()
+            resp  = self.get_additional_property_details(fid_results)
         except Exception as e:
             logger.error("Error fetching requested properties: %s", str(e), exc_info=True)
             resp = Response.internal_server_error(message=str(e))
