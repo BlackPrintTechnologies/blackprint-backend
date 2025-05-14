@@ -68,7 +68,7 @@ class UserProperty(Resource):
         fid = data.get('fid')
         prop_status = data.get('prop_status')
         upc = UserPropertyController()
-        response = upc.get_user_properties(current_user, prop_status)
+        response = upc.get_user_properties(current_user, fid,  prop_status)
         return response
 
     @authenticate

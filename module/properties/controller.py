@@ -117,11 +117,11 @@ class UserPropertyController:
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = 'SELECT * FROM bp_user_property WHERE status = 1'
             if user_id:
-                query += f" AND user_id = {user_id}"
+                query += f" AND user_id = {user_id} "
             if prop_status:
-                query += f" AND user_property_status = '{prop_status}'"
+                query += f" AND user_property_status = '{prop_status}' "
             if fid :
-                query += f" AND fid = {fid}"
+                query += f" AND fid = {fid} "
             
             query += "order by updated_at desc"
             logger.debug("Executing query: %s", query)
