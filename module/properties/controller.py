@@ -108,7 +108,7 @@ class UserPropertyController:
             return resp
 
     
-    def get_user_properties(self, user_id,  prop_status=None):
+    def get_user_properties(self, user_id, fid=None,  prop_status=None):
         connection = None
         cursor = None
         try:
@@ -120,6 +120,8 @@ class UserPropertyController:
                 query += f" AND user_id = {user_id}"
             if prop_status:
                 query += f" AND user_property_status = '{prop_status}'"
+            if fid :
+                query += f" AND fid = {fid}"
             
             query += "order by updated_at desc"
             logger.debug("Executing query: %s", query)
