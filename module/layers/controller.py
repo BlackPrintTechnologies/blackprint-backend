@@ -95,7 +95,7 @@ class BrandController:
                         SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
                         WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
 
-        if catchment == '5':
+        if catchment == '50':
             query = f'''WITH split_values AS (
                         SELECT SPLIT_PART((SELECT ids_pois_front FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',', n)::INTEGER as value
                         FROM numbers
