@@ -31,6 +31,22 @@ class StreetViewImage(Resource):
 # In-memory cache for full /property responses
 property_response_cache = {}
 cache_lock = threading.Lock()
+# In-memory caches for userproperty and demographic responses
+userproperty_response_cache = {}
+userproperty_cache_lock = threading.Lock()
+demographic_response_cache = {}
+demographic_cache_lock = threading.Lock()
+
+def normalize_fid(fid):
+    if fid is None:
+        return None
+    try:
+        f = float(fid)
+        if f.is_integer():
+            return str(int(f))
+        return str(f)
+    except Exception:
+        return str(fid)
 
 class Property(Resource):
     create_parser = reqparse.RequestParser()
@@ -44,18 +60,7 @@ class Property(Resource):
         fid = data.get('fid')
         lat = data.get('lat')
         lng = data.get('lng')
-        # Normalize fid for cache key
-        def normalize_fid(fid):
-            if fid is None:
-                return None
-            try:
-                f = float(fid)
-                if f.is_integer():
-                    return str(int(f))
-                return str(f)
-            except Exception:
-                return str(fid)
-        # Create a cache key based on user, fid, lat, lng
+        # Use module-level normalize_fid
         norm_fid = normalize_fid(fid)
         norm_lat = str(lat) if lat is not None else None
         norm_lng = str(lng) if lng is not None else None
@@ -66,7 +71,6 @@ class Property(Resource):
             logger.info(f"/property cache lookup for key: {cache_key_raw} (hash: {cache_key})")
             if cache_key in property_response_cache:
                 logger.info(f"cache hit for key: {cache_key_raw} (hash: {cache_key})")
-                # logger.info(f"/property cache hit for key: {cache_key_raw} (hash: {cache_key}) => {getattr(property_response_cache[cache_key], 'json', property_response_cache[cache_key])}")
                 return property_response_cache[cache_key]
             else:
                 logger.info(f"/property cache miss for key: {cache_key_raw} (hash: {cache_key})")
@@ -91,7 +95,34 @@ class Property(Resource):
             with cache_lock:
                 property_response_cache[prefetch_cache_key] = prefetch_response
                 logger.info(f"Prefetch: saved response for key: {prefetch_cache_key_raw}")
-                #logger.info(f"Prefetch: saved response for key: {prefetch_cache_key_raw} => {getattr(prefetch_response, 'json', prefetch_response)}")
+
+        # New: Prefetch userproperty in background
+        def prefetch_userproperty_response(fid_to_prefetch, user):
+            norm_fid = normalize_fid(fid_to_prefetch)
+            cache_key = f"user={user}|fid={norm_fid}"
+            with userproperty_cache_lock:
+                if cache_key in userproperty_response_cache:
+                    logger.info(f"UserProperty prefetch: cache already exists for key: {cache_key}")
+                    return
+            logger.info(f"UserProperty prefetch: fetching and caching for key: {cache_key}")
+            upc = UserPropertyController()
+            response = upc.get_user_properties(user, norm_fid, None)
+            with userproperty_cache_lock:
+                userproperty_response_cache[cache_key] = response
+
+        # New: Prefetch demographic in background
+        def prefetch_demographic_response(fid_to_prefetch, user):
+            norm_fid = normalize_fid(fid_to_prefetch)
+            cache_key = f"user={user}|fid={norm_fid}"
+            with demographic_cache_lock:
+                if cache_key in demographic_response_cache:
+                    logger.info(f"Demographic prefetch: cache already exists for key: {cache_key}")
+                    return
+            logger.info(f"Demographic prefetch: fetching and caching for key: {cache_key}")
+            pc = PropertyController()
+            response = pc.get_property_demographic(norm_fid, user)
+            with demographic_cache_lock:
+                demographic_response_cache[cache_key] = response
 
         # If this was a lat/lng query and response contains a property with fid, prefetch /property?fid=...
         if not fid and lat and lng:
@@ -128,6 +159,8 @@ class Property(Resource):
                     logger.info(f"Prefetch check: found fid_to_prefetch={fid_to_prefetch}")
                     if fid_to_prefetch:
                         threading.Thread(target=prefetch_fid_response, args=(fid_to_prefetch, current_user)).start()
+                        threading.Thread(target=prefetch_userproperty_response, args=(fid_to_prefetch, current_user)).start()
+                        threading.Thread(target=prefetch_demographic_response, args=(fid_to_prefetch, current_user)).start()
                 else:
                     logger.info("Prefetch check: data_json did not contain 'data' or was empty")
             except Exception as e:
@@ -141,10 +174,18 @@ class PropertyDemographic(Resource):
     def get(self, current_user):
         data = self.create_parser.parse_args()
         fid = data.get('fid')
-
+        norm_fid = normalize_fid(fid)
+        cache_key = f"user={current_user}|fid={norm_fid}"
+        with demographic_cache_lock:
+            logger.info(f"[DEBUG] demographic_response_cache keys: {list(demographic_response_cache.keys())}")
+            logger.info(f"[DEBUG] demographic_response_cache value for key {cache_key}: {demographic_response_cache.get(cache_key, None)}")
+            if cache_key in demographic_response_cache:
+                logger.info(f"/property/demographic cache hit for key: {cache_key}")
+                return demographic_response_cache[cache_key]
         pc = PropertyController()
-        print("fid=====>", fid)
-        response = pc.get_property_demographic(fid, current_user)
+        response = pc.get_property_demographic(norm_fid, current_user)
+        with demographic_cache_lock:
+            demographic_response_cache[cache_key] = response
         return response
     
 
@@ -162,8 +203,16 @@ class UserProperty(Resource):
         data = self.get_parser.parse_args()
         fid = data.get('fid')
         prop_status = data.get('prop_status')
+        norm_fid = normalize_fid(fid)
+        cache_key = f"user={current_user}|fid={norm_fid}"
+        with userproperty_cache_lock:
+            if cache_key in userproperty_response_cache:
+                logger.info(f"/property/userproperty cache hit for key: {cache_key}")
+                return userproperty_response_cache[cache_key]
         upc = UserPropertyController()
-        response = upc.get_user_properties(current_user, fid,  prop_status)
+        response = upc.get_user_properties(current_user, norm_fid,  prop_status)
+        with userproperty_cache_lock:
+            userproperty_response_cache[cache_key] = response
         return response
 
     @authenticate
@@ -171,8 +220,9 @@ class UserProperty(Resource):
         data = self.update_parser.parse_args()
         fid = data.get('fid')
         prop_status = data.get('prop_status')
+        norm_fid = normalize_fid(fid)
         upc = UserPropertyController()
-        response = upc.update_property_status(current_user, fid, prop_status)
+        response = upc.update_property_status(current_user, norm_fid, prop_status)
         return response
 
 #route for get requested property
