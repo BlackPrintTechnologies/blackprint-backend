@@ -1,5 +1,5 @@
 from flask_restful import Resource, reqparse
-from flask import request, jsonify
+from flask import request, jsonify, Response as FlaskResponse
 from utils.responseUtils import Response
 from module.layers.controller import BrandController, TrafficController, PropertyLayerController  # Assuming SavedSearchesController is in search_controller.py
 from utils.commonUtil import authenticate
@@ -7,6 +7,7 @@ from logsmanager.logging_config import setup_logging
 import logging
 import time
 from psycopg2.extras import RealDictCursor
+import json
 
 
 # Initialize logging
@@ -38,6 +39,7 @@ def fetch_properties_layer_data_raw():
         return resp
 
 _property_layer_cache = fetch_properties_layer_data_raw()
+_property_layer_cache_json = json.dumps(_property_layer_cache[0])  # Only the dict, not the status
 
 # {
 #     "search_name" : "test",
@@ -107,6 +109,5 @@ class PropertyLayer(Resource):
     create_parser = reqparse.RequestParser()
 
     def get(self):
-        logger.info("Serving cached property layer data.")
-        data, status = _property_layer_cache
-        return data, status
+        logger.info("Serving cached property layer data (pre-serialized JSON).")
+        return FlaskResponse(_property_layer_cache_json, status=200, mimetype='application/json')
