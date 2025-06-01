@@ -6,6 +6,7 @@ from utils.commonUtil import authenticate
 from logsmanager.logging_config import setup_logging
 import logging
 import time
+from psycopg2.extras import RealDictCursor
 
 
 # Initialize logging
@@ -13,7 +14,30 @@ setup_logging()
 
 # Retrieve the logger
 logger = logging.getLogger(__name__)
-# Initialize SavedSearchesController
+
+def fetch_properties_layer_data_raw():
+    controller = PropertyLayerController()
+    connection = None
+    resp = None
+    try:
+        connection = controller.db.connect()
+        cursor = connection.cursor(cursor_factory=RealDictCursor)
+        query = controller.get_property_query()
+        cursor.execute(query)
+        res = cursor.fetchall()
+        resp = {"message": "Success", "data": {"response": res}}, 200
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        resp = {"message": "Internal Server Error", "data": str(e)}, 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            controller.db.disconnect(connection)
+        return resp
+
+_property_layer_cache = fetch_properties_layer_data_raw()
 
 # {
 #     "search_name" : "test",
@@ -83,9 +107,6 @@ class PropertyLayer(Resource):
     create_parser = reqparse.RequestParser()
 
     def get(self):
-        logger.info("Received request to fetch property layer data.")
-        property_layer_controller = PropertyLayerController()
-        start = time.time()
-        response = property_layer_controller.get_properties_layer_data()
-        logger.info(f"Data fetched in {time.time() - start:.2f} seconds")
-        return response
+        logger.info("Serving cached property layer data.")
+        data, status = _property_layer_cache
+        return data, status
