@@ -720,8 +720,9 @@ class PropertyController:
                     "alcaldia": {
                             "neighborhood" : result["neighborhood"],
                             "predominant_level" : result["predominant_level"],
+                            "nom_mun": result['nom_mun'],
                             "ageb_code" : result["ageb_code"],
-                            "total_household": result["vivtot"],
+                            "total_household": result["vivtot_alcaldia"],
                             "average_household_size": result["prom_ocup_alcaldia"],
                             "average_number_of_rooms": result["pro_ocup_c_alcaldia"]
                     }

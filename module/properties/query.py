@@ -281,6 +281,7 @@ class QueryController :
         query = f'''select 
                 fid,
                 neighborhood,
+                nom_mun,
                 predominant_level,
                 ageb_code,
                 vivtot, -- total houses
