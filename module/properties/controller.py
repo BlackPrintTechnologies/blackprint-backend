@@ -7,12 +7,13 @@ import json
 import h3
 from utils.cacheUtlis import cache_response
 from utils.iconUtils import IconMapper
-from utils.streetViewUtils import get_street_view_metadata
+from utils.streetViewUtils import get_street_view_metadata_cached
 # from flask import request
 import time
 from datetime import datetime
 import logging
 from logsmanager.logging_config import setup_logging
+from concurrent.futures import ThreadPoolExecutor
 setup_logging()
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ class UserPropertyController:
                     fid = result['property_details']['fid']
                     prop_lat, prop_lng = result["property_details"]["lat"], result["property_details"]["lng"]
                     if prop_lat and prop_lng:
-                        pano_id=get_street_view_metadata(float(prop_lat),float(prop_lng))
+                        pano_id=get_street_view_metadata_cached(float(prop_lat),float(prop_lng))
                         if pano_id:
                             headings = [0, 45, 90, 135, 180, 225, 270, 315]
                             fov = 90  # Field of view
@@ -288,6 +289,13 @@ class PropertyController:
                     "key_vus": result["key_vus"],
                     "predominant_level": result["predominant_level"],
                     "h3_indexes": result["h3_indexes"],
+                    "height": result.get("height", None),
+                    "cos": result.get("cos", None),
+                    "cus": result.get("cus", None),
+                    "min_housing": result.get("min_housing", None),
+                    "crecimiento_promedio_municipal": result.get("crecimiento_promedio_municipal", None),
+                    "crecimiento_promedio_entidad": result.get("crecimiento_promedio_entidad", None),
+                    "crecimiento_promedio_ageb": result.get("crecimiento_promedio_ageb", None)
                 }
 
                 market_info = {
@@ -569,10 +577,10 @@ class PropertyController:
             logger.error("Error processing property JSON: %s", str(e), exc_info=True)
             raise e
 
-    # @cache_response(prefix='properties',expiration=3600)
-    def get_properties(self,current_user, fid=None, lat=None, lng=None):
-        connection = None 
-        redshift_connection = None
+    def get_properties(self, current_user, fid=None, lat=None, lng=None):
+        from utils.streetViewUtils import get_street_view_metadata_cached
+        import copy
+        connection = None
         cursor = None
         resp = None
         try:
@@ -589,32 +597,40 @@ class PropertyController:
                 return Response.bad_request(message="Invalid request")
 
             query = self.qc.get_property_query(filter_query)
-        #     st = time.time()
-            # logger.debug("Executing query: %s", query)
-            connection = self.redshift_connection.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-        #   print("time for cursor creation", time.time()-st)
-            cursor.execute(query)
-        #     print("time for query execution", time.time()-st)
-            result = cursor.fetchall()
-        #     print("time for fetchall", time.time()-st)
-        #     logger.info("Fetched %d properties", len(result))
-            if not result:
-                resp = Response.not_found(message="Property not found")
-            else:
+
+            def fetch_property_details():
+                conn = self.redshift_connection.connect()
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(query)
+                result = cur.fetchall()
+                cur.close()
+                self.redshift_connection.disconnect(conn)
+                return result
+
+            def fetch_pano_id(lat, lng):
+                return get_street_view_metadata_cached(float(lat), float(lng))
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                future_details = executor.submit(fetch_property_details)
+                # Wait for property details to get lat/lng
+                result = future_details.result()
+                if not result:
+                    return Response.not_found(message="Property not found")
                 result_jsons = self.get_property_json(result)
-                
-        #         # #Adding Street View Images to property_details
-                for res_json in result_jsons :
-                    res_json["property_details"]["street_images"] = []
-                    prop_lat, prop_lng = res_json["property_details"]["lat"], res_json["property_details"]["lng"]
-                    if prop_lat and prop_lng:
-                        pano_id=get_street_view_metadata(float(prop_lat),float(prop_lng))
+                # Assume only one property for lat/lng
+                prop_lat, prop_lng = None, None
+                if result_jsons and result_jsons[0]["property_details"].get("lat") and result_jsons[0]["property_details"].get("lng"):
+                    prop_lat = result_jsons[0]["property_details"]["lat"]
+                    prop_lng = result_jsons[0]["property_details"]["lng"]
+                if prop_lat and prop_lng:
+                    future_pano = executor.submit(fetch_pano_id, prop_lat, prop_lng)
+                    pano_id = future_pano.result()
+                    for res_json in result_jsons:
+                        res_json["property_details"]["street_images"] = []
                         if pano_id:
                             headings = [0, 45, 90, 135, 180, 225, 270, 315]
-                            fov = 90  # Field of view
-                            size = "600x300"  # Image size
-                            # base_url = request.host_url.rstrip('/')  # Get the base URL
+                            fov = 90
+                            size = "600x300"
                             street_images = [
                                 f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
                                 for heading in headings
@@ -622,12 +638,10 @@ class PropertyController:
                             res_json["property_details"]["street_images"] = street_images
                         else:
                             res_json["property_details"]["street_images"] = []
-
-                result_json = result_jsons
                 upc = UserPropertyController()
-                if fid :
+                if fid:
                     upc.add_user_property(fid, current_user, 'view')
-                resp = Response.success(data=result_json, message='Success')
+                resp = Response.success(data=result_jsons, message='Success')
         except Exception as e:
             logger.error("Error fetching properties: %s", str(e), exc_info=True)
             resp = Response.internal_server_error(message=str(e))
@@ -636,11 +650,7 @@ class PropertyController:
                 cursor.close()
             if connection:
                 self.redshift_connection.disconnect(connection)
-            pass
-            # logger.info("Time taken to fetch properties: %s", time.time()-st)
             return resp
-        resp = Response.success(message='Success')
-        return resp
 
     def get_property_market_info(self, fid):
         connection = None
@@ -696,6 +706,7 @@ class PropertyController:
                             "total_household": result["vivtot"],
                             "average_household_size": result["prom_ocup"],
                             "average_number_of_rooms": result["pro_ocup_c"]
+                            
                             },
                     "colonia": {
                             "neighborhood" : result["neighborhood"],
@@ -900,5 +911,63 @@ class PropertyController:
                 self.redshift_connection.disconnect(connection)
             return resp
 
-    def get_property_traffic(self):
-        pass
+    def get_property_traffic(self, fid):
+        connection = None
+        cursor = None
+        try:
+            # Ensure fid is an integer
+            if isinstance(fid, int):
+                fid_value = fid
+            elif isinstance(fid, str):
+                try:
+                    fid_value = int(fid)
+                except ValueError:
+                    return Response.bad_request(message="Invalid fid: must be an integer or string representing an integer fid.")
+            else:
+                return Response.bad_request(message="Invalid fid type.")
+
+            query = f"""
+                SELECT 
+                    type,
+                    min_pedestrian,
+                    max_pedestrian,
+                    min_motor_vehicle,
+                    max_motor_vehicle
+                FROM blackprint_db_prd.presentation.dataset_mobility_data_h3
+                WHERE fid = %s AND type IN ('CIRCLE_500_METERS', 'FRONT_OF_STORE')
+            """
+
+            # Use Redshift connection
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            cursor.execute(query, (fid_value,))
+            results = cursor.fetchall()
+
+            # Organize results by type/radius
+            response = {}
+            for row in results:
+                if row['type'] == 'CIRCLE_500_METERS':
+                    response['500m'] = {
+                        'min_pedestrian': row['min_pedestrian'],
+                        'max_pedestrian': row['max_pedestrian'],
+                        'min_motor_vehicle': row['min_motor_vehicle'],
+                        'max_motor_vehicle': row['max_motor_vehicle']
+                    }
+                elif row['type'] == 'FRONT_OF_STORE':
+                    response['50m'] = {
+                        'min_pedestrian': row['min_pedestrian'],
+                        'max_pedestrian': row['max_pedestrian'],
+                        'min_motor_vehicle': row['min_motor_vehicle'],
+                        'max_motor_vehicle': row['max_motor_vehicle']
+                    }
+
+            return Response.success(data={"response": response})
+
+        except Exception as e:
+            return Response.internal_server_error(message=str(e))
+
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)

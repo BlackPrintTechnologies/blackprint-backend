@@ -50,6 +50,13 @@ class QueryController :
                 usage_desc,
                 city_link,
                 scope,
+                height,
+                cos,
+                cus,
+                min_housing,
+                crecimiento_promedio_municipal,
+                crecimiento_promedio_entidad,
+                crecimiento_promedio_ageb,
                 brands_active_life_front,
                 brands_arts_and_entertainment_front,
                 brands_attractions_and_activities_front,
@@ -385,4 +392,5 @@ class QueryController :
                 where fid = {fid}
                     '''
         return query
+
 
