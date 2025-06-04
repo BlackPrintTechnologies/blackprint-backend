@@ -289,6 +289,13 @@ class PropertyController:
                     "key_vus": result["key_vus"],
                     "predominant_level": result["predominant_level"],
                     "h3_indexes": result["h3_indexes"],
+                    "height": result.get("height", None),
+                    "cos": result.get("cos", None),
+                    "cus": result.get("cus", None),
+                    "min_housing": result.get("min_housing", None),
+                    "crecimiento_promedio_municipal": result.get("crecimiento_promedio_municipal", None),
+                    "crecimiento_promedio_entidad": result.get("crecimiento_promedio_municipal", None),
+                    "crecimiento_promedio_ageb": result.get("crecimiento_promedio_municipal", None)
                 }
 
                 market_info = {
@@ -699,6 +706,7 @@ class PropertyController:
                             "total_household": result["vivtot"],
                             "average_household_size": result["prom_ocup"],
                             "average_number_of_rooms": result["pro_ocup_c"]
+                            
                             },
                     "colonia": {
                             "neighborhood" : result["neighborhood"],
