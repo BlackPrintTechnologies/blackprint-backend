@@ -50,6 +50,13 @@ class QueryController :
                 usage_desc,
                 city_link,
                 scope,
+                crecimiento_promedio_municipal,
+                crecimiento_promedio_entidad,
+                crecimiento_promedio_ageb,
+                height,
+                cos,
+                cus,
+                min_housing,
                 brands_active_life_front,
                 brands_arts_and_entertainment_front,
                 brands_attractions_and_activities_front,
@@ -380,9 +387,17 @@ class QueryController :
                 pdesocup_m_alcaldia,
                 pdesocup_f, -- total unemployed female population
                 pdesocup_f_colonia,
-                pdesocup_f_alcaldia
+                pdesocup_f_alcaldia,
+                crecimiento_promedio_municipal,
+                crecimiento_promedio_entidad,
+                crecimiento_promedio_ageb,
+                height,
+                cos,
+                cus,
+                min_housing
                 from blackprint_db_prd.data_product.v_parcel_v3
                 where fid = {fid}
                     '''
         return query
+
 

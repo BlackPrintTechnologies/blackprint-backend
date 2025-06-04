@@ -32,7 +32,14 @@ class PropertyLayerController:
                 open_space,
                 id_land_use,
                 id_municipality,
-                id_city_blocks
+                id_city_blocks,
+                crecimiento_promedio_municipal,
+                crecimiento_promedio_entidad,
+                crecimiento_promedio_ageb,
+                height,
+                cos,
+                cus,
+                min_housing
                 from blackprint_db_prd.data_product.v_parcel_v3
                 WHERE 
                 (is_on_market != 'Off Market')
