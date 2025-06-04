@@ -76,4 +76,4 @@ logger.debug("API routes have been configured.")
 if __name__ == '__main__':
     logger.info("Starting the Flask development server.....")
     logger.error("Logs Check for production")
-    app.run(debug=True)
+    app.run(debug=True,port=5001)
