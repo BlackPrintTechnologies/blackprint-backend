@@ -294,8 +294,8 @@ class PropertyController:
                     "cus": result.get("cus", None),
                     "min_housing": result.get("min_housing", None),
                     "crecimiento_promedio_municipal": result.get("crecimiento_promedio_municipal", None),
-                    "crecimiento_promedio_entidad": result.get("crecimiento_promedio_municipal", None),
-                    "crecimiento_promedio_ageb": result.get("crecimiento_promedio_municipal", None)
+                    "crecimiento_promedio_entidad": result.get("crecimiento_promedio_entidad", None),
+                    "crecimiento_promedio_ageb": result.get("crecimiento_promedio_ageb", None)
                 }
 
                 market_info = {
