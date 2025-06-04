@@ -911,5 +911,63 @@ class PropertyController:
                 self.redshift_connection.disconnect(connection)
             return resp
 
-    def get_property_traffic(self):
-        pass
+    def get_property_traffic(self, fid):
+        connection = None
+        cursor = None
+        try:
+            # Ensure fid is an integer
+            if isinstance(fid, int):
+                fid_value = fid
+            elif isinstance(fid, str):
+                try:
+                    fid_value = int(fid)
+                except ValueError:
+                    return Response.bad_request(message="Invalid fid: must be an integer or string representing an integer fid.")
+            else:
+                return Response.bad_request(message="Invalid fid type.")
+
+            query = f"""
+                SELECT 
+                    type,
+                    min_pedestrian,
+                    max_pedestrian,
+                    min_motor_vehicle,
+                    max_motor_vehicle
+                FROM blackprint_db_prd.presentation.dataset_mobility_data_h3
+                WHERE fid = %s AND type IN ('CIRCLE_500_METERS', 'FRONT_OF_STORE')
+            """
+
+            # Use Redshift connection
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            cursor.execute(query, (fid_value,))
+            results = cursor.fetchall()
+
+            # Organize results by type/radius
+            response = {}
+            for row in results:
+                if row['type'] == 'CIRCLE_500_METERS':
+                    response['500m'] = {
+                        'min_pedestrian': row['min_pedestrian'],
+                        'max_pedestrian': row['max_pedestrian'],
+                        'min_motor_vehicle': row['min_motor_vehicle'],
+                        'max_motor_vehicle': row['max_motor_vehicle']
+                    }
+                elif row['type'] == 'FRONT_OF_STORE':
+                    response['50m'] = {
+                        'min_pedestrian': row['min_pedestrian'],
+                        'max_pedestrian': row['max_pedestrian'],
+                        'min_motor_vehicle': row['min_motor_vehicle'],
+                        'max_motor_vehicle': row['max_motor_vehicle']
+                    }
+
+            return Response.success(data={"response": response})
+
+        except Exception as e:
+            return Response.internal_server_error(message=str(e))
+
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)

@@ -37,7 +37,7 @@ from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUs
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
 from module.layers.routes import Brands, Traffic, SearchBrands, PropertyLayer
-from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty
+from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic
 
 # Define API routes
 api.add_resource(Signup, '/user/signup')
@@ -62,6 +62,7 @@ api.add_resource(PropertyDemographic, '/property/demographic')
 api.add_resource(UpdateRequestInfo, '/property/requestinfo')
 api.add_resource(StreetViewImage, '/properties/street_view_image') #act as a proxy url to serve the image
 api.add_resource(RequestedProperties, '/property/requested')  
+api.add_resource(PropertyTraffic, '/property/traffic')
 
 @app.after_request
 def after_request(response):

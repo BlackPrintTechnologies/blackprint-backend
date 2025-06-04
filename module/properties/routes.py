@@ -247,3 +247,13 @@ class UpdateRequestInfo(Resource):
         request_status = data.get('request_status')
         response = upc.update_property_request_status(fid, current_user, request_status)
         return response
+
+class PropertyTraffic(Resource):
+    parser = reqparse.RequestParser()
+    parser.add_argument('fid', type=int, required=True, help='fid is required')
+
+    def post(self):
+        args = self.parser.parse_args()
+        fid = args['fid']
+        pc = PropertyController()
+        return pc.get_property_traffic(fid)
