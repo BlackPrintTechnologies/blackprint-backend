@@ -10,7 +10,7 @@ class IconMapper:
         'education': 'education.svg',
         'financial_service': 'financial+service.svg',
         'health_and_medical': 'health+and+medical.svg',
-        'public_service_and_government': 'public+service+and+government.svg',
+        'public_service_and_government': 'public+service+and+gov.svg', 
         'retail': 'retail.svg',
         'travel': 'travel.svg',
         'mass_media': 'mass+media.svg',
