@@ -23,6 +23,7 @@ def before_request():
     g.request_id = request.request_id  # Make available in Flask context
     logger.info(f"Starting request {request.request_id}")
 # Initialize logging
+
 setup_logging()
 
 # Retrieve the logger

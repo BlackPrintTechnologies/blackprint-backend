@@ -87,7 +87,7 @@ class BrandController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_500m FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
                         )
-                        SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
+                        SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places
                         WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
 
         if catchment == '1000':
@@ -96,7 +96,7 @@ class BrandController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_1km FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
                         )
-                        SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
+                        SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places
                         WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
 
         if catchment == '50':
@@ -105,11 +105,11 @@ class BrandController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_front FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
                         )
-                        SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
+                        SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places
                         WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
         return query
     
-    @cache_response(prefix='brands',expiration=3600)
+    # @cache_response(prefix='brands',expiration=3600)
     def get_brands(self, radius, fid): 
         connection = None
         cursor = None
@@ -149,7 +149,7 @@ class BrandController:
         try :
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = f'''SELECT distinct brand FROM blackprint_db_prd.presentation.dim_places_v2 where brand ilike '{brand_name}%'LIMIT 50'''
+            query = f'''SELECT distinct brand FROM blackprint_db_prd.presentation.dim_places where brand ilike '{brand_name}%'LIMIT 50'''
             cursor.execute(query)
             connection.commit()
             res = cursor.fetchall()
