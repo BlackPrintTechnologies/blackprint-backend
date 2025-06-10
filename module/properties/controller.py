@@ -338,7 +338,12 @@ class PropertyController:
                     images = self._fetch_inmuebles24_images(ids_market_data_inmuebles24)
                     print("IMAGES",images)
                     if images:
-                        street_images = images[:6]
+                        # Resize images to 600x300
+                        resized_images = [
+                            img.replace("1200x1200", "600x300") if "1200x1200" in img else img
+                            for img in images[:6]
+                        ]
+                        street_images = resized_images
                 if not street_images and prop_lat and prop_lng:
                     pano_id = get_street_view_metadata_cached(float(prop_lat), float(prop_lng))
                     if pano_id:
