@@ -38,7 +38,7 @@ from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUs
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
 from module.layers.routes import Brands, Traffic, SearchBrands, PropertyLayer
-from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic
+from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyMarketInfo
 
 # Define API routes
 api.add_resource(Signup, '/user/signup')
@@ -56,6 +56,7 @@ api.add_resource(ResendVerification, '/user/resend-verification')
 api.add_resource(Brands, '/brands')
 api.add_resource(SearchBrands, '/searchbrands/')
 api.add_resource(Traffic, '/traffic')
+# property related routes
 api.add_resource(Property, '/property')
 api.add_resource(UserProperty, '/property/userproperty')
 api.add_resource(PropertyLayer, '/property/layer')
@@ -64,6 +65,7 @@ api.add_resource(UpdateRequestInfo, '/property/requestinfo')
 api.add_resource(StreetViewImage, '/properties/street_view_image') #act as a proxy url to serve the image
 api.add_resource(RequestedProperties, '/property/requested')  
 api.add_resource(PropertyTraffic, '/property/traffic')
+api.add_resource(PropertyMarketInfo, '/property/marketinfo')  # Catchment and fid as parameters
 
 @app.after_request
 def after_request(response):
@@ -78,4 +80,4 @@ logger.debug("API routes have been configured.")
 if __name__ == '__main__':
     logger.info("Starting the Flask development server.....")
     logger.error("Logs Check for production")
-    app.run(debug=True,port=5001)
+    app.run(debug=True,port=5002)
