@@ -36,7 +36,8 @@ class PropertyLayerController:
                 height,
                 cos,
                 cus,
-                min_housing
+                min_housing,
+                ids_market_data_inmuebles24
                 from blackprint_db_prd.data_product.v_parcel_v3
                 WHERE 
                 (is_on_market != 'Off Market')
