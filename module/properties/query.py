@@ -428,7 +428,7 @@ class QueryController :
                     "amenities" AS "amenities"
                     from blackprint_db_prd.presentation.dim_market_data_inmuebles24
                     where id_market_data_inmuebles24 = {inmuebles24} '''
-        if spot2:
+        elif spot2:
             query = f""" SELECT
                         "id_market_data_spot2" AS "id_market_data_spot2",
                         "title" AS "title",
@@ -453,7 +453,7 @@ class QueryController :
                         "url" AS "url",
                         "parking_spaces" AS "parking_spaces",
                         "condition" AS "condition",
-                        "date_published" AS "date_published",
+                        "date_published" AS "date_published"
                     FROM
                     "blackprint_db_prd.presentation.dim_market_data_spot2"
                     WHERE "id_market_data_spot2" = {spot2} """        
