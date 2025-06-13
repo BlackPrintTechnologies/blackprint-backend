@@ -333,10 +333,16 @@ class PropertyController:
                 prop_lat = property_details.get("lat")
                 prop_lng = property_details.get("lng")
                 street_images = []
-                print("IDS_MARKET_DATA_INMUEBLES24",ids_market_data_inmuebles24)
-                if ids_market_data_inmuebles24 is not None and str(ids_market_data_inmuebles24) != "-1":
-                    images = self._fetch_inmuebles24_images(ids_market_data_inmuebles24)
-                    print("IMAGES",images)
+                print("IDS_MARKET_DATA_INMUEBLES24", ids_market_data_inmuebles24)
+                selected_id = None
+                if ids_market_data_inmuebles24:
+                    ids = [id_.strip() for id_ in str(ids_market_data_inmuebles24).split(',') if id_.strip()]
+                    ids = [id_ for id_ in ids if id_ != '-1']
+                    if ids:
+                        selected_id = ids[0]
+                if selected_id:
+                    images = self._fetch_inmuebles24_images(selected_id)
+                    print("IMAGES", images)
                     if images:
                         # Resize images to 600x300
                         resized_images = [
