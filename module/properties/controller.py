@@ -662,6 +662,7 @@ class PropertyController:
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             logger.info("Fetching market infor for  spot2_id=%s, inmuebles24_id=%s",  spot2_id, inmuebles24_id)
             query = self.qc.get_market_info_query(spot2_id, inmuebles24_id)
+            logger.debug("Market info query: %s", query)
             cursor.execute(query)
             res = cursor.fetchall()
             resp = Response.success(data=res, message='Success')

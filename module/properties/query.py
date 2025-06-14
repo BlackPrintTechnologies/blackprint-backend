@@ -455,8 +455,8 @@ class QueryController :
                         "condition" AS "condition",
                         "date_published" AS "date_published"
                     FROM
-                    "blackprint_db_prd.presentation.dim_market_data_spot2"
-                    WHERE "id_market_data_spot2" = {spot2} """        
+                    blackprint_db_prd.presentation.dim_market_data_spot2
+                    WHERE id_market_data_spot2 = {spot2} """        
 
         return query
 
