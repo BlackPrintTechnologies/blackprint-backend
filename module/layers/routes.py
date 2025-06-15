@@ -56,6 +56,7 @@ class Brands(Resource):
     create_parser = reqparse.RequestParser()
     create_parser.add_argument('radius', type=str, required=False, help='User ID is required')
     create_parser.add_argument('fid', type=str, required=False, help='User ID is required')
+    create_parser.add_argument('category', type=str, required=False, help='Category is required')
 
     def post(self):
         logger.info("Received request to fetch brands.")
@@ -63,13 +64,12 @@ class Brands(Resource):
         data = self.create_parser.parse_args()
         fid = data.get('fid')
         radius = data.get('radius')
-        logger.debug(f"Parsed input: fid={fid}, radius={radius}")
+        category = data.get('category')
+        logger.debug(f"Parsed input: fid={fid}, radius={radius} ,category={category}")
 
-        response = brand_controller.get_brands(radius, fid)
-        # if response.status_code == 200:
+        response = brand_controller.get_brands(radius, fid, category)
         logger.info(f"Successfully retrieved brands for fid={fid}, radius={radius}")
         
-            # logger.warning(f"Failed to fetch brands: {response.message}")
         return response
     
 class SearchBrands(Resource):

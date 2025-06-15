@@ -87,7 +87,7 @@ class UserPropertyController:
                                     item[key] = value.isoformat()
                             result['property_details'] = {**result['property_details'], **item}
                             final_res.append(result['property_details'])
-                logger.info("formated result %s",final_res)
+                # logger.info("formated result %s",final_res)
                 logger.info("Successfully fetched %d requested properties", len(final_res))
                 resp = Response.success(data=final_res, message='Success')
             else:
@@ -267,8 +267,38 @@ class PropertyController:
         # self.redshift_connection = redshift_pool
         self.qc = QueryController()
 
-    @staticmethod
-    def get_property_json(results):
+    def _fetch_inmuebles24_images(self, ids_market_data_inmuebles24):
+        """Fetch images from inmuebles24 table for the given id from Redshift."""
+        connection = None
+        cursor = None
+        images = []
+        try:
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = '''SELECT pictures FROM presentation.dim_market_data_inmuebles24 WHERE id_market_data_inmuebles24 = %s LIMIT 1'''
+            cursor.execute(query, (ids_market_data_inmuebles24,))
+            row = cursor.fetchone()
+            if row and row.get('pictures'):
+                # pictures is expected to be a JSON array or comma-separated string
+                try:
+                    # Try to parse as JSON
+                    images = json.loads(row['pictures']) if isinstance(row['pictures'], str) else row['pictures']
+                    if isinstance(images, str):
+                        # If still a string, split by comma
+                        images = [img.strip() for img in images.split(',') if img.strip()]
+                except Exception:
+                    # Fallback: split by comma
+                    images = [img.strip() for img in row['pictures'].split(',') if img.strip()]
+        except Exception as e:
+            logger.error(f"Error fetching inmuebles24 images: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)
+        return images
+
+    def get_property_json(self, results):
         resp = []
         try:
             logger.info("Processing property JSON for %d results", len(results))
@@ -293,10 +323,44 @@ class PropertyController:
                     "cos": result.get("cos", None),
                     "cus": result.get("cus", None),
                     "min_housing": result.get("min_housing", None),
+                    "ids_market_data_inmuebles24": result.get("ids_market_data_inmuebles24", None),
                     "crecimiento_promedio_municipal": result.get("crecimiento_promedio_municipal", None),
                     "crecimiento_promedio_entidad": result.get("crecimiento_promedio_entidad", None),
                     "crecimiento_promedio_ageb": result.get("crecimiento_promedio_ageb", None)
                 }
+                # --- Set street_images based on inmuebles24 or street view ---
+                ids_market_data_inmuebles24 = property_details.get("ids_market_data_inmuebles24")
+                prop_lat = property_details.get("lat")
+                prop_lng = property_details.get("lng")
+                street_images = []
+                print("IDS_MARKET_DATA_INMUEBLES24", ids_market_data_inmuebles24)
+                selected_id = None
+                if ids_market_data_inmuebles24:
+                    ids = [id_.strip() for id_ in str(ids_market_data_inmuebles24).split(',') if id_.strip()]
+                    ids = [id_ for id_ in ids if id_ != '-1']
+                    if ids:
+                        selected_id = ids[0]
+                if selected_id:
+                    images = self._fetch_inmuebles24_images(selected_id)
+                    print("IMAGES", images)
+                    if images:
+                        # Resize images to 600x300
+                        resized_images = [
+                            img.replace("1200x1200", "600x300") if "1200x1200" in img else img
+                            for img in images[:6]
+                        ]
+                        street_images = resized_images
+                if not street_images and prop_lat and prop_lng:
+                    pano_id = get_street_view_metadata_cached(float(prop_lat), float(prop_lng))
+                    if pano_id:
+                        headings = [0, 45, 90, 135, 180, 225, 270, 315]
+                        fov = 90
+                        size = "600x300"
+                        street_images = [
+                            f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
+                            for heading in headings
+                        ]
+                property_details["street_images"] = street_images
 
                 market_info = {
                     "ids_market_data_spot2" : result["ids_market_data_spot2"],
@@ -619,6 +683,7 @@ class PropertyController:
                 if not result:
                     return Response.not_found(message="Property not found")
                 result_jsons = self.get_property_json(result)
+                print("RESULT_JSONS",result_jsons)
                 # Assume only one property for lat/lng
                 prop_lat, prop_lng = None, None
                 if result_jsons and result_jsons[0]["property_details"].get("lat") and result_jsons[0]["property_details"].get("lng"):
@@ -628,18 +693,20 @@ class PropertyController:
                     future_pano = executor.submit(fetch_pano_id, prop_lat, prop_lng)
                     pano_id = future_pano.result()
                     for res_json in result_jsons:
-                        res_json["property_details"]["street_images"] = []
-                        if pano_id:
-                            headings = [0, 45, 90, 135, 180, 225, 270, 315]
-                            fov = 90
-                            size = "600x300"
-                            street_images = [
-                                f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
-                                for heading in headings
-                            ]
-                            res_json["property_details"]["street_images"] = street_images
-                        else:
-                            res_json["property_details"]["street_images"] = []
+                        # Only set street view images if street_images is empty
+                        if not res_json["property_details"].get("street_images"):
+                            if pano_id:
+                                headings = [0, 45, 90, 135, 180, 225, 270, 315]
+                                fov = 90
+                                size = "600x300"
+                                street_images = [
+                                    f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
+                                    for heading in headings
+                                ]
+                                res_json["property_details"]["street_images"] = street_images
+                            else:
+                                print("Street view Image is updating here")
+                                res_json["property_details"]["street_images"] = []
                 upc = UserPropertyController()
                 if fid:
                     upc.add_user_property(fid, current_user, 'view')

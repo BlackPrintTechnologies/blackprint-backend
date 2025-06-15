@@ -36,7 +36,8 @@ class PropertyLayerController:
                 height,
                 cos,
                 cus,
-                min_housing
+                min_housing,
+                ids_market_data_inmuebles24
                 from blackprint_db_prd.data_product.v_parcel_v3
                 WHERE 
                 (is_on_market != 'Off Market')
@@ -110,7 +111,7 @@ class BrandController:
         return query
     
     # @cache_response(prefix='brands',expiration=3600)
-    def get_brands(self, radius, fid): 
+    def get_brands(self, radius, fid, category=None): 
         connection = None
         cursor = None
         resp = None
@@ -129,6 +130,9 @@ class BrandController:
             for result in res:
                 result['icon_url'] = IconMapper.get_icon_url(result['category_1'])
                 enhanced_results.append(result)
+            #Filter by category
+            if category:
+                enhanced_results = [result for result in enhanced_results if result['category_1'] == category]
             print("enhanced_results=====>", enhanced_results)
             resp =  Response.success(data={"response": enhanced_results}) #
         except Exception as e :

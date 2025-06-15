@@ -56,6 +56,7 @@ class QueryController :
                 cos,
                 cus,
                 min_housing,
+                ids_market_data_inmuebles24,
                 crecimiento_promedio_municipal,
                 crecimiento_promedio_entidad,
                 crecimiento_promedio_ageb,
