@@ -15,14 +15,14 @@ class IconMapper:
         'travel': 'travel.svg',
         'mass_media': 'mass+media.svg',
         'beauty_and_spa': 'beauty+and+spa.svg',
-        'accommodation': 'accommodation.svg',
+        'accommodation': 'accomodation.svg',
         'religious_organization': 'religious+organization.svg',
         'professional_services': 'professional+services.svg',
-        'private_establishments_and_corporates': 'private+establishments+and+corporates.svg',
+        'private_establishments_and_corporates': 'private+corporates.svg',
         'home_service': 'home+service.svg',
-        'structure_and_geography': 'structure+and+geography.svg',
-        'business_to_business': 'business+to+business.svg',
-        'real_estate': 'real+estate.svg',
+        'structure_and_geography': 'geography.svg',
+        'business_to_business': 'b2b.svg',
+        'real_estate': 'Real+Estate+Agent+Icon.svg',
         'pets': 'pets.svg'
     }
     # CATEGORY_ICON_MAP = {
