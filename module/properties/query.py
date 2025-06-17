@@ -454,10 +454,10 @@ class QueryController :
                         "url" AS "url",
                         "parking_spaces" AS "parking_spaces",
                         "condition" AS "condition",
-                        "date_published" AS "date_published"
+                        "date_published" AS "publication_date"
                     FROM
-                    "blackprint_db_prd.presentation.dim_market_data_spot2"
-                    WHERE "id_market_data_spot2" = {spot2} """        
+                    blackprint_db_prd.presentation.dim_market_data_spot2
+                    WHERE id_market_data_spot2 = {spot2} """        
 
         return query
 
