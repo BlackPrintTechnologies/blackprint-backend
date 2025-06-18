@@ -9,6 +9,8 @@ class QueryController :
         query = f'''
                 Select  
                 fid,
+                ids_market_data_spot2,
+                ids_market_data_inmuebles24,
                 street_address, 
                 centroid,
                 is_on_market,
@@ -50,6 +52,14 @@ class QueryController :
                 usage_desc,
                 city_link,
                 scope,
+                height,
+                cos,
+                cus,
+                min_housing,
+                ids_market_data_inmuebles24,
+                crecimiento_promedio_municipal,
+                crecimiento_promedio_entidad,
+                crecimiento_promedio_ageb,
                 brands_active_life_front,
                 brands_arts_and_entertainment_front,
                 brands_attractions_and_activities_front,
@@ -274,6 +284,7 @@ class QueryController :
         query = f'''select 
                 fid,
                 neighborhood,
+                nom_mun,
                 predominant_level,
                 ageb_code,
                 vivtot, -- total houses
@@ -385,4 +396,69 @@ class QueryController :
                 where fid = {fid}
                     '''
         return query
+    
+    @staticmethod
+    def get_market_info_query(spot2, inmuebles24):
+        if inmuebles24 :
+            query = f'''
+                    SELECT
+                    "id_market_data_inmuebles24" AS "id_market_data_inmuebles24",
+                    "title" AS "title",
+                    "description" AS "description",
+                    "rent_price" AS "rent_price",
+                    "rent_price_clean" AS "rent_price_clean",
+                    "rent_price_per_m2" AS "rent_price_per_m2",
+                    "buy_price" AS "buy_price",
+                    "buy_price_clean" AS "buy_price_clean",
+                    "buy_price_per_m2" AS "buy_price_per_m2",
+                    "maintenance_price" AS "maintenance_price",
+                    "publication_date" AS "publication_date",
+                    "parking_lot" AS "parking_lot",
+                    "bathrooms" AS "bathrooms",
+                    "bedrooms" AS "bedrooms",
+                    "age" AS "age",
+                    "pictures" AS "pictures",
+                    "property_type" AS "property_type",
+                    "operation_type" AS "operation_type",
+                    "property_dimension" AS "total_area",
+                    "property_dimension_clean" AS "total_area_clean",
+                    "zone" AS "zone",
+                    "city" AS "city",
+                    "address" AS "address",
+                    "url" AS "url",
+                    "amenities" AS "amenities"
+                    from blackprint_db_prd.presentation.dim_market_data_inmuebles24
+                    where id_market_data_inmuebles24 = {inmuebles24} '''
+        elif spot2:
+            query = f""" SELECT
+                        "id_market_data_spot2" AS "id_market_data_spot2",
+                        "title" AS "title",
+                        "address" AS "address",
+                        "street_address" AS "street_address",
+                        "city" AS "city",
+                        "zip_code" AS "zip_code",
+                        "description" AS "description",
+                        "operation_type" AS "operation_type",
+                        "rent_price" AS "rent_price",
+                        "rent_price_clean" AS "rent_price_clean",
+                        "rent_price_per_m2" AS "rent_price_per_m2",
+                        "buy_price" AS "buy_price",
+                        "buy_price_clean" AS "buy_price_clean",
+                        "buy_price_per_m2" AS "buy_price_per_m2",
+                        "maintenance_price" AS "maintenance_price",
+                        "property_type" AS "property_type",
+                        "total_area" AS "total_area",
+                        "total_area_clean" AS "total_area_clean",
+                        "amenities" AS "amenities",
+                        "pictures" AS "pictures",
+                        "url" AS "url",
+                        "parking_spaces" AS "parking_spaces",
+                        "condition" AS "condition",
+                        "date_published" AS "publication_date"
+                    FROM
+                    blackprint_db_prd.presentation.dim_market_data_spot2
+                    WHERE id_market_data_spot2 = {spot2} """        
+
+        return query
+
 

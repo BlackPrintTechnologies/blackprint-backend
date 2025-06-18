@@ -7,12 +7,13 @@ import json
 import h3
 from utils.cacheUtlis import cache_response
 from utils.iconUtils import IconMapper
-from utils.streetViewUtils import get_street_view_metadata
+from utils.streetViewUtils import get_street_view_metadata_cached
 # from flask import request
 import time
 from datetime import datetime
 import logging
 from logsmanager.logging_config import setup_logging
+from concurrent.futures import ThreadPoolExecutor
 setup_logging()
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ class UserPropertyController:
                     fid = result['property_details']['fid']
                     prop_lat, prop_lng = result["property_details"]["lat"], result["property_details"]["lng"]
                     if prop_lat and prop_lng:
-                        pano_id=get_street_view_metadata(float(prop_lat),float(prop_lng))
+                        pano_id=get_street_view_metadata_cached(float(prop_lat),float(prop_lng))
                         if pano_id:
                             headings = [0, 45, 90, 135, 180, 225, 270, 315]
                             fov = 90  # Field of view
@@ -86,7 +87,7 @@ class UserPropertyController:
                                     item[key] = value.isoformat()
                             result['property_details'] = {**result['property_details'], **item}
                             final_res.append(result['property_details'])
-                logger.info("formated result %s",final_res)
+                # logger.info("formated result %s",final_res)
                 logger.info("Successfully fetched %d requested properties", len(final_res))
                 resp = Response.success(data=final_res, message='Success')
             else:
@@ -266,8 +267,38 @@ class PropertyController:
         # self.redshift_connection = redshift_pool
         self.qc = QueryController()
 
-    @staticmethod
-    def get_property_json(results):
+    def _fetch_inmuebles24_images(self, ids_market_data_inmuebles24):
+        """Fetch images from inmuebles24 table for the given id from Redshift."""
+        connection = None
+        cursor = None
+        images = []
+        try:
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = '''SELECT pictures FROM presentation.dim_market_data_inmuebles24 WHERE id_market_data_inmuebles24 = %s LIMIT 1'''
+            cursor.execute(query, (ids_market_data_inmuebles24,))
+            row = cursor.fetchone()
+            if row and row.get('pictures'):
+                # pictures is expected to be a JSON array or comma-separated string
+                try:
+                    # Try to parse as JSON
+                    images = json.loads(row['pictures']) if isinstance(row['pictures'], str) else row['pictures']
+                    if isinstance(images, str):
+                        # If still a string, split by comma
+                        images = [img.strip() for img in images.split(',') if img.strip()]
+                except Exception:
+                    # Fallback: split by comma
+                    images = [img.strip() for img in row['pictures'].split(',') if img.strip()]
+        except Exception as e:
+            logger.error(f"Error fetching inmuebles24 images: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)
+        return images
+
+    def get_property_json(self, results):
         resp = []
         try:
             logger.info("Processing property JSON for %d results", len(results))
@@ -288,9 +319,52 @@ class PropertyController:
                     "key_vus": result["key_vus"],
                     "predominant_level": result["predominant_level"],
                     "h3_indexes": result["h3_indexes"],
+                    "height": result.get("height", None),
+                    "cos": result.get("cos", None),
+                    "cus": result.get("cus", None),
+                    "min_housing": result.get("min_housing", None),
+                    "ids_market_data_inmuebles24": result.get("ids_market_data_inmuebles24", None),
+                    "crecimiento_promedio_municipal": result.get("crecimiento_promedio_municipal", None),
+                    "crecimiento_promedio_entidad": result.get("crecimiento_promedio_entidad", None),
+                    "crecimiento_promedio_ageb": result.get("crecimiento_promedio_ageb", None)
                 }
+                # --- Set street_images based on inmuebles24 or street view ---
+                ids_market_data_inmuebles24 = property_details.get("ids_market_data_inmuebles24")
+                prop_lat = property_details.get("lat")
+                prop_lng = property_details.get("lng")
+                street_images = []
+                print("IDS_MARKET_DATA_INMUEBLES24", ids_market_data_inmuebles24)
+                selected_id = None
+                if ids_market_data_inmuebles24:
+                    ids = [id_.strip() for id_ in str(ids_market_data_inmuebles24).split(',') if id_.strip()]
+                    ids = [id_ for id_ in ids if id_ != '-1']
+                    if ids:
+                        selected_id = ids[0]
+                if selected_id:
+                    images = self._fetch_inmuebles24_images(selected_id)
+                    print("IMAGES", images)
+                    if images:
+                        # Resize images to 600x300
+                        resized_images = [
+                            img.replace("1200x1200", "600x300") if "1200x1200" in img else img
+                            for img in images[:6]
+                        ]
+                        street_images = resized_images
+                if not street_images and prop_lat and prop_lng:
+                    pano_id = get_street_view_metadata_cached(float(prop_lat), float(prop_lng))
+                    if pano_id:
+                        headings = [0, 45, 90, 135, 180, 225, 270, 315]
+                        fov = 90
+                        size = "600x300"
+                        street_images = [
+                            f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
+                            for heading in headings
+                        ]
+                property_details["street_images"] = street_images
 
                 market_info = {
+                    "ids_market_data_spot2" : result["ids_market_data_spot2"],
+                    "ids_market_data_inmuebles24" : result["ids_market_data_inmuebles24"],
                     "rent_price_spot2": result["rent_price_spot2"],
                     "rent_price_per_m2_spot2": result["rent_price_per_m2_spot2"],
                     "buy_price_spot2": result["buy_price_spot2"],
@@ -569,10 +643,10 @@ class PropertyController:
             logger.error("Error processing property JSON: %s", str(e), exc_info=True)
             raise e
 
-    # @cache_response(prefix='properties',expiration=3600)
-    def get_properties(self,current_user, fid=None, lat=None, lng=None):
-        connection = None 
-        redshift_connection = None
+    def get_properties(self, current_user, fid=None, lat=None, lng=None):
+        from utils.streetViewUtils import get_street_view_metadata_cached
+        import copy
+        connection = None
         cursor = None
         resp = None
         try:
@@ -589,45 +663,54 @@ class PropertyController:
                 return Response.bad_request(message="Invalid request")
 
             query = self.qc.get_property_query(filter_query)
-        #     st = time.time()
-            # logger.debug("Executing query: %s", query)
-            connection = self.redshift_connection.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-        #   print("time for cursor creation", time.time()-st)
-            cursor.execute(query)
-        #     print("time for query execution", time.time()-st)
-            result = cursor.fetchall()
-        #     print("time for fetchall", time.time()-st)
-        #     logger.info("Fetched %d properties", len(result))
-            if not result:
-                resp = Response.not_found(message="Property not found")
-            else:
-                result_jsons = self.get_property_json(result)
-                
-        #         # #Adding Street View Images to property_details
-                for res_json in result_jsons :
-                    res_json["property_details"]["street_images"] = []
-                    prop_lat, prop_lng = res_json["property_details"]["lat"], res_json["property_details"]["lng"]
-                    if prop_lat and prop_lng:
-                        pano_id=get_street_view_metadata(float(prop_lat),float(prop_lng))
-                        if pano_id:
-                            headings = [0, 45, 90, 135, 180, 225, 270, 315]
-                            fov = 90  # Field of view
-                            size = "600x300"  # Image size
-                            # base_url = request.host_url.rstrip('/')  # Get the base URL
-                            street_images = [
-                                f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
-                                for heading in headings
-                            ]
-                            res_json["property_details"]["street_images"] = street_images
-                        else:
-                            res_json["property_details"]["street_images"] = []
 
-                result_json = result_jsons
+            def fetch_property_details():
+                conn = self.redshift_connection.connect()
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(query)
+                result = cur.fetchall()
+                cur.close()
+                self.redshift_connection.disconnect(conn)
+                return result
+
+            def fetch_pano_id(lat, lng):
+                return get_street_view_metadata_cached(float(lat), float(lng))
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                future_details = executor.submit(fetch_property_details)
+                # Wait for property details to get lat/lng
+                result = future_details.result()
+                if not result:
+                    return Response.not_found(message="Property not found")
+                result_jsons = self.get_property_json(result)
+                print("RESULT_JSONS",result_jsons)
+                # Assume only one property for lat/lng
+                prop_lat, prop_lng = None, None
+                if result_jsons and result_jsons[0]["property_details"].get("lat") and result_jsons[0]["property_details"].get("lng"):
+                    prop_lat = result_jsons[0]["property_details"]["lat"]
+                    prop_lng = result_jsons[0]["property_details"]["lng"]
+                if prop_lat and prop_lng:
+                    future_pano = executor.submit(fetch_pano_id, prop_lat, prop_lng)
+                    pano_id = future_pano.result()
+                    for res_json in result_jsons:
+                        # Only set street view images if street_images is empty
+                        if not res_json["property_details"].get("street_images"):
+                            if pano_id:
+                                headings = [0, 45, 90, 135, 180, 225, 270, 315]
+                                fov = 90
+                                size = "600x300"
+                                street_images = [
+                                    f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
+                                    for heading in headings
+                                ]
+                                res_json["property_details"]["street_images"] = street_images
+                            else:
+                                print("Street view Image is updating here")
+                                res_json["property_details"]["street_images"] = []
                 upc = UserPropertyController()
-                if fid :
+                if fid:
                     upc.add_user_property(fid, current_user, 'view')
-                resp = Response.success(data=result_json, message='Success')
+                resp = Response.success(data=result_jsons, message='Success')
         except Exception as e:
             logger.error("Error fetching properties: %s", str(e), exc_info=True)
             resp = Response.internal_server_error(message=str(e))
@@ -636,50 +719,27 @@ class PropertyController:
                 cursor.close()
             if connection:
                 self.redshift_connection.disconnect(connection)
-            pass
-            # logger.info("Time taken to fetch properties: %s", time.time()-st)
             return resp
-        resp = Response.success(message='Success')
-        return resp
 
-    def get_property_market_info(self, fid):
+    def get_property_market_info(self, spot2_id, inmuebles24_id):
         connection = None
         cursor = None
         try:
-            connection = self.db.connect()
+            connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            spot2_query = f''' SELECT 
-                        id_market_data_spot2 as id_spot2,
-                        title as title_spot2,
-                        address as address_spot2,
-                        delegacion as delegacion_spot2,
-                        latitude as latitude_spot2,
-                        longitude as longitude_spot2,
-                        description as description_spot2,
-                        operation_type as operation_type_spot2,
-                        rent_price_clean as rent_price_mxn_spot2,
-                        rent_price_per_m2 as rent_price_per_m2_spot2,
-                        buy_price_clean as buy_price_mxn_spot2,
-                        buy_price_per_m2 as buy_price_per_m2_spot2,
-                        maintenance_price as maintenance_price_mxn_spot2,
-                        property_type as property_type_spot2,
-                        total_area_clean as total_area_spot2,
-                        amenities as amenities_spot2,
-                        pictures as pictures_spot2,
-                        url as url_spot2,
-                        parking_spaces as parking_spaces_spot2,
-                        condition as condition_spot2,
-                        FROM blackprint_db_prd.presentation.dim_market_data_spot2
-                        WHERE id_market_data_spot2 = ANY({fid}::int[])
-                        ORDER BY date_published DESC '''
-
+            logger.info("Fetching market infor for  spot2_id=%s, inmuebles24_id=%s",  spot2_id, inmuebles24_id)
+            query = self.qc.get_market_info_query(spot2_id, inmuebles24_id)
+            logger.debug("Market info query: %s", query)
+            cursor.execute(query)
+            res = cursor.fetchall()
+            resp = Response.success(data=res, message='Success')
         except Exception as e:
             resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect(connection)
+                self.redshift_connection.disconnect(connection)
             return resp
         
     @staticmethod
@@ -696,6 +756,7 @@ class PropertyController:
                             "total_household": result["vivtot"],
                             "average_household_size": result["prom_ocup"],
                             "average_number_of_rooms": result["pro_ocup_c"]
+                            
                             },
                     "colonia": {
                             "neighborhood" : result["neighborhood"],
@@ -707,10 +768,10 @@ class PropertyController:
                             },
                     
                     "alcaldia": {
-                            "neighborhood" : result["neighborhood"],
+                            "neighborhood" : result['nom_mun'],
                             "predominant_level" : result["predominant_level"],
                             "ageb_code" : result["ageb_code"],
-                            "total_household": result["vivtot"],
+                            "total_household": result["vivtot_alcaldia"],
                             "average_household_size": result["prom_ocup_alcaldia"],
                             "average_number_of_rooms": result["pro_ocup_c_alcaldia"]
                     }
@@ -900,5 +961,64 @@ class PropertyController:
                 self.redshift_connection.disconnect(connection)
             return resp
 
-    def get_property_traffic(self):
-        pass
+    def get_property_traffic(self, fid):
+        connection = None
+        cursor = None
+        try:
+            # Ensure fid is an integer
+            if isinstance(fid, int):
+                fid_value = fid
+            elif isinstance(fid, str):
+                try:
+                    fid_value = int(fid)
+                except ValueError:
+                    return Response.bad_request(message="Invalid fid: must be an integer or string representing an integer fid.")
+            else:
+                return Response.bad_request(message="Invalid fid type.")
+
+            query = f"""
+                SELECT 
+                    type,
+                    min_pedestrian,
+                    max_pedestrian,
+                    min_motor_vehicle,
+                    max_motor_vehicle
+                FROM blackprint_db_prd.presentation.dataset_mobility_data_h3
+                WHERE fid = %s AND type IN ('CIRCLE_500_METERS', 'FRONT_OF_STORE')
+            """
+
+            # Use Redshift connection
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            cursor.execute(query, (fid_value,))
+            results = cursor.fetchall()
+
+            # Organize results by type/radius
+            response = {}
+            for row in results:
+                if row['type'] == 'CIRCLE_500_METERS':
+                    response['500m'] = {
+                        'min_pedestrian': row['min_pedestrian'],
+                        'max_pedestrian': row['max_pedestrian'],
+                        'min_motor_vehicle': row['min_motor_vehicle'],
+                        'max_motor_vehicle': row['max_motor_vehicle']
+                    }
+                elif row['type'] == 'FRONT_OF_STORE':
+                    response['50m'] = {
+                        'min_pedestrian': row['min_pedestrian'],
+                        'max_pedestrian': row['max_pedestrian'],
+                        'min_motor_vehicle': row['min_motor_vehicle'],
+                        'max_motor_vehicle': row['max_motor_vehicle']
+                    }
+
+            return Response.success(data={"response": response})
+
+        except Exception as e:
+            return Response.internal_server_error(message=str(e))
+
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)
+
