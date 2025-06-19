@@ -11,7 +11,7 @@ class QueryController :
                 fid,
                 ids_market_data_spot2,
                 ids_market_data_inmuebles24,
-                id_market_data_propiedades,
+                ids_market_data_propiedades,
                 street_address, 
                 centroid,
                 is_on_market,

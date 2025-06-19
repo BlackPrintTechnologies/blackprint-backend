@@ -365,7 +365,7 @@ class PropertyController:
                 market_info = {
                     "ids_market_data_spot2" : result["ids_market_data_spot2"],
                     "ids_market_data_inmuebles24" : result["ids_market_data_inmuebles24"],
-                    "id_market_data_propiedades" : result["id_market_data_propiedades"],
+                    "ids_market_data_propiedades" : result["ids_market_data_propiedades"],
                     "rent_price_spot2": result["rent_price_spot2"],
                     "rent_price_per_m2_spot2": result["rent_price_per_m2_spot2"],
                     "buy_price_spot2": result["buy_price_spot2"],
