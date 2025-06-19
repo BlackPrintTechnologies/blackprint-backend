@@ -385,61 +385,66 @@ class PropertyController:
                     "cus": result.get("cus", None),
                     "min_housing": result.get("min_housing", None),
                     "ids_market_data_inmuebles24": result.get("ids_market_data_inmuebles24", None),
+                    "ids_market_data_propiedades": result.get("ids_market_data_propiedades", None),
                     "crecimiento_promedio_municipal": result.get("crecimiento_promedio_municipal", None),
                     "crecimiento_promedio_entidad": result.get("crecimiento_promedio_entidad", None),
                     "crecimiento_promedio_ageb": result.get("crecimiento_promedio_ageb", None)
                 }
-                # --- Set street_images based on inmuebles24 or spot2 or propiedades or street view ---
-                ids_market_data_inmuebles24 = property_details.get("ids_market_data_inmuebles24")
-                ids_market_data_spot2 = result.get("ids_market_data_spot2")
-                ids_market_data_propiedades = result.get("ids_market_data_propiedades")
-                prop_lat = property_details.get("lat")
-                prop_lng = property_details.get("lng")
+                # --- Set street_images based on priority: inmuebles24 -> spot2 -> propiedades -> street view ---
                 street_images = []
-                print("IDS_MARKET_DATA_INMUEBLES24", ids_market_data_inmuebles24)
-                
-                # First try inmuebles24 images
-                selected_id = None
-                if ids_market_data_inmuebles24:
-                    ids = [id_.strip() for id_ in str(ids_market_data_inmuebles24).split(',') if id_.strip()]
-                    ids = [id_ for id_ in ids if id_ != '-1']
-                    if ids:
-                        selected_id = ids[0]
-                if selected_id:
-                    images = self._fetch_inmuebles24_images(selected_id)
+
+                # Pre-process all IDs to get valid ones (excluding -1)
+                valid_inmuebles24_id = None
+                if property_details.get("ids_market_data_inmuebles24"):
+                    inmuebles24_ids = [id_.strip() for id_ in str(property_details["ids_market_data_inmuebles24"]).split(',') if id_.strip()]
+                    valid_ids = [id_ for id_ in inmuebles24_ids if id_ != '-1']
+                    if valid_ids:
+                        valid_inmuebles24_id = valid_ids[0]
+
+                valid_spot2_id = None
+                if result.get("ids_market_data_spot2"):
+                    spot2_ids = [id_.strip() for id_ in str(result["ids_market_data_spot2"]).split(',') if id_.strip()]
+                    valid_ids = [id_ for id_ in spot2_ids if id_ != '-1']
+                    if valid_ids:
+                        valid_spot2_id = valid_ids[0]
+
+                valid_propiedades_id = None
+                if result.get("ids_market_data_propiedades"):
+                    print("ids_market_data_propiedades", result["ids_market_data_propiedades"])
+                    propiedades_ids = [id_.strip() for id_ in str(result["ids_market_data_propiedades"]).split(',') if id_.strip()]
+                    valid_ids = [id_ for id_ in propiedades_ids if id_ != '-1']
+                    if valid_ids:
+                        valid_propiedades_id = valid_ids[0]
+                print("valid id", valid_ids)
+                # Now use the valid IDs in the if-elif ladder
+                if valid_inmuebles24_id:
+                    images = self._fetch_inmuebles24_images(valid_inmuebles24_id)
                     print("INMUEBLES24 IMAGES", images)
                     if images:
                         # Resize images to 600x300
-                        resized_images = [
+                        street_images = [
                             img.replace("1200x1200", "600x300") if "1200x1200" in img else img
                             for img in images[:6]
                         ]
-                        street_images = resized_images
 
-                # If no inmuebles24 images, try spot2 images
-                if not street_images and ids_market_data_spot2:
-                    spot2_ids = [id_.strip() for id_ in str(ids_market_data_spot2).split(',') if id_.strip()]
-                    spot2_ids = [id_ for id_ in spot2_ids if id_ != '-1']
-                    if spot2_ids:
-                        spot2_images = self._fetch_spot2_images(spot2_ids[0])
-                        print("SPOT2 IMAGES", spot2_images)
-                        if spot2_images:
-                            # Take up to 6 images
-                            street_images = spot2_images[:6]
+                # If no inmuebles24 images, try spot2
+                elif valid_spot2_id:
+                    spot2_images = self._fetch_spot2_images(valid_spot2_id)
+                    print("SPOT2 IMAGES", spot2_images)
+                    if spot2_images:
+                        street_images = spot2_images[:6]
 
-                # If no spot2 images, try propiedades images
-                if not street_images and ids_market_data_propiedades:
-                    propiedades_ids = [id_.strip() for id_ in str(ids_market_data_propiedades).split(',') if id_.strip()]
-                    propiedades_ids = [id_ for id_ in propiedades_ids if id_ != '-1']
-                    if propiedades_ids:
-                        propiedades_images = self._fetch_propiedades_images(propiedades_ids[0])
-                        print("PROPIEDADES IMAGES", propiedades_images)
-                        if propiedades_images:
-                            # Take up to 6 images
-                            street_images = propiedades_images[:6]
+                # If no spot2 images, try propiedades
+                elif valid_propiedades_id:
+                    propiedades_images = self._fetch_propiedades_images(valid_propiedades_id)
+                    print("PROPIEDADES IMAGES", propiedades_images)
+                    if propiedades_images:
+                        street_images = propiedades_images[:6]
 
-                # If no marketplace images, try street view
-                if not street_images and prop_lat and prop_lng:
+                # If no marketplace images found, try street view
+                if not street_images and property_details.get("lat") and property_details.get("lng"):
+                    prop_lat = property_details["lat"]
+                    prop_lng = property_details["lng"]
                     pano_id = get_street_view_metadata_cached(float(prop_lat), float(prop_lng))
                     if pano_id:
                         headings = [0, 45, 90, 135, 180, 225, 270, 315]
@@ -449,6 +454,8 @@ class PropertyController:
                             f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
                             for heading in headings
                         ]
+                # Filter out None values 
+                street_images = [img for img in street_images if img and img.lower() != "none"]
                 property_details["street_images"] = street_images
 
                 market_info = {
@@ -772,7 +779,7 @@ class PropertyController:
                 if not result:
                     return Response.not_found(message="Property not found")
                 result_jsons = self.get_property_json(result)
-                print("RESULT_JSONS",result_jsons)
+                # print("RESULT_JSONS",result_jsons)
                 # Assume only one property for lat/lng
                 prop_lat, prop_lng = None, None
                 if result_jsons and result_jsons[0]["property_details"].get("lat") and result_jsons[0]["property_details"].get("lng"):
