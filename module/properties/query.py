@@ -11,6 +11,7 @@ class QueryController :
                 fid,
                 ids_market_data_spot2,
                 ids_market_data_inmuebles24,
+                id_market_data_propiedades,
                 street_address, 
                 centroid,
                 is_on_market,
@@ -398,7 +399,7 @@ class QueryController :
         return query
     
     @staticmethod
-    def get_market_info_query(spot2, inmuebles24):
+    def get_market_info_query(spot2, inmuebles24, propiedades):
         if inmuebles24 :
             query = f'''
                     SELECT
@@ -457,7 +458,33 @@ class QueryController :
                         "date_published" AS "publication_date"
                     FROM
                     blackprint_db_prd.presentation.dim_market_data_spot2
-                    WHERE id_market_data_spot2 = {spot2} """        
+                    WHERE id_market_data_spot2 = {spot2} """       
+        elif propiedades :
+            query = f""" 
+                    SELECT
+                    "id_market_data_propiedades" AS "id_market_data_propiedades",
+                    "url" AS "url",
+                    "property_type" AS "property_type",
+                    "description" AS "description",
+                    "buy_price" AS "buy_price",
+                    "buy_price_usd" AS "buy_price_usd",
+                    "buy_price_clean" AS "buy_price_clean",
+                    "buy_price_per_m2" AS "buy_price_per_m2",
+                    "rent_price" AS "rent_price",
+                    "rent_price_usd" AS "rent_price_usd",
+                    "rent_price_clean" AS "rent_price_clean",
+                    "rent_price_per_m2" AS "rent_price_per_m2",
+                    "size" AS "size",
+                    "total_area_clean" AS "total_area_clean",
+                    "postal_code" AS "postal_code",
+                    "street_address" AS "street_address",
+                    "bedrooms" AS "bedrooms",
+                    "bathrooms" AS "bathrooms",
+                    "geometry_coords" AS "geometry_coords"
+                    FROM
+                    "blackprint_db_prd.presentation.dim_market_data_propiedades"
+                    where id_market_data_propiedades = ${propiedades}
+                """
 
         return query
 

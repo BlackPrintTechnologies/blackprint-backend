@@ -365,6 +365,7 @@ class PropertyController:
                 market_info = {
                     "ids_market_data_spot2" : result["ids_market_data_spot2"],
                     "ids_market_data_inmuebles24" : result["ids_market_data_inmuebles24"],
+                    "id_market_data_propiedades" : result["id_market_data_propiedades"],
                     "rent_price_spot2": result["rent_price_spot2"],
                     "rent_price_per_m2_spot2": result["rent_price_per_m2_spot2"],
                     "buy_price_spot2": result["buy_price_spot2"],
@@ -721,14 +722,14 @@ class PropertyController:
                 self.redshift_connection.disconnect(connection)
             return resp
 
-    def get_property_market_info(self, spot2_id, inmuebles24_id):
+    def get_property_market_info(self, spot2_id, inmuebles24_id, propiedades_id):
         connection = None
         cursor = None
         try:
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            logger.info("Fetching market infor for  spot2_id=%s, inmuebles24_id=%s",  spot2_id, inmuebles24_id)
-            query = self.qc.get_market_info_query(spot2_id, inmuebles24_id)
+            logger.info("Fetching market infor for  spot2_id=%s, inmuebles24_id=%s, propiedades_id=%s",  spot2_id, inmuebles24_id, propiedades_id)
+            query = self.qc.get_market_info_query(spot2_id, inmuebles24_id, propiedades_id)
             logger.debug("Market info query: %s", query)
             cursor.execute(query)
             res = cursor.fetchall()
