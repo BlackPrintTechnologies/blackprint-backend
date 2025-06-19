@@ -483,7 +483,7 @@ class QueryController :
                     "geometry_coords" AS "geometry_coords"
                     FROM
                     blackprint_db_prd.presentation.dim_market_data_propiedades
-                    where id_market_data_propiedades = ${propiedades}
+                    where id_market_data_propiedades = {propiedades}
                 """
 
         return query
