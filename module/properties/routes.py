@@ -261,13 +261,16 @@ class PropertyTraffic(Resource):
 
 class PropertyMarketInfo(Resource):
     create_parser = reqparse.RequestParser()
-    create_parser.add_argument('spot2_id', type=str, required=False, help='fid is required', location='args')
-    create_parser.add_argument('inmuebles24_id', type=str, required=False, help='fid is required', location='args')
+    create_parser.add_argument('spot2_id', type=str, required=False, help='spot2_id is required', location='args')
+    create_parser.add_argument('inmuebles24_id', type=str, required=False, help='inmuebles24_id is required', location='args')
+    create_parser.add_argument('propiedades_id', type=str, required=False, help='inmuebles24_id is required', location='args')
+
     @authenticate
     def get(self, current_user):
         data = self.create_parser.parse_args()
         pc = PropertyController()
         spot2_id = data.get('spot2_id')
         inmuebles24_id = data.get('inmuebles24_id')
-        response = pc.get_property_market_info(spot2_id, inmuebles24_id)
+        propiedades_id = data.get("propiedades_id")
+        response = pc.get_property_market_info(spot2_id, inmuebles24_id, propiedades_id)
         return response
