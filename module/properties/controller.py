@@ -298,6 +298,67 @@ class PropertyController:
                 self.redshift_connection.disconnect(connection)
         return images
 
+    def _fetch_spot2_images(self, ids_market_data_spot2):
+        """Fetch images from spot2 table for the given id from Redshift."""
+        connection = None
+        cursor = None
+        images = []
+        try:
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = '''SELECT pictures FROM presentation.dim_market_data_spot2 WHERE id_market_data_spot2 = %s LIMIT 1'''
+            cursor.execute(query, (ids_market_data_spot2,))
+            row = cursor.fetchone()
+            
+            if row and row.get('pictures') and row.get('pictures') != 'None':
+                # pictures is expected to be a JSON array or comma-separated string
+                try:
+                    # Try to parse as JSON
+                    images = json.loads(row['pictures']) if isinstance(row['pictures'], str) else row['pictures']
+                    if isinstance(images, str):
+                        # If still a string, split by comma
+                        images = [img.strip() for img in images.split(',') if img.strip()]
+                except Exception:
+                    # Fallback: split by comma
+                    images = [img.strip() for img in row['pictures'].split(',') if img.strip()]
+        except Exception as e:
+            logger.error(f"Error fetching spot2 images: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)
+        return images
+
+    def _fetch_propiedades_images(self, ids_market_data_propiedades):
+        """Fetch images from propiedades table for the given id from Redshift."""
+        connection = None
+        cursor = None
+        images = []
+        try:
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = '''SELECT image_1, image_2, image_3, image_4, image_5 
+                      FROM presentation.dim_market_data_propiedades 
+                      WHERE id_market_data_propiedades = %s 
+                      LIMIT 1'''
+            cursor.execute(query, (ids_market_data_propiedades,))
+            row = cursor.fetchone()
+            if row:
+                # Collect all non-null image URLs
+                for i in range(1, 6):
+                    image_url = row.get(f'image_{i}')
+                    if image_url and isinstance(image_url, str) and image_url.strip():
+                        images.append(image_url.strip())
+        except Exception as e:
+            logger.error(f"Error fetching propiedades images: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)
+        return images
+
     def get_property_json(self, results):
         resp = []
         try:
@@ -328,12 +389,16 @@ class PropertyController:
                     "crecimiento_promedio_entidad": result.get("crecimiento_promedio_entidad", None),
                     "crecimiento_promedio_ageb": result.get("crecimiento_promedio_ageb", None)
                 }
-                # --- Set street_images based on inmuebles24 or street view ---
+                # --- Set street_images based on inmuebles24 or spot2 or propiedades or street view ---
                 ids_market_data_inmuebles24 = property_details.get("ids_market_data_inmuebles24")
+                ids_market_data_spot2 = result.get("ids_market_data_spot2")
+                ids_market_data_propiedades = result.get("ids_market_data_propiedades")
                 prop_lat = property_details.get("lat")
                 prop_lng = property_details.get("lng")
                 street_images = []
                 print("IDS_MARKET_DATA_INMUEBLES24", ids_market_data_inmuebles24)
+                
+                # First try inmuebles24 images
                 selected_id = None
                 if ids_market_data_inmuebles24:
                     ids = [id_.strip() for id_ in str(ids_market_data_inmuebles24).split(',') if id_.strip()]
@@ -342,7 +407,7 @@ class PropertyController:
                         selected_id = ids[0]
                 if selected_id:
                     images = self._fetch_inmuebles24_images(selected_id)
-                    print("IMAGES", images)
+                    print("INMUEBLES24 IMAGES", images)
                     if images:
                         # Resize images to 600x300
                         resized_images = [
@@ -350,6 +415,30 @@ class PropertyController:
                             for img in images[:6]
                         ]
                         street_images = resized_images
+
+                # If no inmuebles24 images, try spot2 images
+                if not street_images and ids_market_data_spot2:
+                    spot2_ids = [id_.strip() for id_ in str(ids_market_data_spot2).split(',') if id_.strip()]
+                    spot2_ids = [id_ for id_ in spot2_ids if id_ != '-1']
+                    if spot2_ids:
+                        spot2_images = self._fetch_spot2_images(spot2_ids[0])
+                        print("SPOT2 IMAGES", spot2_images)
+                        if spot2_images:
+                            # Take up to 6 images
+                            street_images = spot2_images[:6]
+
+                # If no spot2 images, try propiedades images
+                if not street_images and ids_market_data_propiedades:
+                    propiedades_ids = [id_.strip() for id_ in str(ids_market_data_propiedades).split(',') if id_.strip()]
+                    propiedades_ids = [id_ for id_ in propiedades_ids if id_ != '-1']
+                    if propiedades_ids:
+                        propiedades_images = self._fetch_propiedades_images(propiedades_ids[0])
+                        print("PROPIEDADES IMAGES", propiedades_images)
+                        if propiedades_images:
+                            # Take up to 6 images
+                            street_images = propiedades_images[:6]
+
+                # If no marketplace images, try street view
                 if not street_images and prop_lat and prop_lng:
                     pano_id = get_street_view_metadata_cached(float(prop_lat), float(prop_lng))
                     if pano_id:
@@ -721,7 +810,7 @@ class PropertyController:
                 self.redshift_connection.disconnect(connection)
             return resp
 
-    def get_property_market_info(self, spot2_id, inmuebles24_id):
+    def     get_property_market_info(self, spot2_id, inmuebles24_id):
         connection = None
         cursor = None
         try:
