@@ -56,6 +56,8 @@ class QueryController :
                 height,
                 cos,
                 cus,
+                total_built_perm,
+                property_count_per_lot,
                 min_housing,
                 ids_market_data_inmuebles24,
                 crecimiento_promedio_municipal,
