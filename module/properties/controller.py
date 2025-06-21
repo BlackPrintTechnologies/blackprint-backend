@@ -371,6 +371,8 @@ class PropertyController:
                     "is_on_market": result["is_on_market"],
                     "total_surface_area": result["total_surface_area"],
                     "total_construction_area": result["total_construction_area"],
+                    "total_built_perm": result['total_built_perm'],
+                    "total_units": result['property_count_per_lot'],
                     "street_address": result["street_address"],
                     "year_built": result["year_built"],
                     "special_facilities": result["special_facilities"],
