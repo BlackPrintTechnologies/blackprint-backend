@@ -222,3 +222,14 @@ class PropertyMarketInfo(Resource):
 
         set_in_cache('market_info', cache_key, response)
         return response
+
+class PropertyDetailsBundle(Resource):
+    parser = reqparse.RequestParser()
+    parser.add_argument('fid', type=str, required=True, help='fid is required', location='args')
+
+    @authenticate
+    def get(self, current_user):
+        args = self.parser.parse_args()
+        fid = args['fid']
+        pc = PropertyController()
+        return pc.get_property_details_bundle(current_user, fid)
