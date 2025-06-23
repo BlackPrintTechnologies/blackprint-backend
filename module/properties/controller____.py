@@ -112,7 +112,14 @@ class PropertyController:
                     "usage_desc": result["usage_desc"],
                     "key_vus": result["key_vus"],
                     "predominant_level": result["predominant_level"],
-                    "h3_indexes": result["h3_indexes"]
+                    "h3_indexes": result["h3_indexes"],
+                    "crecimiento_promedio_municipal": result.get("crecimiento_promedio_municipal"),
+                    "crecimiento_promedio_entidad": result.get("crecimiento_promedio_entidad"),
+                    "crecimiento_promedio_ageb": result.get("crecimiento_promedio_ageb"),
+                    "height": result.get("height"),
+                    "cos": result.get("cos"),
+                    "cus": result.get("cus"),
+                    "min_housing": result.get("min_housing")
                 }
 
                 market_info = {
@@ -404,7 +411,14 @@ class PropertyController:
                         "ageb_code": result[0]["ageb_code"],
                         "total_household": result[0]["vivtot"],
                         "average_household_size": result[0]["prom_ocup"],
-                        "average_number_of_rooms": result[0]["pro_ocup_c"]
+                        "average_number_of_rooms": result[0]["pro_ocup_c"],
+                        "crecimiento_promedio_municipal": result[0].get("crecimiento_promedio_municipal"),
+                        "crecimiento_promedio_entidad": result[0].get("crecimiento_promedio_entidad"),
+                        "crecimiento_promedio_ageb": result[0].get("crecimiento_promedio_ageb"),
+                        "height": result[0].get("height"),
+                        "cos": result[0].get("cos"),
+                        "cus": result[0].get("cus"),
+                        "min_housing": result[0].get("min_housing")
                     },
                     "colonia": {
                         "neighborhood": result[0]["neighborhood"],
@@ -412,7 +426,14 @@ class PropertyController:
                         "ageb_code": result[0]["ageb_code"],
                         "total_household": result[0]["vivtot_colonia"],
                         "average_household_size": result[0]["prom_ocup_colonia"],
-                        "average_number_of_rooms": result[0]["pro_ocup_c_colonia"]
+                        "average_number_of_rooms": result[0]["pro_ocup_c_colonia"],
+                        "crecimiento_promedio_municipal": result[0].get("crecimiento_promedio_municipal"),
+                        "crecimiento_promedio_entidad": result[0].get("crecimiento_promedio_entidad"),
+                        "crecimiento_promedio_ageb": result[0].get("crecimiento_promedio_ageb"),
+                        "height": result[0].get("height"),
+                        "cos": result[0].get("cos"),
+                        "cus": result[0].get("cus"),
+                        "min_housing": result[0].get("min_housing")
                     },
                     "alcaldia": {
                         "neighborhood": result[0]["neighborhood"],
@@ -420,7 +441,14 @@ class PropertyController:
                         "ageb_code": result[0]["ageb_code"],
                         "total_household": result[0]["vivtot"],
                         "average_household_size": result[0]["prom_ocup_alcaldia"],
-                        "average_number_of_rooms": result[0]["pro_ocup_c_alcaldia"]
+                        "average_number_of_rooms": result[0]["pro_ocup_c_alcaldia"],
+                        "crecimiento_promedio_municipal": result[0].get("crecimiento_promedio_municipal"),
+                        "crecimiento_promedio_entidad": result[0].get("crecimiento_promedio_entidad"),
+                        "crecimiento_promedio_ageb": result[0].get("crecimiento_promedio_ageb"),
+                        "height": result[0].get("height"),
+                        "cos": result[0].get("cos"),
+                        "cus": result[0].get("cus"),
+                        "min_housing": result[0].get("min_housing")
                     }
                 },
                 "socio_economic_level": {

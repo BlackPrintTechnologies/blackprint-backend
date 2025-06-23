@@ -32,7 +32,12 @@ class PropertyLayerController:
                 open_space,
                 id_land_use,
                 id_municipality,
-                id_city_blocks
+                id_city_blocks,
+                height,
+                cos,
+                cus,
+                min_housing,
+                ids_market_data_inmuebles24
                 from blackprint_db_prd.data_product.v_parcel_v3
                 WHERE 
                 (is_on_market != 'Off Market')
@@ -47,7 +52,7 @@ class PropertyLayerController:
                 '''
         return query
     
-    # @cache_response(prefix='properties_layer',expiration=3600)
+    @cache_response(prefix='properties_layer',expiration=360000)
     def get_properties_layer_data(self):
         connection = None
         resp = None
@@ -83,8 +88,8 @@ class BrandController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_500m FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
                         )
-                        SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
-                        WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
+                        SELECT brand, names_pri,  geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places
+                        WHERE id_place IN (SELECT value FROM split_values) ;'''
 
         if catchment == '1000':
             query = f'''WITH split_values AS (
@@ -92,21 +97,21 @@ class BrandController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_1km FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
                         )
-                        SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
-                        WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
+                        SELECT brand, names_pri,  geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places
+                        WHERE id_place IN (SELECT value FROM split_values) ;'''
 
-        if catchment == '5':
+        if catchment == '50':
             query = f'''WITH split_values AS (
                         SELECT SPLIT_PART((SELECT ids_pois_front FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',', n)::INTEGER as value
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_front FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',')
                         )
-                        SELECT brand, geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places_v2
-                        WHERE id_place IN (SELECT value FROM split_values) AND brand IS NOT NULL;'''
+                        SELECT brand, names_pri,  geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places
+                        WHERE id_place IN (SELECT value FROM split_values) ;'''
         return query
     
-    @cache_response(prefix='brands',expiration=3600)
-    def get_brands(self, radius, fid): 
+    # @cache_response(prefix='brands',expiration=3600)
+    def get_brands(self, radius, fid, category=None): 
         connection = None
         cursor = None
         resp = None
@@ -125,6 +130,9 @@ class BrandController:
             for result in res:
                 result['icon_url'] = IconMapper.get_icon_url(result['category_1'])
                 enhanced_results.append(result)
+            #Filter by category
+            if category:
+                enhanced_results = [result for result in enhanced_results if result['category_1'] == category]
             print("enhanced_results=====>", enhanced_results)
             resp =  Response.success(data={"response": enhanced_results}) #
         except Exception as e :
@@ -145,7 +153,7 @@ class BrandController:
         try :
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = f'''SELECT distinct brand FROM blackprint_db_prd.presentation.dim_places_v2 where brand ilike '{brand_name}%'LIMIT 50'''
+            query = f'''SELECT distinct brand FROM blackprint_db_prd.presentation.dim_places where brand ilike '{brand_name}%'LIMIT 50'''
             cursor.execute(query)
             connection.commit()
             res = cursor.fetchall()

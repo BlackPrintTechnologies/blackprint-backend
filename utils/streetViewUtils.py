@@ -3,7 +3,10 @@ import os
 import os 
 from io import BytesIO
 import json
+from functools import lru_cache, wraps
+import logging
 
+logger = logging.getLogger(__name__)
 
 # Load Google API key securely from app.json
 # Load configuration from app.json
@@ -23,6 +26,15 @@ def get_street_view_metadata(lat, lng):
     if data.get("status") == "OK":
         return data["pano_id"]
     return None
+
+@lru_cache(maxsize=10000)
+def get_street_view_metadata_cached(lat, lng):
+    pano_id = get_street_view_metadata(lat, lng)
+    if pano_id:
+        logger.info(f"Cache MISS for pano_id ({lat}, {lng}) -> {pano_id}")
+    else:
+        logger.info(f"Cache MISS for pano_id ({lat}, {lng}) -> None")
+    return pano_id
 
 def get_street_view_image(pano_id, heading, fov=90, size="600x300"):
     """

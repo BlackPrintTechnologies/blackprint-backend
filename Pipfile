@@ -6,7 +6,6 @@ name = "pypi"
 [packages]
 flask = "*"
 flask-restful = "*"
-psycopg2-binary = "*"
 pyjwt = "*"
 gunicorn = "*"
 flask-cors = "*"
@@ -14,6 +13,8 @@ boto3 = "*"
 h3 = "*"
 googlemaps = "*"
 watchtower = "*"
+flask-compress = "*"
+psycopg2-binary = "*"
 
 [dev-packages]
 
