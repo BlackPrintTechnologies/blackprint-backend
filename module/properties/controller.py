@@ -8,6 +8,7 @@ import h3
 from utils.cacheUtlis import cache_response
 from utils.iconUtils import IconMapper
 from utils.streetViewUtils import get_street_view_metadata_cached
+from utils.normalization_utils import normalize_fid
 # from flask import request
 import time
 from datetime import datetime
@@ -1120,4 +1121,55 @@ class PropertyController:
                 cursor.close()
             if connection:
                 self.redshift_connection.disconnect(connection)
+
+    def get_property_details_bundle(self, current_user, fid):
+        """
+        Fetches all property-related details in a single, consolidated call.
+        """
+        from utils.normalization_utils import normalize_fid, normalize_market_id
+        logger.info(f"Fetching details bundle for fid={fid}, user={current_user}")
+        norm_fid = normalize_fid(fid)
+        if not norm_fid:
+            return Response.bad_request("Invalid FID provided.")
+
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            # Submit tasks to run concurrently
+            property_future = executor.submit(self.get_properties, current_user, fid=norm_fid)
+            demographic_future = executor.submit(self.get_property_demographic, norm_fid, current_user)
+            userproperty_future = executor.submit(UserPropertyController().get_user_properties, current_user, fid=norm_fid)
+            traffic_future = executor.submit(self.get_property_traffic, norm_fid)
+
+            # Resolve the main property future first to get market info IDs
+            property_response_tuple = property_future.result()
+            if not isinstance(property_response_tuple, tuple) or property_response_tuple[1] != 200:
+                logger.error(f"Failed to get main property details for fid={norm_fid}")
+                return property_response_tuple
+
+            property_data = property_response_tuple[0]['data'][0]
+            
+            market_info = property_data.get('market_info', {})
+            property_details = property_data.get('property_details', {})
+            
+            spot2_id = market_info.get('ids_market_data_spot2')
+            inmuebles24_id = property_details.get('ids_market_data_inmuebles24')
+            propiedades_id = property_details.get('ids_market_data_propiedades')
+            
+            market_future = executor.submit(self.get_property_market_info, spot2_id, inmuebles24_id, propiedades_id)
+
+            # Resolve all futures
+            demographic_response = demographic_future.result()
+            userproperty_response = userproperty_future.result()
+            traffic_response = traffic_future.result()
+            market_response = market_future.result()
+
+            # Assemble the final response bundle
+            bundle = {
+                "property": property_data,
+                "demographics": demographic_response[0].get('data') if isinstance(demographic_response, tuple) and demographic_response[1] == 200 else {},
+                "user_property": userproperty_response[0].get('data') if isinstance(userproperty_response, tuple) and userproperty_response[1] == 200 else {},
+                "traffic": traffic_response[0].get('data') if isinstance(traffic_response, tuple) and traffic_response[1] == 200 else {},
+                "market_info_details": market_response[0].get('data') if isinstance(market_response, tuple) and market_response[1] == 200 else {}
+            }
+
+            return Response.success(data=bundle, message="Success")
 
