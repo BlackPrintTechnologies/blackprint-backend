@@ -5,13 +5,24 @@ import logging
 from logsmanager.logging_config import setup_logging
 from flask import Flask, g, request 
 from flask_compress import Compress
+from decimal import Decimal
 import uuid
+import json
 app = Flask(__name__)
 api = Api(app)
 
 # Allow CORS for specific origins (localhost:3000 in this case)
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
+    
+
 CORS(app)
 Compress(app)  # Enable compression
+app.json_encoder = DecimalEncoder  # Set custom encoder
 app.config['COMPRESS_ALGORITHM'] = 'gzip'
 app.config['COMPRESS_LEVEL'] = 1  # 1 (fastest) to 9 (best compression)
 app.config['COMPRESS_MIMETYPES'] = ['text/html', 'application/json']
