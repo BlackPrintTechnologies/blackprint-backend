@@ -1016,31 +1016,27 @@ class PropertyController:
                "population_growth":{
                    "block" : { 
                        "2000": [result['pob_2000_ageb'], 0],
-                       "2005": [result['pob_2005_ageb'], result['cambio_porcentual_2005_ageb']],
-                       "2010": [result['pob_2010_ageb'], result['cambio_porcentual_2010_ageb']],
-                       "2015": [result['pob_2015_ageb'], result['cambio_porcentual_2015_ageb']],
-                       "2020": [result['pob_2020_ageb'], result['cambio_porcentual_2020_ageb']]
+                       "2005": [result['pob_2005_ageb'], float(result['cambio_porcentual_2005_ageb'])],
+                       "2010": [result['pob_2010_ageb'], float(result['cambio_porcentual_2010_ageb'])],
+                       "2015": [result['pob_2015_ageb'], float(result['cambio_porcentual_2015_ageb'])],
+                       "2020": [result['pob_2020_ageb'], float(result['cambio_porcentual_2020_ageb'])]
                    },
                    "colonia":{
                        "2000": [result['pob_2000_entidad'],0],
-                       "2010": [result['pob_2010_entidad'],result['cambio_porcentual_2005_entidad']],
-                       "2005": [result['pob_2005_entidad'],result['cambio_porcentual_2010_entidad']],
-                       "2015": [result['pob_2015_entidad'],result['cambio_porcentual_2015_entidad']],
-                       "2020": [result['pob_2020_entidad'],result['cambio_porcentual_2020_entidad']]
+                       "2010": [result['pob_2010_entidad'],float(result['cambio_porcentual_2005_entidad'])],
+                       "2005": [result['pob_2005_entidad'],float(result['cambio_porcentual_2010_entidad'])],
+                       "2015": [result['pob_2015_entidad'],float(result['cambio_porcentual_2015_entidad'])],
+                       "2020": [result['pob_2020_entidad'],float(result['cambio_porcentual_2020_entidad'])]
                      
                    },
                    "alcaldia":{
                        "2000": [result['pob_2000_municipal'],0],
-                       "2005": [result['pob_2010_municipal'],result['cambio_porcentual_2005_municipal']],
-                       "2010": [result['pob_2005_municipal'],result['cambio_porcentual_2010_municipal']],
-                       "2015": [result['pob_2015_municipal'],result['cambio_porcentual_2015_municipal']],
-                       "2020": [result['pob_2020_municipal'],result['cambio_porcentual_2020_municipal']]
+                       "2005": [result['pob_2010_municipal'],float(result['cambio_porcentual_2005_municipal'])],
+                       "2010": [result['pob_2005_municipal'],float(result['cambio_porcentual_2010_municipal'])],
+                       "2015": [result['pob_2015_municipal'],float(result['cambio_porcentual_2015_municipal'])],
+                       "2020": [result['pob_2020_municipal'],float(result['cambio_porcentual_2020_municipal'])]
                    }
                }
-
-
-
-
                 }
             
             return demographic
