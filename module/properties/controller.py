@@ -1012,7 +1012,32 @@ class PropertyController:
                         "total_unemployed_male_population": result["pdesocup_m_alcaldia"],
                         "total_unemployed_female_population": result["pdesocup_f_alcaldia"],
                     }   
-                }    
+                },    
+               "population_growth":{
+                   "block" : { 
+                       "2000" : result['pob_2000_ageb'],
+                       "2005": result['pob_2005_ageb'],
+                       "2010": result['pob_2010_ageb'],
+                       "2015": result['pob_2015_ageb'],
+                       "2020": result['pob_2020_ageb']
+                   },
+                   "colonia":{
+                       "2000": result['pob_2000_entidad'],
+                       "2005": result['pob_2005_entidad'],
+                       "2010": result['pob_2010_entidad'],
+                       "2015": result['pob_2015_entidad'],
+                       "2020": result['pob_2020_entidad']
+                     
+                   },
+                   "alcaldia":{
+                       "2000": result['pob_2000_municipal'],
+                       "2005": result['pob_2010_municipal'],
+                       "2010": result['pob_2005_municipal'],
+                       "2015": result['pob_2015_municipal'],
+                       "2020": result['pob_2020_municipal']
+                   }
+               }
+               
                 }
             
             return demographic
