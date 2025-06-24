@@ -846,17 +846,6 @@ class PropertyController:
     def get_demographic_json(result):
         # print("DEMOGRAPHIC RESULT",result)
         result = result[0]
-        def get_pop_data(result, prefix, levels):
-            data = {}
-            for level in levels:
-                data[level] = {
-                    str(year): [
-                        result.get(f'pob_{year}_{prefix}', 0),
-                        float(result.get(f'cambio_porcentual_{year}_{prefix}', 0) or 0)
-                    ]
-                    for year in [2000, 2005, 2010, 2015, 2020]
-                }
-            return data
         try:
             demographic = {
                 "general" : {
@@ -1024,7 +1013,29 @@ class PropertyController:
                         "total_unemployed_female_population": result["pdesocup_f_alcaldia"],
                     }   
                 },    
-               "population_growth":get_pop_data(result, ['ageb', 'entidad', 'municipal'])
+               "population_growth": {
+                        "block": { 
+                            "2000": [result.get('pob_2000_ageb', 0), 0],
+                            "2005": [result.get('pob_2005_ageb', 0), float(result.get('cambio_porcentual_2005_ageb', 0) or 0)],
+                            "2010": [result.get('pob_2010_ageb', 0), float(result.get('cambio_porcentual_2010_ageb', 0) or 0)],
+                            "2015": [result.get('pob_2015_ageb', 0), float(result.get('cambio_porcentual_2015_ageb', 0) or 0)],
+                            "2020": [result.get('pob_2020_ageb', 0), float(result.get('cambio_porcentual_2020_ageb', 0) or 0)]
+                        },
+                        "colonia": {
+                            "2000": [result.get('pob_2000_entidad', 0), 0],
+                            "2005": [result.get('pob_2005_entidad', 0), float(result.get('cambio_porcentual_2005_entidad', 0) or 0)],
+                            "2010": [result.get('pob_2010_entidad', 0), float(result.get('cambio_porcentual_2010_entidad', 0) or 0)],
+                            "2015": [result.get('pob_2015_entidad', 0), float(result.get('cambio_porcentual_2015_entidad', 0) or 0)],
+                            "2020": [result.get('pob_2020_entidad', 0), float(result.get('cambio_porcentual_2020_entidad', 0) or 0)]
+                        },
+                        "alcaldia": {
+                            "2000": [result.get('pob_2000_municipal', 0), 0],
+                            "2005": [result.get('pob_2005_municipal', 0), float(result.get('cambio_porcentual_2005_municipal', 0) or 0)],
+                            "2010": [result.get('pob_2010_municipal', 0), float(result.get('cambio_porcentual_2010_municipal', 0) or 0)],
+                            "2015": [result.get('pob_2015_municipal', 0), float(result.get('cambio_porcentual_2015_municipal', 0) or 0)],
+                            "2020": [result.get('pob_2020_municipal', 0), float(result.get('cambio_porcentual_2020_municipal', 0) or 0)]
+                        }
+                    }
                 }
             
             return demographic
