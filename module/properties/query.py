@@ -394,7 +394,40 @@ class QueryController :
                 pdesocup_m_alcaldia,
                 pdesocup_f, -- total unemployed female population
                 pdesocup_f_colonia,
-                pdesocup_f_alcaldia
+                pdesocup_f_alcaldia,
+                -- This is the population count per year at the AGEB level (all cols named pob_20XX_ageb)
+                -- And the cambio_porcentual_20XX_ageb ones are the % changes between each period—lets you peep if the pop jumped or dipped between 2000 and 2005
+                pob_2000_ageb,
+                pob_2005_ageb,
+                pob_2010_ageb,
+                pob_2015_ageb,
+                pob_2020_ageb,
+                cambio_porcentual_2005_ageb,
+                cambio_porcentual_2010_ageb,
+                cambio_porcentual_2015_ageb,
+                cambio_porcentual_2020_ageb,
+                -- This is the pop count per year at the municipality/alcaldía level (all cols named pob_20XX_municipal)
+                -- And the cambio_porcentual_20XX_municipal ones are the % changes between each period—lets you peep if the pop jumped or dipped between 2000 and 2005
+                pob_2000_municipal,
+                pob_2010_municipal,
+                pob_2005_municipal,
+                pob_2015_municipal,
+                pob_2020_municipal,
+                cambio_porcentual_2005_municipal,
+                cambio_porcentual_2010_municipal,
+                cambio_porcentual_2015_municipal,
+                cambio_porcentual_2020_municipal,
+                -- This is the pop count per year at the state/entity level (all cols named pob_20XX_entidad)
+                -- And the cambio_porcentual_20XX_entidad ones are the % changes between each period—lets you peep if the pop jumped or dipped between 2000 and 2005
+                pob_2000_entidad,
+                pob_2005_entidad,
+                pob_2010_entidad,
+                pob_2015_entidad,
+                pob_2020_entidad,
+                cambio_porcentual_2005_entidad,
+                cambio_porcentual_2010_entidad,
+                cambio_porcentual_2015_entidad,
+                cambio_porcentual_2020_entidad
                 from blackprint_db_prd.data_product.v_parcel_v3
                 where fid = {fid}
                     '''
