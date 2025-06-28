@@ -15,6 +15,8 @@ from datetime import datetime
 import logging
 from logsmanager.logging_config import setup_logging
 from concurrent.futures import ThreadPoolExecutor
+from module.properties.commercial_growth_json import get_commercial_growth_json
+import decimal
 setup_logging()
 logger = logging.getLogger(__name__)
 
@@ -1195,4 +1197,40 @@ class PropertyController:
             }
 
             return Response.success(data=bundle, message="Success")
+
+    def convert_decimal(self, obj):
+        if isinstance(obj, list):
+            return [self.convert_decimal(i) for i in obj]
+        elif isinstance(obj, dict):
+            return {k: self.convert_decimal(v) for k, v in obj.items()}
+        elif isinstance(obj, decimal.Decimal):
+            return float(obj)
+        else:
+            return obj
+
+    def get_property_commercial_growth(self, fid):
+        """Fetch commercial growth data for a property by fid from Redshift and return formatted JSON."""
+        connection = None
+        cursor = None
+        try:
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            # Get the commercial growth query from QueryController
+            query = self.qc.get_commercial_growth_query(fid)
+            cursor.execute(query)
+            result = cursor.fetchall()
+            if not result:
+                return Response.success(data=None, message="No commercial growth data found")
+            # Format the result using the template function
+            formatted = get_commercial_growth_json(result)
+            formatted = self.convert_decimal(formatted)
+            return Response.success(data=formatted, message="Success")
+        except Exception as e:
+            logger.error(f"Error fetching commercial growth data: {e}", exc_info=True)
+            return Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)
 
