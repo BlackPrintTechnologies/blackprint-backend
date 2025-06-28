@@ -233,3 +233,16 @@ class PropertyDetailsBundle(Resource):
         fid = args['fid']
         pc = PropertyController()
         return pc.get_property_details_bundle(current_user, fid)
+
+class PropertyCommercialGrowth(Resource):
+    parser = reqparse.RequestParser()
+    parser.add_argument('fid', type=str, required=True, help='fid is required', location='args')
+    
+    @authenticate
+    def get(self,current_user):
+        args = self.parser.parse_args()
+        fid = args['fid']
+        norm_fid = normalize_fid(fid)
+        pc = PropertyController()
+        response = pc.get_property_commercial_growth(norm_fid)
+        return response

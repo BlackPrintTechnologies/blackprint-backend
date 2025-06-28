@@ -1,4 +1,3 @@
-
 class QueryController :
 
     def __init__(self):
@@ -431,6 +430,456 @@ class QueryController :
                 from blackprint_db_prd.data_product.v_parcel_v3
                 where fid = {fid}
                     '''
+        return query
+    
+    @staticmethod
+    def get_commercial_growth_query(fid):
+        query = f'''SELECT 
+    fid,
+
+    -- AGEB
+    total_businesses_2010_ageb,
+    total_businesses_2015_ageb,
+    economic_growth_2015_ageb,
+    total_businesses_2017_ageb,
+    economic_growth_2017_ageb,
+    total_businesses_2020_ageb,
+    economic_growth_2020_ageb,
+    total_businesses_2023_ageb,
+    economic_growth_2023_ageb,
+    
+    -- MUNICIPAL
+    total_businesses_2010_municipal,
+    total_businesses_2015_municipal,
+    economic_growth_2015_municipal,
+    total_businesses_2017_municipal,
+    economic_growth_2017_municipal,
+    total_businesses_2020_municipal,
+    economic_growth_2020_municipal,
+    total_businesses_2023_municipal,
+    economic_growth_2023_municipal,
+    
+    -- ENTIDAD
+    total_businesses_2010_entidad,
+    total_businesses_2015_entidad,
+    economic_growth_2015_entidad,
+    total_businesses_2017_entidad,
+    economic_growth_2017_entidad,
+    total_businesses_2020_entidad,
+    economic_growth_2020_entidad,
+    total_businesses_2023_entidad,
+    economic_growth_2023_entidad,
+
+    -- ==============================================
+    -- CATEGORY: EAT_AND_DRINK
+    -- ==============================================
+    
+    -- EAT_AND_DRINK - AGEB
+    total_businesses_2010_eat_and_drink_ageb,
+    total_businesses_2015_eat_and_drink_ageb,
+    economic_growth_2015_eat_and_drink_ageb,
+    total_businesses_2017_eat_and_drink_ageb,
+    economic_growth_2017_eat_and_drink_ageb,
+    total_businesses_2020_eat_and_drink_ageb,
+    economic_growth_2020_eat_and_drink_ageb,
+    total_businesses_2023_eat_and_drink_ageb,
+    economic_growth_2023_eat_and_drink_ageb,
+    
+    -- EAT_AND_DRINK - MUNICIPAL
+    total_businesses_2010_eat_and_drink_municipal,
+    total_businesses_2015_eat_and_drink_municipal,
+    economic_growth_2015_eat_and_drink_municipal,
+    total_businesses_2017_eat_and_drink_municipal,
+    economic_growth_2017_eat_and_drink_municipal,
+    total_businesses_2020_eat_and_drink_municipal,
+    economic_growth_2020_eat_and_drink_municipal,
+    total_businesses_2023_eat_and_drink_municipal,
+    economic_growth_2023_eat_and_drink_municipal,
+    
+    -- EAT_AND_DRINK - ENTIDAD
+    total_businesses_2010_eat_and_drink_entidad,
+    total_businesses_2015_eat_and_drink_entidad,
+    economic_growth_2015_eat_and_drink_entidad,
+    total_businesses_2017_eat_and_drink_entidad,
+    economic_growth_2017_eat_and_drink_entidad,
+    total_businesses_2020_eat_and_drink_entidad,
+    economic_growth_2020_eat_and_drink_entidad,
+    total_businesses_2023_eat_and_drink_entidad,
+    economic_growth_2023_eat_and_drink_entidad,
+    
+    -- ==============================================
+    -- CATEGORY: HEALTH_AND_MEDICAL
+    -- ==============================================
+    
+    -- HEALTH_AND_MEDICAL - AGEB
+    total_businesses_2010_health_and_medical_ageb,
+    total_businesses_2015_health_and_medical_ageb,
+    economic_growth_2015_health_and_medical_ageb,
+    total_businesses_2017_health_and_medical_ageb,
+    economic_growth_2017_health_and_medical_ageb,
+    total_businesses_2020_health_and_medical_ageb,
+    economic_growth_2020_health_and_medical_ageb,
+    total_businesses_2023_health_and_medical_ageb,
+    economic_growth_2023_health_and_medical_ageb,
+    
+    -- HEALTH_AND_MEDICAL - MUNICIPAL
+    total_businesses_2010_health_and_medical_municipal,
+    total_businesses_2015_health_and_medical_municipal,
+    economic_growth_2015_health_and_medical_municipal,
+    total_businesses_2017_health_and_medical_municipal,
+    economic_growth_2017_health_and_medical_municipal,
+    total_businesses_2020_health_and_medical_municipal,
+    economic_growth_2020_health_and_medical_municipal,
+    total_businesses_2023_health_and_medical_municipal,
+    economic_growth_2023_health_and_medical_municipal,
+    
+    -- HEALTH_AND_MEDICAL - ENTIDAD
+    total_businesses_2010_health_and_medical_entidad,
+    total_businesses_2015_health_and_medical_entidad,
+    economic_growth_2015_health_and_medical_entidad,
+    total_businesses_2017_health_and_medical_entidad,
+    economic_growth_2017_health_and_medical_entidad,
+    total_businesses_2020_health_and_medical_entidad,
+    economic_growth_2020_health_and_medical_entidad,
+    total_businesses_2023_health_and_medical_entidad,
+    economic_growth_2023_health_and_medical_entidad,
+    
+    -- ==============================================
+    -- CATEGORY: BEAUTY_AND_SPA
+    -- ==============================================
+    
+    -- BEAUTY_AND_SPA - AGEB
+    total_businesses_2010_beauty_and_spa_ageb,
+    total_businesses_2015_beauty_and_spa_ageb,
+    economic_growth_2015_beauty_and_spa_ageb,
+    total_businesses_2017_beauty_and_spa_ageb,
+    economic_growth_2017_beauty_and_spa_ageb,
+    total_businesses_2020_beauty_and_spa_ageb,
+    economic_growth_2020_beauty_and_spa_ageb,
+    total_businesses_2023_beauty_and_spa_ageb,
+    economic_growth_2023_beauty_and_spa_ageb,
+    
+    -- BEAUTY_AND_SPA - MUNICIPAL
+    total_businesses_2010_beauty_and_spa_municipal,
+    total_businesses_2015_beauty_and_spa_municipal,
+    economic_growth_2015_beauty_and_spa_municipal,
+    total_businesses_2017_beauty_and_spa_municipal,
+    economic_growth_2017_beauty_and_spa_municipal,
+    total_businesses_2020_beauty_and_spa_municipal,
+    economic_growth_2020_beauty_and_spa_municipal,
+    total_businesses_2023_beauty_and_spa_municipal,
+    economic_growth_2023_beauty_and_spa_municipal,
+    
+    -- BEAUTY_AND_SPA - ENTIDAD
+    total_businesses_2010_beauty_and_spa_entidad,
+    total_businesses_2015_beauty_and_spa_entidad,
+    economic_growth_2015_beauty_and_spa_entidad,
+    total_businesses_2017_beauty_and_spa_entidad,
+    economic_growth_2017_beauty_and_spa_entidad,
+    total_businesses_2020_beauty_and_spa_entidad,
+    economic_growth_2020_beauty_and_spa_entidad,
+    total_businesses_2023_beauty_and_spa_entidad,
+    economic_growth_2023_beauty_and_spa_entidad,
+    
+    -- ==============================================
+    -- CATEGORY: FINANCIAL_SERVICE
+    -- ==============================================
+    
+    -- FINANCIAL_SERVICE - AGEB
+    total_businesses_2010_financial_service_ageb,
+    total_businesses_2015_financial_service_ageb,
+    economic_growth_2015_financial_service_ageb,
+    total_businesses_2017_financial_service_ageb,
+    economic_growth_2017_financial_service_ageb,
+    total_businesses_2020_financial_service_ageb,
+    economic_growth_2020_financial_service_ageb,
+    total_businesses_2023_financial_service_ageb,
+    economic_growth_2023_financial_service_ageb,
+    
+    -- FINANCIAL_SERVICE - MUNICIPAL
+    total_businesses_2010_financial_service_municipal,
+    total_businesses_2015_financial_service_municipal,
+    economic_growth_2015_financial_service_municipal,
+    total_businesses_2017_financial_service_municipal,
+    economic_growth_2017_financial_service_municipal,
+    total_businesses_2020_financial_service_municipal,
+    economic_growth_2020_financial_service_municipal,
+    total_businesses_2023_financial_service_municipal,
+    economic_growth_2023_financial_service_municipal,
+    
+    -- FINANCIAL_SERVICE - ENTIDAD
+    total_businesses_2010_financial_service_entidad,
+    total_businesses_2015_financial_service_entidad,
+    economic_growth_2015_financial_service_entidad,
+    total_businesses_2017_financial_service_entidad,
+    economic_growth_2017_financial_service_entidad,
+    total_businesses_2020_financial_service_entidad,
+    economic_growth_2020_financial_service_entidad,
+    total_businesses_2023_financial_service_entidad,
+    economic_growth_2023_financial_service_entidad,
+    
+    -- ==============================================
+    -- CATEGORY: ARTS_AND_ENTERTAINMENT
+    -- ==============================================
+    
+    -- ARTS_AND_ENTERTAINMENT - AGEB
+    total_businesses_2010_arts_and_entertainment_ageb,
+    total_businesses_2015_arts_and_entertainment_ageb,
+    economic_growth_2015_arts_and_entertainment_ageb,
+    total_businesses_2017_arts_and_entertainment_ageb,
+    economic_growth_2017_arts_and_entertainment_ageb,
+    total_businesses_2020_arts_and_entertainment_ageb,
+    economic_growth_2020_arts_and_entertainment_ageb,
+    total_businesses_2023_arts_and_entertainment_ageb,
+    economic_growth_2023_arts_and_entertainment_ageb,
+    
+    -- ARTS_AND_ENTERTAINMENT - MUNICIPAL
+    total_businesses_2010_arts_and_entertainment_municipal,
+    total_businesses_2015_arts_and_entertainment_municipal,
+    economic_growth_2015_arts_and_entertainment_municipal,
+    total_businesses_2017_arts_and_entertainment_municipal,
+    economic_growth_2017_arts_and_entertainment_municipal,
+    total_businesses_2020_arts_and_entertainment_municipal,
+    economic_growth_2020_arts_and_entertainment_municipal,
+    total_businesses_2023_arts_and_entertainment_municipal,
+    economic_growth_2023_arts_and_entertainment_municipal,
+    
+    -- ARTS_AND_ENTERTAINMENT - ENTIDAD
+    total_businesses_2010_arts_and_entertainment_entidad,
+    total_businesses_2015_arts_and_entertainment_entidad,
+    economic_growth_2015_arts_and_entertainment_entidad,
+    total_businesses_2017_arts_and_entertainment_entidad,
+    economic_growth_2017_arts_and_entertainment_entidad,
+    total_businesses_2020_arts_and_entertainment_entidad,
+    economic_growth_2020_arts_and_entertainment_entidad,
+    total_businesses_2023_arts_and_entertainment_entidad,
+    economic_growth_2023_arts_and_entertainment_entidad,
+    
+    -- ==============================================
+    -- CATEGORY: ACTIVE_LIFE
+    -- ==============================================
+    
+    -- ACTIVE_LIFE - AGEB
+    total_businesses_2010_active_life_ageb,
+    total_businesses_2015_active_life_ageb,
+    economic_growth_2015_active_life_ageb,
+    total_businesses_2017_active_life_ageb,
+    economic_growth_2017_active_life_ageb,
+    total_businesses_2020_active_life_ageb,
+    economic_growth_2020_active_life_ageb,
+    total_businesses_2023_active_life_ageb,
+    economic_growth_2023_active_life_ageb,
+    
+    -- ACTIVE_LIFE - MUNICIPAL
+    total_businesses_2010_active_life_municipal,
+    total_businesses_2015_active_life_municipal,
+    economic_growth_2015_active_life_municipal,
+    total_businesses_2017_active_life_municipal,
+    economic_growth_2017_active_life_municipal,
+    total_businesses_2020_active_life_municipal,
+    economic_growth_2020_active_life_municipal,
+    total_businesses_2023_active_life_municipal,
+    economic_growth_2023_active_life_municipal,
+    
+    -- ACTIVE_LIFE - ENTIDAD
+    total_businesses_2010_active_life_entidad,
+    total_businesses_2015_active_life_entidad,
+    economic_growth_2015_active_life_entidad,
+    total_businesses_2017_active_life_entidad,
+    economic_growth_2017_active_life_entidad,
+    total_businesses_2020_active_life_entidad,
+    economic_growth_2020_active_life_entidad,
+    total_businesses_2023_active_life_entidad,
+    economic_growth_2023_active_life_entidad,
+    
+    -- ==============================================
+    -- CATEGORY: RETAIL
+    -- ==============================================
+    
+    -- RETAIL - AGEB
+    total_businesses_2010_retail_ageb,
+    total_businesses_2015_retail_ageb,
+    economic_growth_2015_retail_ageb,
+    total_businesses_2017_retail_ageb,
+    economic_growth_2017_retail_ageb,
+    total_businesses_2020_retail_ageb,
+    economic_growth_2020_retail_ageb,
+    total_businesses_2023_retail_ageb,
+    economic_growth_2023_retail_ageb,
+    
+    -- RETAIL - MUNICIPAL
+    total_businesses_2010_retail_municipal,
+    total_businesses_2015_retail_municipal,
+    economic_growth_2015_retail_municipal,
+    total_businesses_2017_retail_municipal,
+    economic_growth_2017_retail_municipal,
+    total_businesses_2020_retail_municipal,
+    economic_growth_2020_retail_municipal,
+    total_businesses_2023_retail_municipal,
+    economic_growth_2023_retail_municipal,
+    
+    -- RETAIL - ENTIDAD
+    total_businesses_2010_retail_entidad,
+    total_businesses_2015_retail_entidad,
+    economic_growth_2015_retail_entidad,
+    total_businesses_2017_retail_entidad,
+    economic_growth_2017_retail_entidad,
+    total_businesses_2020_retail_entidad,
+    economic_growth_2020_retail_entidad,
+    total_businesses_2023_retail_entidad,
+    economic_growth_2023_retail_entidad,
+    
+    -- ==============================================
+    -- CATEGORY: PETS
+    -- ==============================================
+    
+    -- PETS - AGEB
+    total_businesses_2010_pets_ageb,
+    total_businesses_2015_pets_ageb,
+    economic_growth_2015_pets_ageb,
+    total_businesses_2017_pets_ageb,
+    economic_growth_2017_pets_ageb,
+    total_businesses_2020_pets_ageb,
+    economic_growth_2020_pets_ageb,
+    total_businesses_2023_pets_ageb,
+    economic_growth_2023_pets_ageb,
+    
+    -- PETS - MUNICIPAL
+    total_businesses_2010_pets_municipal,
+    total_businesses_2015_pets_municipal,
+    economic_growth_2015_pets_municipal,
+    total_businesses_2017_pets_municipal,
+    economic_growth_2017_pets_municipal,
+    total_businesses_2020_pets_municipal,
+    economic_growth_2020_pets_municipal,
+    total_businesses_2023_pets_municipal,
+    economic_growth_2023_pets_municipal,
+    
+    -- PETS - ENTIDAD
+    total_businesses_2010_pets_entidad,
+    total_businesses_2015_pets_entidad,
+    economic_growth_2015_pets_entidad,
+    total_businesses_2017_pets_entidad,
+    economic_growth_2017_pets_entidad,
+    total_businesses_2020_pets_entidad,
+    economic_growth_2020_pets_entidad,
+    total_businesses_2023_pets_entidad,
+    economic_growth_2023_pets_entidad,
+    
+    -- ==============================================
+    -- CATEGORY: ATTRACTIONS_AND_ACTIVITIES
+    -- ==============================================
+    
+    -- ATTRACTIONS_AND_ACTIVITIES - AGEB
+    total_businesses_2010_attractions_and_activities_ageb,
+    total_businesses_2015_attractions_and_activities_ageb,
+    economic_growth_2015_attractions_and_activities_ageb,
+    total_businesses_2017_attractions_and_activities_ageb,
+    economic_growth_2017_attractions_and_activities_ageb,
+    total_businesses_2020_attractions_and_activities_ageb,
+    economic_growth_2020_attractions_and_activities_ageb,
+    total_businesses_2023_attractions_and_activities_ageb,
+    economic_growth_2023_attractions_and_activities_ageb,
+    
+    -- ATTRACTIONS_AND_ACTIVITIES - MUNICIPAL
+    total_businesses_2010_attractions_and_activities_municipal,
+    total_businesses_2015_attractions_and_activities_municipal,
+    economic_growth_2015_attractions_and_activities_municipal,
+    total_businesses_2017_attractions_and_activities_municipal,
+    economic_growth_2017_attractions_and_activities_municipal,
+    total_businesses_2020_attractions_and_activities_municipal,
+    economic_growth_2020_attractions_and_activities_municipal,
+    total_businesses_2023_attractions_and_activities_municipal,
+    economic_growth_2023_attractions_and_activities_municipal,
+    
+    -- ATTRACTIONS_AND_ACTIVITIES - ENTIDAD
+    total_businesses_2010_attractions_and_activities_entidad,
+    total_businesses_2015_attractions_and_activities_entidad,
+    economic_growth_2015_attractions_and_activities_entidad,
+    total_businesses_2017_attractions_and_activities_entidad,
+    economic_growth_2017_attractions_and_activities_entidad,
+    total_businesses_2020_attractions_and_activities_entidad,
+    economic_growth_2020_attractions_and_activities_entidad,
+    total_businesses_2023_attractions_and_activities_entidad,
+    economic_growth_2023_attractions_and_activities_entidad,
+    
+    -- ==============================================
+    -- CATEGORY: EDUCATION
+    -- ==============================================
+    
+    -- EDUCATION - AGEB
+    total_businesses_2010_education_ageb,
+    total_businesses_2015_education_ageb,
+    economic_growth_2015_education_ageb,
+    total_businesses_2017_education_ageb,
+    economic_growth_2017_education_ageb,
+    total_businesses_2020_education_ageb,
+    economic_growth_2020_education_ageb,
+    total_businesses_2023_education_ageb,
+    economic_growth_2023_education_ageb,
+    
+    -- EDUCATION - MUNICIPAL
+    total_businesses_2010_education_municipal,
+    total_businesses_2015_education_municipal,
+    economic_growth_2015_education_municipal,
+    total_businesses_2017_education_municipal,
+    economic_growth_2017_education_municipal,
+    total_businesses_2020_education_municipal,
+    economic_growth_2020_education_municipal,
+    total_businesses_2023_education_municipal,
+    economic_growth_2023_education_municipal,
+    
+    -- EDUCATION - ENTIDAD
+    total_businesses_2010_education_entidad,
+    total_businesses_2015_education_entidad,
+    economic_growth_2015_education_entidad,
+    total_businesses_2017_education_entidad,
+    economic_growth_2017_education_entidad,
+    total_businesses_2020_education_entidad,
+    economic_growth_2020_education_entidad,
+    total_businesses_2023_education_entidad,
+    economic_growth_2023_education_entidad,
+    
+    -- ==============================================
+    -- CATEGORY: OTHERS
+    -- ==============================================
+    
+    -- OTHERS - AGEB
+    total_businesses_2010_others_ageb,
+    total_businesses_2015_others_ageb,
+    economic_growth_2015_others_ageb,
+    total_businesses_2017_others_ageb,
+    economic_growth_2017_others_ageb,
+    total_businesses_2020_others_ageb,
+    economic_growth_2020_others_ageb,
+    total_businesses_2023_others_ageb,
+    economic_growth_2023_others_ageb,
+    
+    -- OTHERS - MUNICIPAL
+    total_businesses_2010_others_municipal,
+    total_businesses_2015_others_municipal,
+    economic_growth_2015_others_municipal,
+    total_businesses_2017_others_municipal,
+    economic_growth_2017_others_municipal,
+    total_businesses_2020_others_municipal,
+    economic_growth_2020_others_municipal,
+    total_businesses_2023_others_municipal,
+    economic_growth_2023_others_municipal,
+    
+    -- OTHERS - ENTIDAD
+    total_businesses_2010_others_entidad,
+    total_businesses_2015_others_entidad,
+    economic_growth_2015_others_entidad,
+    total_businesses_2017_others_entidad,
+    economic_growth_2017_others_entidad,
+    total_businesses_2020_others_entidad,
+    economic_growth_2020_others_entidad,
+    total_businesses_2023_others_entidad,
+    economic_growth_2023_others_entidad
+
+FROM blackprint_db_prd.data_product.v_parcel_v3
+where fid = {fid}
+        '''
         return query
     
     @staticmethod
