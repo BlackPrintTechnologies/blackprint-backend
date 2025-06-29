@@ -1,12 +1,19 @@
 from flask_restful import Resource, reqparse
 from flask import request, jsonify,send_file
 from utils.responseUtils import Response
-from module.properties.controller import PropertyController, UserPropertyController  # Assuming SavedSearchesController is in search_controller.py
+from module.properties.controller import PropertyController, UserPropertyController
 from utils.commonUtil import authenticate
 from utils.streetViewUtils import get_street_view_image
 import threading
 import hashlib
-from flask import make_response
+from utils.app_cache import get_from_cache, set_in_cache
+from module.properties.prefetch import (
+    prefetch_fid_response, 
+    prefetch_userproperty_response,
+    prefetch_demographic_response,
+    prefetch_marketinfo_response
+)
+from utils.normalization_utils import normalize_fid, normalize_market_id
 import logging
 logger = logging.getLogger(__name__)
 
@@ -28,26 +35,6 @@ class StreetViewImage(Resource):
 
         return send_file(image_data, mimetype='image/jpeg')
 
-# In-memory cache for full /property responses
-property_response_cache = {}
-cache_lock = threading.Lock()
-# In-memory caches for userproperty and demographic responses
-userproperty_response_cache = {}
-userproperty_cache_lock = threading.Lock()
-demographic_response_cache = {}
-demographic_cache_lock = threading.Lock()
-
-def normalize_fid(fid):
-    if fid is None:
-        return None
-    try:
-        f = float(fid)
-        if f.is_integer():
-            return str(int(f))
-        return str(f)
-    except Exception:
-        return str(fid)
-
 class Property(Resource):
     create_parser = reqparse.RequestParser()
     create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='args')
@@ -66,105 +53,58 @@ class Property(Resource):
         norm_lng = str(lng) if lng is not None else None
         cache_key_raw = f"user={current_user}|fid={norm_fid}|lat={norm_lat}|lng={norm_lng}"
         cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
-        logger = logging.getLogger(__name__)
-        with cache_lock:
-            logger.info(f"/property cache lookup for key: {cache_key_raw} (hash: {cache_key})")
-            if cache_key in property_response_cache:
-                logger.info(f"cache hit for key: {cache_key_raw} (hash: {cache_key})")
-                return property_response_cache[cache_key]
-            else:
-                logger.info(f"/property cache miss for key: {cache_key_raw} (hash: {cache_key})")
+        
+        cached_response = get_from_cache('property', cache_key)
+        if cached_response:
+            return cached_response
+
         pc = PropertyController()
         response = pc.get_properties(current_user, fid, lat, lng)
-        # Cache the response object
-        with cache_lock:
-            property_response_cache[cache_key] = response
+        set_in_cache('property', cache_key, response)
 
-        # --- Prefetch /property?fid=... in background if this was a lat/lng query ---
-        def prefetch_fid_response(fid_to_prefetch, user):
-            norm_fid_prefetch = normalize_fid(fid_to_prefetch)
-            prefetch_cache_key_raw = f"user={user}|fid={norm_fid_prefetch}|lat=None|lng=None"
-            prefetch_cache_key = hashlib.sha256(prefetch_cache_key_raw.encode()).hexdigest()
-            with cache_lock:
-                if prefetch_cache_key in property_response_cache:
-                    logger.info(f"Prefetch: cache already exists for key: {prefetch_cache_key_raw}")
-                    return
-            logger.info(f"Prefetch: fetching and caching /property?fid={norm_fid_prefetch} for user={user}")
-            pc2 = PropertyController()
-            prefetch_response = pc2.get_properties(user, fid=norm_fid_prefetch, lat=None, lng=None)
-            with cache_lock:
-                property_response_cache[prefetch_cache_key] = prefetch_response
-                logger.info(f"Prefetch: saved response for key: {prefetch_cache_key_raw}")
+        # --- Prefetching logic ---
+        logger.info(f"Prefetch check: Starting prefetch logic check. fid={fid}, lat={lat}, lng={lng}")
+        try:
+            # Try to extract JSON from the response
+            data_json = None
+            response_for_prefetch = response
+            if isinstance(response, tuple):
+                response_for_prefetch = response[0]
+            if hasattr(response_for_prefetch, 'json'):
+                data_json = response_for_prefetch.json if callable(response_for_prefetch.json) else response_for_prefetch.json
+            elif hasattr(response_for_prefetch, 'get_json'):
+                data_json = response_for_prefetch.get_json(force=True)
+            elif isinstance(response_for_prefetch, dict):
+                data_json = response_for_prefetch
+            
+            if data_json and 'data' in data_json and data_json['data']:
+                first_property = data_json['data'][0]
+                fid_from_response = None
+                if isinstance(first_property, dict):
+                    property_details = first_property.get('property_details', first_property)
+                    
+                    fid_from_response = property_details.get('fid')
+                    market_info = first_property.get('market_info', {})
+                    spot2_id = normalize_market_id(market_info.get('ids_market_data_spot2'))
+                    inmuebles24_id = normalize_market_id(property_details.get('ids_market_data_inmuebles24'))
+                    propiedades_id = normalize_market_id(property_details.get('ids_market_data_propiedades'))
+                
+                effective_fid = normalize_fid(fid) if fid else fid_from_response
+                logger.info(f"Prefetch check: effective_fid for prefetching is {effective_fid}")
+                if effective_fid:
+                    if not fid and lat and lng:
+                        threading.Thread(target=prefetch_fid_response, args=(effective_fid, current_user)).start()
 
-        # New: Prefetch userproperty in background
-        def prefetch_userproperty_response(fid_to_prefetch, user):
-            norm_fid = normalize_fid(fid_to_prefetch)
-            cache_key = f"user={user}|fid={norm_fid}"
-            with userproperty_cache_lock:
-                if cache_key in userproperty_response_cache:
-                    logger.info(f"UserProperty prefetch: cache already exists for key: {cache_key}")
-                    return
-            logger.info(f"UserProperty prefetch: fetching and caching for key: {cache_key}")
-            upc = UserPropertyController()
-            response = upc.get_user_properties(user, norm_fid, None)
-            with userproperty_cache_lock:
-                userproperty_response_cache[cache_key] = response
-
-        # New: Prefetch demographic in background
-        def prefetch_demographic_response(fid_to_prefetch, user):
-            norm_fid = normalize_fid(fid_to_prefetch)
-            cache_key = f"user={user}|fid={norm_fid}"
-            with demographic_cache_lock:
-                if cache_key in demographic_response_cache:
-                    logger.info(f"Demographic prefetch: cache already exists for key: {cache_key}")
-                    return
-            logger.info(f"Demographic prefetch: fetching and caching for key: {cache_key}")
-            pc = PropertyController()
-            response = pc.get_property_demographic(norm_fid, user)
-            with demographic_cache_lock:
-                demographic_response_cache[cache_key] = response
-
-        # If this was a lat/lng query and response contains a property with fid, prefetch /property?fid=...
-        if not fid and lat and lng:
-            logger.info(f"Prefetch check: response type is {type(response)}")
-            try:
-                # Try to extract JSON from the response
-                data_json = None
-                response_for_prefetch = response
-                if isinstance(response, tuple):
-                    logger.info(f"Prefetch check: response is a tuple, unpacking first element for prefetch logic: {response[0]}")
-                    response_for_prefetch = response[0]
-                if hasattr(response_for_prefetch, 'json'):
-                    logger.info(f"Prefetch check: response has .json attribute: {response_for_prefetch.json}")
-                    data_json = response_for_prefetch.json if callable(response_for_prefetch.json) else response_for_prefetch.json
-                elif hasattr(response_for_prefetch, 'get_json'):
-                    logger.info("Prefetch check: response has .get_json method, calling it...")
-                    data_json = response_for_prefetch.get_json(force=True)
-                elif isinstance(response_for_prefetch, dict):
-                    logger.info(f"Prefetch check: response is a dict: {response_for_prefetch}")
-                    data_json = response_for_prefetch
-                else:
-                    logger.info(f"Prefetch check: response has no .json or .get_json, value: {response_for_prefetch}")
-                logger.info(f"Prefetch check: extracted data_json: {data_json}")
-                # Assume response is a dict with 'data' key containing a list of properties
-                if data_json and 'data' in data_json and data_json['data']:
-                    first_property = data_json['data'][0]
-                    fid_to_prefetch = None
-                    if isinstance(first_property, dict):
-                        # Try to extract fid from nested property_details
-                        if 'property_details' in first_property and isinstance(first_property['property_details'], dict):
-                            fid_to_prefetch = first_property['property_details'].get('fid')
-                        else:
-                            fid_to_prefetch = first_property.get('fid')
-                    logger.info(f"Prefetch check: found fid_to_prefetch={fid_to_prefetch}")
-                    if fid_to_prefetch:
-                        threading.Thread(target=prefetch_fid_response, args=(fid_to_prefetch, current_user)).start()
-                        threading.Thread(target=prefetch_userproperty_response, args=(fid_to_prefetch, current_user)).start()
-                        threading.Thread(target=prefetch_demographic_response, args=(fid_to_prefetch, current_user)).start()
-                else:
-                    logger.info("Prefetch check: data_json did not contain 'data' or was empty")
-            except Exception as e:
-                logger.error(f"Prefetch error: {e}")
+                    threading.Thread(target=prefetch_userproperty_response, args=(effective_fid, current_user)).start()
+                    threading.Thread(target=prefetch_demographic_response, args=(effective_fid, current_user)).start()
+                    
+                    if spot2_id or inmuebles24_id or propiedades_id:
+                        logger.info(f"Prefetch check: found market info ids: spot2_id={spot2_id}, inmuebles24_id={inmuebles24_id}, propiedades_id={propiedades_id}")
+                        threading.Thread(target=prefetch_marketinfo_response, args=(spot2_id, inmuebles24_id, propiedades_id, current_user)).start()
+            else:
+                logger.info("Prefetch check: data_json did not contain 'data' or was empty")
+        except Exception as e:
+            logger.error(f"Prefetch error: {e}")
         return response
     
 class PropertyDemographic(Resource):
@@ -176,16 +116,14 @@ class PropertyDemographic(Resource):
         fid = data.get('fid')
         norm_fid = normalize_fid(fid)
         cache_key = f"user={current_user}|fid={norm_fid}"
-        with demographic_cache_lock:
-            logger.info(f"[DEBUG] demographic_response_cache keys: {list(demographic_response_cache.keys())}")
-            logger.info(f"[DEBUG] demographic_response_cache value for key {cache_key}: {demographic_response_cache.get(cache_key, None)}")
-            if cache_key in demographic_response_cache:
-                logger.info(f"/property/demographic cache hit for key: {cache_key}")
-                return demographic_response_cache[cache_key]
+        
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            return cached_response
+
         pc = PropertyController()
         response = pc.get_property_demographic(norm_fid, current_user)
-        with demographic_cache_lock:
-            demographic_response_cache[cache_key] = response
+        set_in_cache('demographic', cache_key, response)
         return response
     
 
@@ -204,15 +142,15 @@ class UserProperty(Resource):
         fid = data.get('fid')
         prop_status = data.get('prop_status')
         norm_fid = normalize_fid(fid)
-        cache_key = f"user={current_user}|fid={norm_fid}"
-        with userproperty_cache_lock:
-            if cache_key in userproperty_response_cache:
-                logger.info(f"/property/userproperty cache hit for key: {cache_key}")
-                return userproperty_response_cache[cache_key]
+        cache_key = f"user={current_user}|fid={norm_fid}|prop_status={prop_status}"
+        
+        cached_response = get_from_cache('user_property', cache_key)
+        if cached_response:
+            return cached_response
+
         upc = UserPropertyController()
         response = upc.get_user_properties(current_user, norm_fid,  prop_status)
-        with userproperty_cache_lock:
-            userproperty_response_cache[cache_key] = response
+        set_in_cache('user_property', cache_key, response)
         return response
 
     @authenticate
@@ -261,13 +199,50 @@ class PropertyTraffic(Resource):
 
 class PropertyMarketInfo(Resource):
     create_parser = reqparse.RequestParser()
-    create_parser.add_argument('spot2_id', type=str, required=False, help='fid is required', location='args')
-    create_parser.add_argument('inmuebles24_id', type=str, required=False, help='fid is required', location='args')
+    create_parser.add_argument('spot2_id', type=str, required=False, help='spot2_id is required', location='args')
+    create_parser.add_argument('inmuebles24_id', type=str, required=False, help='inmuebles24_id is required', location='args')
+    create_parser.add_argument('propiedades_id', type=str, required=False, help='propiedades_id is required', location='args')
+
     @authenticate
     def get(self, current_user):
         data = self.create_parser.parse_args()
+        spot2_id = normalize_market_id(data.get('spot2_id'))
+        inmuebles24_id = normalize_market_id(data.get('inmuebles24_id'))
+        propiedades_id = normalize_market_id(data.get("propiedades_id"))
+        
+        cache_key_raw = f"user={current_user}|spot2_id={spot2_id}|inmuebles24_id={inmuebles24_id}|propiedades_id={propiedades_id}"
+        cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
+        
+        cached_response = get_from_cache('market_info', cache_key)
+        if cached_response:
+            return cached_response
+
         pc = PropertyController()
-        spot2_id = data.get('spot2_id')
-        inmuebles24_id = data.get('inmuebles24_id')
-        response = pc.get_property_market_info(spot2_id, inmuebles24_id)
+        response = pc.get_property_market_info(spot2_id, inmuebles24_id, propiedades_id)
+
+        set_in_cache('market_info', cache_key, response)
+        return response
+
+class PropertyDetailsBundle(Resource):
+    parser = reqparse.RequestParser()
+    parser.add_argument('fid', type=str, required=True, help='fid is required', location='args')
+
+    @authenticate
+    def get(self, current_user):
+        args = self.parser.parse_args()
+        fid = args['fid']
+        pc = PropertyController()
+        return pc.get_property_details_bundle(current_user, fid)
+
+class PropertyCommercialGrowth(Resource):
+    parser = reqparse.RequestParser()
+    parser.add_argument('fid', type=str, required=True, help='fid is required', location='args')
+    
+    @authenticate
+    def get(self,current_user):
+        args = self.parser.parse_args()
+        fid = args['fid']
+        norm_fid = normalize_fid(fid)
+        pc = PropertyController()
+        response = pc.get_property_commercial_growth(norm_fid)
         return response
