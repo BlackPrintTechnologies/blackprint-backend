@@ -246,3 +246,10 @@ class PropertyCommercialGrowth(Resource):
         pc = PropertyController()
         response = pc.get_property_commercial_growth(norm_fid)
         return response
+
+class PropertyFilter(Resource):
+    def post(self):
+        data = request.get_json(force=True)
+        pc = PropertyController()
+        response = pc.filter_properties(data)
+        return response

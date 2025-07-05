@@ -1234,3 +1234,87 @@ class PropertyController:
             if connection:
                 self.redshift_connection.disconnect(connection)
 
+    def filter_properties(self, filters):
+        """
+        Accepts a dict of filter fields and returns filtered properties.
+        Maps UI keys to DB columns for correct filtering.
+        """
+        # Mapping from UI keys to DB columns
+        FILTER_COLUMN_MAP = {
+            "availability": "is_on_market",
+            "property_type": ["property_type_spot2", "property_type_inmuebles24", "property_type_propiedades"],
+            "plot_min": "total_surface_area",
+            "plot_max": "total_surface_area",
+            "construction_min": "total_construction_area",
+            "construction_max": "total_construction_area",
+            "geometry": "block_type",
+            # Add more as needed
+        }
+        connection = None
+        cursor = None
+        resp = None
+        try:
+            logger.info("Filtering properties with filters: %s", filters)
+            filter_query = 'WHERE 1=1'
+            # Availability (example: is_on_market)
+            if 'availability' in filters and filters['availability']:
+                filter_query += f" AND {FILTER_COLUMN_MAP['availability']} = '{filters['availability']}'"
+            # Property Type (multi-select)
+            if 'property_type' in filters and filters['property_type']:
+                types = filters['property_type']
+                if isinstance(types, list):
+                    type_list = ','.join([f"'{t}'" for t in types])
+                    cols = FILTER_COLUMN_MAP['property_type']
+                    filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
+            # Plot Dimensions (range)
+            if 'plot_min' in filters and filters['plot_min'] is not None:
+                filter_query += f" AND {FILTER_COLUMN_MAP['plot_min']} >= {filters['plot_min']}"
+            if 'plot_max' in filters and filters['plot_max'] is not None:
+                filter_query += f" AND {FILTER_COLUMN_MAP['plot_max']} <= {filters['plot_max']}"
+            # Construction Dimensions (range)
+            if 'construction_min' in filters and filters['construction_min'] is not None:
+                filter_query += f" AND {FILTER_COLUMN_MAP['construction_min']} >= {filters['construction_min']}"
+            if 'construction_max' in filters and filters['construction_max'] is not None:
+                filter_query += f" AND {FILTER_COLUMN_MAP['construction_max']} <= {filters['construction_max']}"
+            # Price (Buy/Rent, range)
+            if 'price_type' in filters and filters['price_type']:
+                price_type = filters['price_type'].lower()
+                # Map to correct DB column
+                price_field = None
+                if price_type == 'buy':
+                    price_field = 'buy_price_spot2'
+                elif price_type == 'rent':
+                    price_field = 'rent_price_spot2'
+                # You can extend to use inmuebles24/propiedades as needed
+                if price_field:
+                    if 'price_min' in filters and filters['price_min'] is not None:
+                        filter_query += f" AND {price_field} >= {filters['price_min']}"
+                    if 'price_max' in filters and filters['price_max'] is not None:
+                        filter_query += f" AND {price_field} <= {filters['price_max']}"
+            # Geometry (location on block)
+            if 'geometry' in filters and filters['geometry']:
+                filter_query += f" AND {FILTER_COLUMN_MAP['geometry']} = '{filters['geometry']}'"
+            # TODO: Add more filters as needed (currency, block position, etc.)
+
+            query = self.qc.get_property_query(filter_query)
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            print("Query", query)
+            # query = query + " LIMIT 1"
+            cursor.execute(query)
+            result = cursor.fetchall()
+            print("Result", result)
+            if not result:
+                return Response.success(data=[], message='No properties found')
+            result_jsons = self.get_property_json(result)
+            resp = Response.success(data=result_jsons, message='Success')
+        except Exception as e:
+            logger.error("Error filtering properties: %s", str(e), exc_info=True)
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)
+            return resp
+
