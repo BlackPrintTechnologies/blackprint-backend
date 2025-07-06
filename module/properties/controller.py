@@ -1243,6 +1243,7 @@ class PropertyController:
         FILTER_COLUMN_MAP = {
             "availability": "is_on_market",
             "property_type": ["property_type_spot2", "property_type_inmuebles24", "property_type_propiedades"],
+            "property_only": ["property_type_spot2", "property_type_inmuebles24", "property_type_propiedades"],
             "plot_min": "total_surface_area",
             "plot_max": "total_surface_area",
             "construction_min": "total_construction_area",
@@ -1252,8 +1253,7 @@ class PropertyController:
             "municipality": "municipality",
             "alcaldia": "alcaldia",
             "colonia": "colonia",
-            "zip_code": "zip_code",
-            "search_within": "search_within"
+            "zip_code": "zip_code"
         }
         connection = None
         cursor = None
@@ -1271,6 +1271,17 @@ class PropertyController:
                     type_list = ','.join([f"'{t}'" for t in types])
                     cols = FILTER_COLUMN_MAP['property_type']
                     filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
+            # Property Only (multi-column OR)
+            if 'property_only' in filters and filters['property_only']:
+                types = filters['property_only']
+                if isinstance(types, list):
+                    type_list = ','.join([f"'{t}'" for t in types])
+                    cols = FILTER_COLUMN_MAP['property_only']
+                    filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
+            else:
+                value = filters['property_only']
+                cols = FILTER_COLUMN_MAP['property_only']
+                filter_query += " AND (" + " OR ".join([f"{col} = '{value}'" for col in cols]) + ")"
             # Plot Dimensions (range)
             if 'plot_min' in filters and filters['plot_min'] is not None:
                 filter_query += f" AND {FILTER_COLUMN_MAP['plot_min']} >= {filters['plot_min']}"
@@ -1299,8 +1310,8 @@ class PropertyController:
             # Geometry (location on block)
             if 'geometry' in filters and filters['geometry']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['geometry']} = '{filters['geometry']}'"
-            # Zoning fields
-            for key in ["city", "municipality", "alcaldia", "colonia", "zip_code", "search_within"]:
+            # Zoning fields (updated, removed search_within)
+            for key in ["city", "municipality", "alcaldia", "colonia", "zip_code"]:
                 if key in filters and filters[key]:
                     filter_query += f" AND {FILTER_COLUMN_MAP[key]} = '{filters[key]}'"
             # TODO: Add more filters as needed (currency, block position, etc.)
