@@ -4,7 +4,48 @@ class QueryController :
         pass
 
     @staticmethod
-    def get_property_query(filter):
+    def get_property_query(filter, price_type=None, price_min=None, price_max=None):
+        # If price_type is provided, build a UNION query across sources with operation_type and price filtering
+        if price_type:
+            price_type = price_type.lower()
+            queries = []
+            # inmuebles24
+            inmuebles24_price_col = 'buy_price_per_m2' if price_type == 'buy' else 'rent_price_per_m2'
+            inmuebles24_query = f'''
+                SELECT * FROM blackprint_db_prd.presentation.dim_market_data_inmuebles24
+                WHERE operation_type = '{price_type}'
+            '''
+            if price_min is not None:
+                inmuebles24_query += f" AND {inmuebles24_price_col} >= {price_min}"
+            if price_max is not None:
+                inmuebles24_query += f" AND {inmuebles24_price_col} <= {price_max}"
+            queries.append(inmuebles24_query)
+            # spot2
+            spot2_price_col = 'buy_price_per_m2' if price_type == 'buy' else 'rent_price_per_m2'
+            spot2_query = f'''
+                SELECT * FROM blackprint_db_prd.presentation.dim_market_data_spot2
+                WHERE operation_type = '{price_type}'
+            '''
+            if price_min is not None:
+                spot2_query += f" AND {spot2_price_col} >= {price_min}"
+            if price_max is not None:
+                spot2_query += f" AND {spot2_price_col} <= {price_max}"
+            queries.append(spot2_query)
+            # propiedades
+            propiedades_price_col = 'buy_price_per_m2' if price_type == 'buy' else 'rent_price_per_m2'
+            propiedades_query = f'''
+                SELECT * FROM blackprint_db_prd.presentation.dim_market_data_propiedades
+                WHERE operation_type = '{price_type}'
+            '''
+            if price_min is not None:
+                propiedades_query += f" AND {propiedades_price_col} >= {price_min}"
+            if price_max is not None:
+                propiedades_query += f" AND {propiedades_price_col} <= {price_max}"
+            queries.append(propiedades_query)
+            # Merge all queries with UNION ALL
+            query = " UNION ALL ".join(queries)
+            return query
+        # Default: original logic
         query = f'''
                 Select  
                 fid,

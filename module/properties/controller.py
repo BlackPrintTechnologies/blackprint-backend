@@ -1295,18 +1295,37 @@ class PropertyController:
             # Price (Buy/Rent, range)
             if 'price_type' in filters and filters['price_type']:
                 price_type = filters['price_type'].lower()
-                # Map to correct DB column
-                price_field = None
+                price_min = filters.get('price_min')
+                price_max = filters.get('price_max')
+                print("Price type", price_type)
+                print("Price min", price_min)
+                print("Price max", price_max)
+                # Map to correct DB columns for each property type
+                price_fields = []
                 if price_type == 'buy':
-                    price_field = 'buy_price_spot2'
+                    price_fields = [
+                        ('property_type_spot2', 'buy_price_per_m2_spot2'),
+                        ('property_type_inmuebles24', 'buy_price_per_m2_inmuebles24'),
+                        ('property_type_propiedades', 'buy_price_per_m2_propiedades'),
+                    ]
                 elif price_type == 'rent':
-                    price_field = 'rent_price_spot2'
-                # You can extend to use inmuebles24/propiedades as needed
-                if price_field:
-                    if 'price_min' in filters and filters['price_min'] is not None:
-                        filter_query += f" AND {price_field} >= {filters['price_min']}"
-                    if 'price_max' in filters and filters['price_max'] is not None:
-                        filter_query += f" AND {price_field} <= {filters['price_max']}"
+                    price_fields = [
+                        ('property_type_spot2', 'rent_price_per_m2_spot2'),
+                        ('property_type_inmuebles24', 'rent_price_per_m2_inmuebles24'),
+                        ('property_type_propiedades', 'rent_price_per_m2_propiedades'),
+                    ]
+                # Build filter for price only for the property type that is present
+                price_conditions = []
+                for prop_type_col, price_col in price_fields:
+                    cond = f"({prop_type_col} IS NOT NULL"
+                    if price_min is not None:
+                        cond += f" AND {price_col} >= {price_min}"
+                    if price_max is not None:
+                        cond += f" AND {price_col} <= {price_max}"
+                    cond += ")"
+                    price_conditions.append(cond)
+                if price_conditions:
+                    filter_query += " AND (" + " OR ".join(price_conditions) + ")"
             # Geometry (location on block)
             if 'geometry' in filters and filters['geometry']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['geometry']} = '{filters['geometry']}'"
