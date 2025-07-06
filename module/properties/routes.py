@@ -45,21 +45,27 @@ class Property(Resource):
     def post(self, current_user):
         # Accept all JSON data for flexible filter support
         data = request.get_json(force=True)
-        # Check if filter keys are present (e.g., property_type, plot_min, etc.)
+        # Support grouped filter JSON (e.g., {"property": {...}, "zoning": {...}})
+        filters = {}
+        for group in ["property", "zoning", "demographics", "points_of_interest"]:
+            if group in data and isinstance(data[group], dict):
+                filters.update(data[group])
+        # If no groups, fallback to flat structure
+        if not filters:
+            filters = data
         filter_keys = [
             'availability', 'property_type', 'plot_min', 'plot_max', 'construction_min', 'construction_max',
-            'geometry', 'price_type', 'price_min', 'price_max'
+            'geometry', 'price_type', 'price_min', 'price_max',
+            'city', 'municipality', 'alcaldia', 'colonia', 'zip_code', 'search_within'
         ]
-        if any(key in data for key in filter_keys):
-            # If filter keys are present, use filter_properties
+        if any(key in filters for key in filter_keys):
             pc = PropertyController()
-            response = pc.filter_properties(data)
+            response = pc.filter_properties(filters)
             return response
         else:
-            # Fallback to direct property lookup (by fid, lat, lng)
-            fid = data.get('fid')
-            lat = data.get('lat')
-            lng = data.get('lng')
+            fid = filters.get('fid')
+            lat = filters.get('lat')
+            lng = filters.get('lng')
             norm_fid = normalize_fid(fid)
             norm_lat = str(lat) if lat is not None else None
             norm_lng = str(lng) if lng is not None else None

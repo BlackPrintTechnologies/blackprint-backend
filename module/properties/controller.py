@@ -1248,7 +1248,12 @@ class PropertyController:
             "construction_min": "total_construction_area",
             "construction_max": "total_construction_area",
             "geometry": "block_type",
-            # Add more as needed
+            "city": "city",
+            "municipality": "municipality",
+            "alcaldia": "alcaldia",
+            "colonia": "colonia",
+            "zip_code": "zip_code",
+            "search_within": "search_within"
         }
         connection = None
         cursor = None
@@ -1294,6 +1299,10 @@ class PropertyController:
             # Geometry (location on block)
             if 'geometry' in filters and filters['geometry']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['geometry']} = '{filters['geometry']}'"
+            # Zoning fields
+            for key in ["city", "municipality", "alcaldia", "colonia", "zip_code", "search_within"]:
+                if key in filters and filters[key]:
+                    filter_query += f" AND {FILTER_COLUMN_MAP[key]} = '{filters[key]}'"
             # TODO: Add more filters as needed (currency, block position, etc.)
 
             query = self.qc.get_property_query(filter_query)
