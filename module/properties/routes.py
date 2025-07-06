@@ -4,8 +4,8 @@ from utils.responseUtils import Response
 from module.properties.controller import PropertyController, UserPropertyController
 from utils.commonUtil import authenticate
 from utils.streetViewUtils import get_street_view_image
-import threading
 import hashlib
+import json
 from utils.app_cache import get_from_cache, set_in_cache
 from module.properties.prefetch import (
     prefetch_fid_response, 
@@ -59,8 +59,15 @@ class Property(Resource):
             'city', 'municipality', 'alcaldia', 'colonia', 'zip_code', 'search_within'
         ]
         if any(key in filters for key in filter_keys):
+            # Add filter-based caching
+            filter_key_raw = f"user={current_user}|filters={json.dumps(filters, sort_keys=True)}"
+            filter_cache_key = hashlib.sha256(filter_key_raw.encode()).hexdigest()
+            cached_response = get_from_cache('property', filter_cache_key)
+            if cached_response:
+                return cached_response
             pc = PropertyController()
             response = pc.filter_properties(filters)
+            set_in_cache('property', filter_cache_key, response)
             return response
         else:
             fid = filters.get('fid')

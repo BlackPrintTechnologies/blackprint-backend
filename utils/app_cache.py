@@ -1,14 +1,15 @@
+from cachetools import LRUCache
 import threading
 import logging
 
 logger = logging.getLogger(__name__)
 
-# In-memory caches for various responses
+# In-memory LRU caches for various responses
 _caches = {
-    'property': {},
-    'user_property': {},
-    'demographic': {},
-    'market_info': {}
+    'property': LRUCache(maxsize=1000),
+    'user_property': LRUCache(maxsize=1000),
+    'demographic': LRUCache(maxsize=1000),
+    'market_info': LRUCache(maxsize=1000)
 }
 
 _locks = {
