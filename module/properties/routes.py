@@ -43,25 +43,35 @@ class Property(Resource):
 
     @authenticate
     def post(self, current_user):
-        data = self.create_parser.parse_args()
-        fid = data.get('fid')
-        lat = data.get('lat')
-        lng = data.get('lng')
-        # Use module-level normalize_fid
-        norm_fid = normalize_fid(fid)
-        norm_lat = str(lat) if lat is not None else None
-        norm_lng = str(lng) if lng is not None else None
-        cache_key_raw = f"user={current_user}|fid={norm_fid}|lat={norm_lat}|lng={norm_lng}"
-        cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
-        
-        cached_response = get_from_cache('property', cache_key)
-        if cached_response:
-            return cached_response
-
-        pc = PropertyController()
-        response = pc.get_properties(current_user, fid, lat, lng)
-        set_in_cache('property', cache_key, response)
-        return response
+        # Accept all JSON data for flexible filter support
+        data = request.get_json(force=True)
+        # Check if filter keys are present (e.g., property_type, plot_min, etc.)
+        filter_keys = [
+            'availability', 'property_type', 'plot_min', 'plot_max', 'construction_min', 'construction_max',
+            'geometry', 'price_type', 'price_min', 'price_max'
+        ]
+        if any(key in data for key in filter_keys):
+            # If filter keys are present, use filter_properties
+            pc = PropertyController()
+            response = pc.filter_properties(data)
+            return response
+        else:
+            # Fallback to direct property lookup (by fid, lat, lng)
+            fid = data.get('fid')
+            lat = data.get('lat')
+            lng = data.get('lng')
+            norm_fid = normalize_fid(fid)
+            norm_lat = str(lat) if lat is not None else None
+            norm_lng = str(lng) if lng is not None else None
+            cache_key_raw = f"user={current_user}|fid={norm_fid}|lat={norm_lat}|lng={norm_lng}"
+            cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
+            cached_response = get_from_cache('property', cache_key)
+            if cached_response:
+                return cached_response
+            pc = PropertyController()
+            response = pc.get_properties(current_user, fid, lat, lng)
+            set_in_cache('property', cache_key, response)
+            return response
     
 class PropertyDemographic(Resource):
     create_parser = reqparse.RequestParser()
