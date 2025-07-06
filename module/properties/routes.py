@@ -37,12 +37,12 @@ class StreetViewImage(Resource):
 
 class Property(Resource):
     create_parser = reqparse.RequestParser()
-    create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='args')
-    create_parser.add_argument('lat', type=str, required=False, help='property_id is required', location='args')
-    create_parser.add_argument('lng', type=str, required=False, help='property_id is required', location='args')
+    create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='json')
+    create_parser.add_argument('lat', type=str, required=False, help='property_id is required', location='json')
+    create_parser.add_argument('lng', type=str, required=False, help='property_id is required', location='json')
 
     @authenticate
-    def get(self, current_user):
+    def post(self, current_user):
         data = self.create_parser.parse_args()
         fid = data.get('fid')
         lat = data.get('lat')
@@ -61,50 +61,6 @@ class Property(Resource):
         pc = PropertyController()
         response = pc.get_properties(current_user, fid, lat, lng)
         set_in_cache('property', cache_key, response)
-
-        # --- Prefetching logic ---
-        logger.info(f"Prefetch check: Starting prefetch logic check. fid={fid}, lat={lat}, lng={lng}")
-        try:
-            # Try to extract JSON from the response
-            data_json = None
-            response_for_prefetch = response
-            if isinstance(response, tuple):
-                response_for_prefetch = response[0]
-            if hasattr(response_for_prefetch, 'json'):
-                data_json = response_for_prefetch.json if callable(response_for_prefetch.json) else response_for_prefetch.json
-            elif hasattr(response_for_prefetch, 'get_json'):
-                data_json = response_for_prefetch.get_json(force=True)
-            elif isinstance(response_for_prefetch, dict):
-                data_json = response_for_prefetch
-            
-            if data_json and 'data' in data_json and data_json['data']:
-                first_property = data_json['data'][0]
-                fid_from_response = None
-                if isinstance(first_property, dict):
-                    property_details = first_property.get('property_details', first_property)
-                    
-                    fid_from_response = property_details.get('fid')
-                    market_info = first_property.get('market_info', {})
-                    spot2_id = normalize_market_id(market_info.get('ids_market_data_spot2'))
-                    inmuebles24_id = normalize_market_id(property_details.get('ids_market_data_inmuebles24'))
-                    propiedades_id = normalize_market_id(property_details.get('ids_market_data_propiedades'))
-                
-                effective_fid = normalize_fid(fid) if fid else fid_from_response
-                logger.info(f"Prefetch check: effective_fid for prefetching is {effective_fid}")
-                if effective_fid:
-                    if not fid and lat and lng:
-                        threading.Thread(target=prefetch_fid_response, args=(effective_fid, current_user)).start()
-
-                    threading.Thread(target=prefetch_userproperty_response, args=(effective_fid, current_user)).start()
-                    threading.Thread(target=prefetch_demographic_response, args=(effective_fid, current_user)).start()
-                    
-                    if spot2_id or inmuebles24_id or propiedades_id:
-                        logger.info(f"Prefetch check: found market info ids: spot2_id={spot2_id}, inmuebles24_id={inmuebles24_id}, propiedades_id={propiedades_id}")
-                        threading.Thread(target=prefetch_marketinfo_response, args=(spot2_id, inmuebles24_id, propiedades_id, current_user)).start()
-            else:
-                logger.info("Prefetch check: data_json did not contain 'data' or was empty")
-        except Exception as e:
-            logger.error(f"Prefetch error: {e}")
         return response
     
 class PropertyDemographic(Resource):
