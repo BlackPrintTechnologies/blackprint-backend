@@ -1255,9 +1255,9 @@ class PropertyController:
             "construction_max": "total_construction_area",
             "geometry": "block_type",
             "city": "city",
-            "municipality": "municipality",
-            "alcaldia": "alcaldia",
-            "colonia": "colonia",
+            "municipality": "municipality_nm",
+            "alcaldia": "nom_mun",
+            "colonia": "neighborhood",
             "zip_code": "zip_code"
         }
         connection = None
