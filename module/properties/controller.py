@@ -362,7 +362,7 @@ class PropertyController:
                 self.redshift_connection.disconnect(connection)
         return images
 
-    def get_property_json(self, results):
+    def get_property_json(self, results, show_all_keys=True):
         resp = []
         try:
             logger.info("Processing property JSON for %d results", len(results))
@@ -496,52 +496,52 @@ class PropertyController:
                     "locality_size": result["locality_size"],
                     "city_link": result["city_link"]
                 }
-
-                pois = {
-                    #add category here for icon image
-                    "category": {
-                        category: IconMapper.get_icon_url(category) 
-                        for category in IconMapper.CATEGORY_ICON_MAP
-                    },
-                    "front" : {
-                        "brands_active_life_front": result["brands_active_life_front"],
-                        "brands_arts_and_entertainment_front": result["brands_arts_and_entertainment_front"],
-                        "brands_attractions_and_activities_front": result["brands_attractions_and_activities_front"],
-                        "brands_automotive_front": result["brands_automotive_front"],
-                        "brands_eat_and_drink_front": result["brands_eat_and_drink_front"],
-                        "brands_education_front": result["brands_education_front"],
-                        "brands_financial_service_front": result["brands_financial_service_front"],
-                        "brands_health_and_medical_front": result["brands_health_and_medical_front"],
-                        "brands_public_service_and_government_front": result["brands_public_service_and_government_front"],
-                        "brands_retail_front": result["brands_retail_front"],
-                    },
-                    "500" : {
-                        "brands_active_life_500m": result["brands_active_life_500m"],
-                        "brands_arts_and_entertainment_500m": result["brands_arts_and_entertainment_500m"],
-                        "brands_attractions_and_activities_500m": result["brands_attractions_and_activities_500m"],
-                        "brands_automotive_500m": result["brands_automotive_500m"],
-                        "brands_eat_and_drink_500m": result["brands_eat_and_drink_500m"],
-                        "brands_education_500m": result["brands_education_500m"],
-                        "brands_financial_service_500m": result["brands_financial_service_500m"],
-                        "brands_health_and_medical_500m": result["brands_health_and_medical_500m"],
-                        "brands_public_service_and_government_500m": result["brands_public_service_and_government_500m"],
-                        "brands_retail_500m": result["brands_retail_500m"],
-                    },
-                    "1000" : {
-                        "brands_active_life_1km": result["brands_active_life_1km"],
-                        "brands_arts_and_entertainment_1km": result["brands_arts_and_entertainment_1km"],
-                        "brands_attractions_and_activities_1km": result["brands_attractions_and_activities_1km"],
-                        "brands_automotive_1km": result["brands_automotive_1km"],
-                        "brands_eat_and_drink_1km": result["brands_eat_and_drink_1km"],
-                        "brands_education_1km": result["brands_education_1km"],
-                        "brands_financial_service_1km": result["brands_financial_service_1km"],
-                        "brands_health_and_medical_1km": result["brands_health_and_medical_1km"],
-                        "brands_public_service_and_government_1km": result["brands_public_service_and_government_1km"],
-                        "brands_retail_1km": result["brands_retail_1km"]
-                    },  
-                }
-
-                traffic = {
+                if show_all_keys:
+                    pois = {
+                        #add category here for icon image
+                        "category": {
+                            category: IconMapper.get_icon_url(category) 
+                            for category in IconMapper.CATEGORY_ICON_MAP
+                        },
+                        "front" : {
+                            "brands_active_life_front": result["brands_active_life_front"],
+                            "brands_arts_and_entertainment_front": result["brands_arts_and_entertainment_front"],
+                            "brands_attractions_and_activities_front": result["brands_attractions_and_activities_front"],
+                            "brands_automotive_front": result["brands_automotive_front"],
+                            "brands_eat_and_drink_front": result["brands_eat_and_drink_front"],
+                            "brands_education_front": result["brands_education_front"],
+                            "brands_financial_service_front": result["brands_financial_service_front"],
+                            "brands_health_and_medical_front": result["brands_health_and_medical_front"],
+                            "brands_public_service_and_government_front": result["brands_public_service_and_government_front"],
+                            "brands_retail_front": result["brands_retail_front"],
+                        },
+                        "500" : {
+                            "brands_active_life_500m": result["brands_active_life_500m"],
+                            "brands_arts_and_entertainment_500m": result["brands_arts_and_entertainment_500m"],
+                            "brands_attractions_and_activities_500m": result["brands_attractions_and_activities_500m"],
+                            "brands_automotive_500m": result["brands_automotive_500m"],
+                            "brands_eat_and_drink_500m": result["brands_eat_and_drink_500m"],
+                            "brands_education_500m": result["brands_education_500m"],
+                            "brands_financial_service_500m": result["brands_financial_service_500m"],
+                            "brands_health_and_medical_500m": result["brands_health_and_medical_500m"],
+                            "brands_public_service_and_government_500m": result["brands_public_service_and_government_500m"],
+                            "brands_retail_500m": result["brands_retail_500m"],
+                        },
+                        "1000" : {
+                            "brands_active_life_1km": result["brands_active_life_1km"],
+                            "brands_arts_and_entertainment_1km": result["brands_arts_and_entertainment_1km"],
+                            "brands_attractions_and_activities_1km": result["brands_attractions_and_activities_1km"],
+                            "brands_automotive_1km": result["brands_automotive_1km"],
+                            "brands_eat_and_drink_1km": result["brands_eat_and_drink_1km"],
+                            "brands_education_1km": result["brands_education_1km"],
+                            "brands_financial_service_1km": result["brands_financial_service_1km"],
+                            "brands_health_and_medical_1km": result["brands_health_and_medical_1km"],
+                            "brands_public_service_and_government_1km": result["brands_public_service_and_government_1km"],
+                            "brands_retail_1km": result["brands_retail_1km"]
+                        },  
+                    }
+                if show_all_keys:
+                    traffic = {
                     "front" : {
                     "at_rest_avg_x_hour_0_front": result["at_rest_avg_x_hour_0_front"],
                     "pedestrian_avg_x_hour_0_front": result["pedestrian_avg_x_hour_0_front"],
@@ -734,12 +734,18 @@ class PropertyController:
                     } 
                     }
                 
-                resp.append( {
-                            "property_details": property_details,
-                            "market_info": market_info,
-                            "pois": pois,
-                            "traffic": traffic
-                        })
+                if show_all_keys:
+                    resp.append( {
+                                "property_details": property_details,
+                                "market_info": market_info,
+                                "pois": pois,
+                                "traffic": traffic
+                            })
+                else:
+                    resp.append({
+                        "property_details": property_details,
+                        "market_info": market_info
+                    })
             return resp
         except Exception as e:
             logger.error("Error processing property JSON: %s", str(e), exc_info=True)
@@ -1243,7 +1249,6 @@ class PropertyController:
         FILTER_COLUMN_MAP = {
             "availability": "is_on_market",
             "property_type": ["property_type_spot2", "property_type_inmuebles24", "property_type_propiedades"],
-            "property_only": ["property_type_spot2", "property_type_inmuebles24", "property_type_propiedades"],
             "plot_min": "total_surface_area",
             "plot_max": "total_surface_area",
             "construction_min": "total_construction_area",
@@ -1272,15 +1277,15 @@ class PropertyController:
                     cols = FILTER_COLUMN_MAP['property_type']
                     filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
             # Property Only (multi-column OR)
-            if 'property_only' in filters and filters['property_only']:
-                types = filters['property_only']
-                if isinstance(types, list):
-                    type_list = ','.join([f"'{t}'" for t in types])
-                    cols = FILTER_COLUMN_MAP['property_only']
-                    filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
+            # if 'property_only' in filters and filters['property_only']:
+            #     types = filters['property_only']
+            #     if isinstance(types, list):
+            #         type_list = ','.join([f"'{t}'" for t in types])
+            #         cols = FILTER_COLUMN_MAP['property_only']
+            #         filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
             else:
-                value = filters['property_only']
-                cols = FILTER_COLUMN_MAP['property_only']
+                value = filters['property_type']
+                cols = FILTER_COLUMN_MAP['property_type']
                 filter_query += " AND (" + " OR ".join([f"{col} = '{value}'" for col in cols]) + ")"
             # Plot Dimensions (range)
             if 'plot_min' in filters and filters['plot_min'] is not None:
@@ -1316,7 +1321,8 @@ class PropertyController:
                     filter_query += f" AND {FILTER_COLUMN_MAP[key]} = '{filters[key]}'"
             # TODO: Add more filters as needed (currency, block position, etc.)
 
-            query = self.qc.get_property_query(filter_query)
+            print("Filter Query", filter_query)
+            query = self.qc.get_property_query(filter_query, filters.get('show_all_keys', True))
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             print("Query", query)
@@ -1326,7 +1332,7 @@ class PropertyController:
             print("Result", result)
             if not result:
                 return Response.success(data=[], message='No properties found')
-            result_jsons = self.get_property_json(result)
+            result_jsons = self.get_property_json(result, show_all_keys=filters.get('show_all_keys', True))
             resp = Response.success(data=result_jsons, message='Success')
         except Exception as e:
             logger.error("Error filtering properties: %s", str(e), exc_info=True)

@@ -4,7 +4,7 @@ class QueryController :
         pass
 
     @staticmethod
-    def get_property_query(filter):
+    def get_property_query(filter, show_all_keys=True):
         query = f'''
                 Select  
                 fid,
@@ -61,8 +61,10 @@ class QueryController :
                 ids_market_data_inmuebles24,
                 crecimiento_promedio_municipal,
                 crecimiento_promedio_entidad,
-                crecimiento_promedio_ageb,
-                brands_active_life_front,
+                crecimiento_promedio_ageb '''
+        if show_all_keys:
+               query += '''
+                ,brands_active_life_front,
                 brands_arts_and_entertainment_front,
                 brands_attractions_and_activities_front,
                 brands_automotive_front,
@@ -277,8 +279,10 @@ class QueryController :
                 motor_vehicle_avg_x_hour_22_500m,
                 at_rest_avg_x_hour_23_500m,
                 pedestrian_avg_x_hour_23_500m,
-                motor_vehicle_avg_x_hour_23_500m
-                FROM blackprint_db_prd.data_product.v_parcel_v3 ''' + filter
+                motor_vehicle_avg_x_hour_23_500m '''
+               
+        query += ''' FROM blackprint_db_prd.data_product.v_parcel_v3 ''' 
+        query += filter
         return query
     
     @staticmethod

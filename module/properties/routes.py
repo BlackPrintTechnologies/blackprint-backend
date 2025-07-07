@@ -40,11 +40,13 @@ class Property(Resource):
     create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='json')
     create_parser.add_argument('lat', type=str, required=False, help='property_id is required', location='json')
     create_parser.add_argument('lng', type=str, required=False, help='property_id is required', location='json')
+    create_parser.add_argument("show_all_keys", type=bool, required=False, default=True, help="Show all keys in response", location='json')
 
     @authenticate
     def post(self, current_user):
         # Accept all JSON data for flexible filter support
         data = request.get_json(force=True)
+        parser_data = self.create_parser.parse_args()
         # Support grouped filter JSON (e.g., {"property": {...}, "zoning": {...}})
         filters = {}
         for group in ["property", "zoning", "demographics", "points_of_interest"]:
@@ -58,18 +60,21 @@ class Property(Resource):
             'geometry', 'price_type', 'price_min', 'price_max',
             'city', 'municipality', 'alcaldia', 'colonia', 'zip_code', 'search_within'
         ]
+        filters['show_all_keys'] = parser_data.get('show_all_keys', True)
+        print("Filters:", filters)
         if any(key in filters for key in filter_keys):
             # Add filter-based caching
             filter_key_raw = f"user={current_user}|filters={json.dumps(filters, sort_keys=True)}"
             filter_cache_key = hashlib.sha256(filter_key_raw.encode()).hexdigest()
-            cached_response = get_from_cache('property', filter_cache_key)
-            if cached_response:
-                return cached_response
+            # cached_response = get_from_cache('property', filter_cache_key)
+            # if cached_response:
+            #     return cached_response
             pc = PropertyController()
             response = pc.filter_properties(filters)
             set_in_cache('property', filter_cache_key, response)
             return response
         else:
+            print("No filters provided, using fid, lat, lng")
             fid = filters.get('fid')
             lat = filters.get('lat')
             lng = filters.get('lng')

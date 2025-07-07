@@ -15,6 +15,7 @@ googlemaps = "*"
 watchtower = "*"
 flask-compress = "*"
 psycopg2-binary = "*"
+cachetools = "*"
 
 [dev-packages]
 
