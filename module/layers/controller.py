@@ -1,4 +1,4 @@
-from utils.dbUtils import RedshiftDatabase
+from utils.dbUtils import RedshiftDatabase, Database
 from utils.responseUtils import Response
 from psycopg2.extras import RealDictCursor
 from utils.iconUtils import IconMapper
@@ -8,6 +8,7 @@ import time
 class PropertyLayerController:
     def __init__(self) :
         self.db = RedshiftDatabase()
+        self.rdsDb = Database()
     
     @staticmethod
     def get_property_query():
@@ -58,7 +59,7 @@ class PropertyLayerController:
         resp = None
         try :
             print("get_properties_layer_data=====>")
-            connection = self.db.connect()
+            connection = self.rdsDb.connect('redshiftdb')
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = self.get_property_query()
             cursor.execute(query)
