@@ -39,7 +39,7 @@ class PropertyLayerController:
                 cus,
                 min_housing,
                 ids_market_data_inmuebles24
-                from blackprint_db_prd.data_product.v_parcel_v3
+                from v_parcel_v3
                 WHERE 
                 (is_on_market != 'Off Market')
                 AND (
