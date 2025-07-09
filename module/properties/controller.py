@@ -773,8 +773,8 @@ class PropertyController:
             query = self.qc.get_property_query(filter_query)
 
             def fetch_property_details():
-                connection = self.db.connect('redshiftdb')
-                # conn = self.redshift_connection.connect()
+                # connection = self.db.connect('redshiftdb')
+                connection = self.redshift_connection.connect()
                 cur = connection.cursor(cursor_factory=RealDictCursor)
                 cur.execute(query)
                 result = cur.fetchall()
@@ -1059,7 +1059,8 @@ class PropertyController:
         try:
             logger.info("Fetching demographic data for fid=%s, user=%s", fid, current_user)
             start_time = time.time()
-            connection = self.db.connect('redshiftdb')
+            # connection = self.db.connect('redshiftdb')
+            connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = self.qc.get_demographics_query(fid)
             logger.debug("Executing query: %s", query)
@@ -1324,7 +1325,8 @@ class PropertyController:
 
             print("Filter Query", filter_query)
             query = self.qc.get_property_query(filter_query, filters.get('show_all_keys', True))
-            connection = self.db.connect('redshiftdb')
+            # connection = self.db.connect('redshiftdb')
+            connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             print("Query", query)
             # query = query + " LIMIT 1"
@@ -1344,4 +1346,3 @@ class PropertyController:
             if connection:
                 self.db.disconnect(connection)
             return resp
-

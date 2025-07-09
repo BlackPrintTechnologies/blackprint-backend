@@ -71,7 +71,7 @@ class Property(Resource):
             #     return cached_response
             pc = PropertyController()
             response = pc.filter_properties(filters)
-            set_in_cache('property', filter_cache_key, response)
+            # set_in_cache('property', filter_cache_key, response)
             return response
         else:
             print("No filters provided, using fid, lat, lng")

@@ -281,7 +281,7 @@ class QueryController :
                 pedestrian_avg_x_hour_23_500m,
                 motor_vehicle_avg_x_hour_23_500m '''
                
-        query += ''' FROM v_parcel_v3 ''' 
+        query += ''' FROM blackprint_db_prd.data_product.v_parcel_v3 ''' 
         query += filter
         return query
     
@@ -431,7 +431,7 @@ class QueryController :
                 cambio_porcentual_2010_entidad,
                 cambio_porcentual_2015_entidad,
                 cambio_porcentual_2020_entidad
-                from v_parcel_v3
+                from blackprint_db_prd.data_product.v_parcel_v3
                 where fid = {fid}
                     '''
         return query
@@ -881,7 +881,7 @@ class QueryController :
     total_businesses_2023_others_entidad,
     economic_growth_2023_others_entidad
 
-FROM v_parcel_v3
+FROM blackprint_db_prd.data_product.v_parcel_v3
 where fid = {fid}
         '''
         return query
