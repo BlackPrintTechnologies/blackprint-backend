@@ -1348,14 +1348,7 @@ class PropertyController:
             return resp
 
     def advanced_municipality_search(self, search_key_type=None, search_value=None, municipality_nm=None):
-        """
-        Advanced search for municipalities by name, neighborhood, zip_code, or municipality name.
-        If municipality_nm is provided, return all matching id_municipality and municipality_nm (partial match supported).
-        If search_key_type and search_value are provided:
-          - For 'zip_code': return id and name (zip_code)
-          - For 'neighborhood': return id and name (neighborhood)
-          - For 'municipality_nm': return id and name (municipality_nm)
-        """
+        
         connection = None
         cursor = None
         try:
