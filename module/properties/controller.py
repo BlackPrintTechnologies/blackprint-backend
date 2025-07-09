@@ -1350,7 +1350,7 @@ class PropertyController:
     def advanced_municipality_search(self, search_key_type=None, search_value=None, municipality_nm=None):
         """
         Advanced search for municipalities by name, neighborhood, zip_code, or municipality name.
-        If municipality_nm is provided, return its id_municipality.
+        If municipality_nm is provided, return all matching id_municipality and municipality_nm (partial match supported).
         If search_key_type and search_value are provided, return list of id_municipality and municipality_nm where value matches.
         """
         connection = None
@@ -1360,13 +1360,19 @@ class PropertyController:
             cursor = connection.cursor(cursor_factory=RealDictCursor)
 
             if municipality_nm:
-                query = "SELECT id_municipality, municipality_nm FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s LIMIT 1"
-                cursor.execute(query, (municipality_nm,))
-                result = cursor.fetchone()
-                if result:
-                    return Response.success(data={"id_municipality": result["id_municipality"], "municipality_nm": result["municipality_nm"]}, message="Municipality ID found")
-                else:
-                    return Response.not_found(message="Municipality not found")
+                query = "SELECT id_municipality, municipality_nm FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s"
+                cursor.execute(query, (f"%{municipality_nm}%",))
+                results = cursor.fetchall()
+                items = [{"id_municipality": row["id_municipality"], "municipality_nm": row["municipality_nm"]} for row in results]
+                message = "Municipality IDs found" if items else "No municipality ID found"
+                return Response.success(
+                    data={
+                        "municipalities": items,
+                        "search_key_type": "municipality_nm",
+                        "search_value": municipality_nm
+                    },
+                    message=message
+                )
 
             allowed_keys = {"neighborhood", "zip_code", "municipality_nm"}
             if search_key_type and search_value and search_key_type in allowed_keys:
