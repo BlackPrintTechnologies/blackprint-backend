@@ -43,7 +43,7 @@ from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUs
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
 from module.layers.routes import Brands, Traffic, SearchBrands, PropertyLayer
-from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyMarketInfo, PropertyCommercialGrowth, PropertyFilter
+from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyMarketInfo, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch
 
 # Define API routes
 api.add_resource(Signup, '/user/signup')
@@ -73,6 +73,7 @@ api.add_resource(PropertyTraffic, '/property/traffic')
 api.add_resource(PropertyMarketInfo, '/property/marketinfo')  # Catchment and fid as parameters
 api.add_resource(PropertyCommercialGrowth, '/property/commercial-growth')
 api.add_resource(PropertyFilter, '/property/filter')
+api.add_resource(AdvancedMunicipalitySearch, '/properties/municipality_search')
 
 @app.after_request
 def after_request(response):

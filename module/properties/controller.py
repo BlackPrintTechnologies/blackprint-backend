@@ -1346,3 +1346,42 @@ class PropertyController:
             if connection:
                 self.redshift_connection.disconnect(connection)
             return resp
+
+    def advanced_municipality_search(self, search_key_type=None, search_value=None, municipality_nm=None):
+        """
+        Advanced search for municipalities by name, neighborhood, zip_code, or municipality name.
+        If municipality_nm is provided, return its id_municipality.
+        If search_key_type and search_value are provided, return list of id_municipality where value matches.
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+
+            if municipality_nm:
+                query = "SELECT id_municipality FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s LIMIT 1"
+                cursor.execute(query, (municipality_nm,))
+                result = cursor.fetchone()
+                if result:
+                    return Response.success(data={"id_municipality": result["id_municipality"]}, message="Municipality ID found")
+                else:
+                    return Response.not_found(message="Municipality not found")
+
+            allowed_keys = {"neighborhood", "zip_code", "municipality_nm"}
+            if search_key_type and search_value and search_key_type in allowed_keys:
+                query = f"SELECT DISTINCT id_municipality FROM presentation.dim_municipality WHERE {search_key_type} ILIKE %s"
+                cursor.execute(query, (f"%{search_value}%",))
+                results = cursor.fetchall()
+                ids = [row["id_municipality"] for row in results]
+                return Response.success(data={"id_municipality_list": ids}, message="Municipality IDs found")
+            else:
+                return Response.bad_request(message="Invalid or missing search parameters")
+        except Exception as e:
+            logger.error("Error in advanced municipality search: %s", str(e), exc_info=True)
+            return Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)

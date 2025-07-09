@@ -237,3 +237,22 @@ class PropertyFilter(Resource):
         pc = PropertyController()
         response = pc.filter_properties(data)
         return response
+
+class AdvancedMunicipalitySearch(Resource):
+    parser = reqparse.RequestParser()
+    parser.add_argument('search_key_type', type=str, required=False, location='args')
+    parser.add_argument('search_value', type=str, required=False, location='args')
+    parser.add_argument('municipality_nm', type=str, required=False, location='args')
+
+    @authenticate
+    def get(self, current_user):
+        args = self.parser.parse_args()
+        search_key_type = args.get('search_key_type')
+        search_value = args.get('search_value')
+        municipality_nm = args.get('municipality_nm')
+        pc = PropertyController()
+        return pc.advanced_municipality_search(search_key_type, search_value, municipality_nm)
+
+# At the end of the file, add the resource to the API (example, actual registration may vary)
+# from your main app or blueprint registration, add:
+# api.add_resource(AdvancedMunicipalitySearch, '/properties/municipality_search')
