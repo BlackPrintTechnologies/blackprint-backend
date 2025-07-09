@@ -1351,7 +1351,10 @@ class PropertyController:
         """
         Advanced search for municipalities by name, neighborhood, zip_code, or municipality name.
         If municipality_nm is provided, return all matching id_municipality and municipality_nm (partial match supported).
-        If search_key_type and search_value are provided, return list of id_municipality and municipality_nm where value matches.
+        If search_key_type and search_value are provided:
+          - For 'zip_code': return id and name (zip_code)
+          - For 'neighborhood': return id and name (neighborhood)
+          - For 'municipality_nm': return id and name (municipality_nm)
         """
         connection = None
         cursor = None
@@ -1363,7 +1366,7 @@ class PropertyController:
                 query = "SELECT id_municipality, municipality_nm FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s"
                 cursor.execute(query, (f"%{municipality_nm}%",))
                 results = cursor.fetchall()
-                items = [{"id_municipality": row["id_municipality"], "municipality_nm": row["municipality_nm"]} for row in results]
+                items = [{"id": row["id_municipality"], "name": row["municipality_nm"]} for row in results]
                 message = "Municipality IDs found" if items else "No municipality ID found"
                 return Response.success(
                     data={
@@ -1376,10 +1379,21 @@ class PropertyController:
 
             allowed_keys = {"neighborhood", "zip_code", "municipality_nm"}
             if search_key_type and search_value and search_key_type in allowed_keys:
-                query = f"SELECT DISTINCT id_municipality, municipality_nm FROM presentation.dim_municipality WHERE {search_key_type} ILIKE %s"
-                cursor.execute(query, (f"%{search_value}%",))
-                results = cursor.fetchall()
-                items = [{"id_municipality": row["id_municipality"], "municipality_nm": row["municipality_nm"]} for row in results]
+                if search_key_type == "zip_code":
+                    query = "SELECT DISTINCT id_municipality, zip_code FROM presentation.dim_municipality WHERE zip_code ILIKE %s"
+                    cursor.execute(query, (f"%{search_value}%",))
+                    results = cursor.fetchall()
+                    items = [{"id": row["id_municipality"], "name": row["zip_code"]} for row in results]
+                elif search_key_type == "neighborhood":
+                    query = "SELECT DISTINCT id_municipality, neighborhood FROM presentation.dim_municipality WHERE neighborhood ILIKE %s"
+                    cursor.execute(query, (f"%{search_value}%",))
+                    results = cursor.fetchall()
+                    items = [{"id": row["id_municipality"], "name": row["neighborhood"]} for row in results]
+                else:  # municipality_nm
+                    query = "SELECT DISTINCT id_municipality, municipality_nm FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s"
+                    cursor.execute(query, (f"%{search_value}%",))
+                    results = cursor.fetchall()
+                    items = [{"id": row["id_municipality"], "name": row["municipality_nm"]} for row in results]
                 message = "Municipality IDs found" if items else "No municipality ID found"
                 return Response.success(
                     data={
