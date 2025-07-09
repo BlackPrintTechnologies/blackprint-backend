@@ -1351,7 +1351,7 @@ class PropertyController:
         """
         Advanced search for municipalities by name, neighborhood, zip_code, or municipality name.
         If municipality_nm is provided, return its id_municipality.
-        If search_key_type and search_value are provided, return list of id_municipality where value matches.
+        If search_key_type and search_value are provided, return list of id_municipality and municipality_nm where value matches.
         """
         connection = None
         cursor = None
@@ -1360,21 +1360,29 @@ class PropertyController:
             cursor = connection.cursor(cursor_factory=RealDictCursor)
 
             if municipality_nm:
-                query = "SELECT id_municipality FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s LIMIT 1"
+                query = "SELECT id_municipality, municipality_nm FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s LIMIT 1"
                 cursor.execute(query, (municipality_nm,))
                 result = cursor.fetchone()
                 if result:
-                    return Response.success(data={"id_municipality": result["id_municipality"]}, message="Municipality ID found")
+                    return Response.success(data={"id_municipality": result["id_municipality"], "municipality_nm": result["municipality_nm"]}, message="Municipality ID found")
                 else:
                     return Response.not_found(message="Municipality not found")
 
             allowed_keys = {"neighborhood", "zip_code", "municipality_nm"}
             if search_key_type and search_value and search_key_type in allowed_keys:
-                query = f"SELECT DISTINCT id_municipality FROM presentation.dim_municipality WHERE {search_key_type} ILIKE %s"
+                query = f"SELECT DISTINCT id_municipality, municipality_nm FROM presentation.dim_municipality WHERE {search_key_type} ILIKE %s"
                 cursor.execute(query, (f"%{search_value}%",))
                 results = cursor.fetchall()
-                ids = [row["id_municipality"] for row in results]
-                return Response.success(data={"id_municipality_list": ids}, message="Municipality IDs found")
+                items = [{"id_municipality": row["id_municipality"], "municipality_nm": row["municipality_nm"]} for row in results]
+                message = "Municipality IDs found" if items else "No municipality ID found"
+                return Response.success(
+                    data={
+                        "municipalities": items,
+                        "search_key_type": search_key_type,
+                        "search_value": search_value
+                    },
+                    message=message
+                )
             else:
                 return Response.bad_request(message="Invalid or missing search parameters")
         except Exception as e:
