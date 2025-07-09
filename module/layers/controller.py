@@ -59,7 +59,8 @@ class PropertyLayerController:
         resp = None
         try :
             print("get_properties_layer_data=====>")
-            connection = self.rdsDb.connect('redshiftdb')
+            # connection = self.rdsDb.connect('redshiftdb')
+            connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = self.get_property_query()
             cursor.execute(query)

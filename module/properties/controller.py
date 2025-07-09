@@ -827,7 +827,7 @@ class PropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect(connection)
+                self.redshift_connection.disconnect(connection)
             return resp
 
     def get_property_market_info(self, spot2_id, inmuebles24_id, propiedades_id):
@@ -1091,7 +1091,7 @@ class PropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect(connection)
+                self.redshift_connection.disconnect(connection)
             return resp
 
     def get_property_traffic(self, fid):
@@ -1344,5 +1344,5 @@ class PropertyController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect(connection)
+                self.redshift_connection.disconnect(connection)
             return resp
