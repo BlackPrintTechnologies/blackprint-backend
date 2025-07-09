@@ -1355,6 +1355,24 @@ class PropertyController:
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
 
+            allowed_keys = {"neighborhood", "zip_code", "municipality_nm"}
+            # If both municipality_nm and (search_key_type + search_value) are provided, filter within municipality_nm
+            if municipality_nm and search_key_type in {"neighborhood", "zip_code"} and search_value:
+                query = f"SELECT DISTINCT id_municipality, {search_key_type} FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s AND {search_key_type} ILIKE %s"
+                cursor.execute(query, (f"%{municipality_nm}%", f"%{search_value}%"))
+                results = cursor.fetchall()
+                items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
+                message = "Municipality IDs found" if items else "No municipality ID found"
+                return Response.success(
+                    data={
+                        "municipalities": items,
+                        "search_key_type": search_key_type,
+                        "search_value": search_value,
+                        "municipality_nm": municipality_nm
+                    },
+                    message=message
+                )
+
             if municipality_nm:
                 query = "SELECT id_municipality, municipality_nm FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s"
                 cursor.execute(query, (f"%{municipality_nm}%",))
@@ -1370,7 +1388,6 @@ class PropertyController:
                     message=message
                 )
 
-            allowed_keys = {"neighborhood", "zip_code", "municipality_nm"}
             if search_key_type and search_value and search_key_type in allowed_keys:
                 if search_key_type == "zip_code":
                     query = "SELECT DISTINCT id_municipality, zip_code FROM presentation.dim_municipality WHERE zip_code ILIKE %s"
