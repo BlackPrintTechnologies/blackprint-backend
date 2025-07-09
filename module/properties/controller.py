@@ -779,7 +779,7 @@ class PropertyController:
                 cur.execute(query)
                 result = cur.fetchall()
                 cur.close()
-                self.db.disconnect(connection)
+                self.redshift_connection.disconnect(connection)
                 return result
 
             def fetch_pano_id(lat, lng):
