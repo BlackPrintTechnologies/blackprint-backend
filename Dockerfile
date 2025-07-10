@@ -11,10 +11,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install Redis client
+RUN pip install redis
+
 # Copy the entire project to the working directory
 COPY . .
 
-# Expose the port your app runs on (optional, for documentation)
+# Expose the port your app runs on
 EXPOSE 8000
 
 # Run Gunicorn with logging configured

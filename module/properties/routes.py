@@ -6,7 +6,7 @@ from utils.commonUtil import authenticate
 from utils.streetViewUtils import get_street_view_image
 import hashlib
 import json
-from utils.app_cache import get_from_cache, set_in_cache
+from utils.redis_cache import redis_cache, generate_cache_key
 from module.properties.prefetch import (
     prefetch_fid_response, 
     prefetch_userproperty_response,
@@ -63,15 +63,24 @@ class Property(Resource):
         filters['show_all_keys'] = parser_data.get('show_all_keys', True)
         print("Filters:", filters)
         if any(key in filters for key in filter_keys):
-            # Add filter-based caching
-            filter_key_raw = f"user={current_user}|filters={json.dumps(filters, sort_keys=True)}"
-            filter_cache_key = hashlib.sha256(filter_key_raw.encode()).hexdigest()
-            # cached_response = get_from_cache('property', filter_cache_key)
-            # if cached_response:
-            #     return cached_response
+            # Generate cache key for filter-based search
+            filter_cache_key = generate_cache_key("property_filter", current_user, json.dumps(filters, sort_keys=True))
+            
+            # Try to get from cache
+            cached_response = redis_cache.get(filter_cache_key)
+            if cached_response and isinstance(cached_response, dict) and cached_response.get('status') == 'success':
+                logger.info(f"Cache HIT for property filter: {filter_cache_key}")
+                return cached_response
+            
+            # Execute and cache only successful responses
             pc = PropertyController()
             response = pc.filter_properties(filters)
-            # set_in_cache('property', filter_cache_key, response)
+            
+            # Cache only successful responses with data
+            if response and isinstance(response, dict) and response.get('status') == 'success' and response.get('data'):
+                redis_cache.set(filter_cache_key, response, ttl=1800)  # 30 minutes
+                logger.info(f"Cache SET for property filter: {filter_cache_key}")
+            
             return response
         else:
             print("No filters provided, using fid, lat, lng")
@@ -81,14 +90,24 @@ class Property(Resource):
             norm_fid = normalize_fid(fid)
             norm_lat = str(lat) if lat is not None else None
             norm_lng = str(lng) if lng is not None else None
-            cache_key_raw = f"user={current_user}|fid={norm_fid}|lat={norm_lat}|lng={norm_lng}"
-            cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
-            cached_response = get_from_cache('property', cache_key)
-            if cached_response:
+            # Generate cache key for property search
+            property_cache_key = generate_cache_key("property_search", current_user, norm_fid, norm_lat, norm_lng)
+            
+            # Try to get from cache
+            cached_response = redis_cache.get(property_cache_key)
+            if cached_response and isinstance(cached_response, dict) and cached_response.get('status') == 'success':
+                logger.info(f"Cache HIT for property search: {property_cache_key}")
                 return cached_response
+            
+            # Execute and cache only successful responses
             pc = PropertyController()
             response = pc.get_properties(current_user, fid, lat, lng)
-            set_in_cache('property', cache_key, response)
+            
+            # Cache only successful responses with data
+            if response and isinstance(response, dict) and response.get('status') == 'success' and response.get('data'):
+                redis_cache.set(property_cache_key, response, ttl=3600)  # 1 hour
+                logger.info(f"Cache SET for property search: {property_cache_key}")
+            
             return response
     
 class PropertyDemographic(Resource):
@@ -99,15 +118,25 @@ class PropertyDemographic(Resource):
         data = self.create_parser.parse_args()
         fid = data.get('fid')
         norm_fid = normalize_fid(fid)
-        cache_key = f"user={current_user}|fid={norm_fid}"
         
-        cached_response = get_from_cache('demographic', cache_key)
-        if cached_response:
+        # Generate cache key for demographic data
+        demographic_cache_key = generate_cache_key("demographic", current_user, norm_fid)
+        
+        # Try to get from cache
+        cached_response = redis_cache.get(demographic_cache_key)
+        if cached_response and isinstance(cached_response, dict) and cached_response.get('status') == 'success':
+            logger.info(f"Cache HIT for demographic: {demographic_cache_key}")
             return cached_response
-
+        
+        # Execute and cache only successful responses
         pc = PropertyController()
         response = pc.get_property_demographic(norm_fid, current_user)
-        set_in_cache('demographic', cache_key, response)
+        
+        # Cache only successful responses with data
+        if response and isinstance(response, dict) and response.get('status') == 'success' and response.get('data'):
+            redis_cache.set(demographic_cache_key, response, ttl=7200)  # 2 hours
+            logger.info(f"Cache SET for demographic: {demographic_cache_key}")
+        
         return response
     
 
@@ -126,15 +155,8 @@ class UserProperty(Resource):
         fid = data.get('fid')
         prop_status = data.get('prop_status')
         norm_fid = normalize_fid(fid)
-        cache_key = f"user={current_user}|fid={norm_fid}|prop_status={prop_status}"
-        
-        cached_response = get_from_cache('user_property', cache_key)
-        if cached_response:
-            return cached_response
-
         upc = UserPropertyController()
         response = upc.get_user_properties(current_user, norm_fid,  prop_status)
-        set_in_cache('user_property', cache_key, response)
         return response
 
     @authenticate
@@ -194,17 +216,24 @@ class PropertyMarketInfo(Resource):
         inmuebles24_id = normalize_market_id(data.get('inmuebles24_id'))
         propiedades_id = normalize_market_id(data.get("propiedades_id"))
         
-        cache_key_raw = f"user={current_user}|spot2_id={spot2_id}|inmuebles24_id={inmuebles24_id}|propiedades_id={propiedades_id}"
-        cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
+        # Generate cache key for market info
+        market_cache_key = generate_cache_key("market_info", current_user, spot2_id, inmuebles24_id, propiedades_id)
         
-        cached_response = get_from_cache('market_info', cache_key)
-        if cached_response:
+        # Try to get from cache
+        cached_response = redis_cache.get(market_cache_key)
+        if cached_response and isinstance(cached_response, dict) and cached_response.get('status') == 'success':
+            logger.info(f"Cache HIT for market info: {market_cache_key}")
             return cached_response
-
+        
+        # Execute and cache only successful responses
         pc = PropertyController()
         response = pc.get_property_market_info(spot2_id, inmuebles24_id, propiedades_id)
-
-        set_in_cache('market_info', cache_key, response)
+        
+        # Cache only successful responses with data
+        if response and isinstance(response, dict) and response.get('status') == 'success' and response.get('data'):
+            redis_cache.set(market_cache_key, response, ttl=7200)  # 2 hours
+            logger.info(f"Cache SET for market info: {market_cache_key}")
+        
         return response
 
 class PropertyDetailsBundle(Resource):
@@ -227,8 +256,25 @@ class PropertyCommercialGrowth(Resource):
         args = self.parser.parse_args()
         fid = args['fid']
         norm_fid = normalize_fid(fid)
+        
+        # Generate cache key for commercial growth
+        commercial_cache_key = generate_cache_key("commercial_growth", norm_fid)
+        
+        # Try to get from cache
+        cached_response = redis_cache.get(commercial_cache_key)
+        if cached_response and isinstance(cached_response, dict) and cached_response.get('status') == 'success':
+            logger.info(f"Cache HIT for commercial growth: {commercial_cache_key}")
+            return cached_response
+        
+        # Execute and cache only successful responses
         pc = PropertyController()
         response = pc.get_property_commercial_growth(norm_fid)
+        
+        # Cache only successful responses with data
+        if response and isinstance(response, dict) and response.get('status') == 'success' and response.get('data'):
+            redis_cache.set(commercial_cache_key, response, ttl=21600)  # 6 hours
+            logger.info(f"Cache SET for commercial growth: {commercial_cache_key}")
+        
         return response
 
 class PropertyFilter(Resource):
@@ -251,8 +297,26 @@ class AdvancedMunicipalitySearch(Resource):
         search_key_type = data.get('search_key_type')
         search_value = data.get('search_value')
         municipality_nm = data.get('municipality_nm')
+        
+        # Generate cache key for municipality search
+        municipality_cache_key = generate_cache_key("municipality_search", search_key_type, search_value, municipality_nm)
+        
+        # Try to get from cache
+        cached_response = redis_cache.get(municipality_cache_key)
+        if cached_response and isinstance(cached_response, dict) and cached_response.get('status') == 'success':
+            logger.info(f"Cache HIT for municipality search: {municipality_cache_key}")
+            return cached_response
+        
+        # Execute and cache only successful responses
         pc = PropertyController()
-        return pc.advanced_municipality_search(search_key_type, search_value, municipality_nm)
+        response = pc.advanced_municipality_search(search_key_type, search_value, municipality_nm)
+        
+        # Cache only successful responses with data
+        if response and isinstance(response, dict) and response.get('status') == 'success' and response.get('data'):
+            redis_cache.set(municipality_cache_key, response, ttl=86400)  # 24 hours
+            logger.info(f"Cache SET for municipality search: {municipality_cache_key}")
+        
+        return response
 
 # At the end of the file, add the resource to the API (example, actual registration may vary)
 # from your main app or blueprint registration, add:

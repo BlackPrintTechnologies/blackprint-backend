@@ -2,7 +2,7 @@ from utils.dbUtils import RedshiftDatabase, Database
 from utils.responseUtils import Response
 from psycopg2.extras import RealDictCursor
 from utils.iconUtils import IconMapper
-from utils.cacheUtlis import cache_response
+# from utils.cacheUtlis import cache_response
 import time
 
 class PropertyLayerController:
@@ -53,7 +53,6 @@ class PropertyLayerController:
                 '''
         return query
     
-    @cache_response(prefix='properties_layer',expiration=360000)
     def get_properties_layer_data(self):
         connection = None
         resp = None
@@ -112,7 +111,6 @@ class BrandController:
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
         return query
     
-    # @cache_response(prefix='brands',expiration=3600)
     def get_brands(self, radius, fid, category=None): 
         connection = None
         cursor = None

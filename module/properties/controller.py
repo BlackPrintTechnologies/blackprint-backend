@@ -5,7 +5,7 @@ from utils.responseUtils import Response
 from module.properties.query import QueryController
 import json
 import h3
-from utils.cacheUtlis import cache_response
+# from utils.cacheUtlis import cache_response
 from utils.iconUtils import IconMapper
 from utils.streetViewUtils import get_street_view_metadata_cached
 from utils.normalization_utils import normalize_fid
@@ -1050,8 +1050,6 @@ class PropertyController:
             return demographic
         except Exception as e:
             raise e
-    # @cache_response(prefix='demographic',expiration=3600)
-    
     def get_property_demographic(self, fid, current_user):
         connection = None
         cursor = None
