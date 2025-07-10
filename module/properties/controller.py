@@ -1299,21 +1299,27 @@ class PropertyController:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_min']} >= {filters['construction_min']}"
             if 'construction_max' in filters and filters['construction_max'] is not None:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_max']} <= {filters['construction_max']}"
-            # Price (Buy/Rent, range)
+            # Price (Buy/Rent, range) - Check all three sources
             if 'price_type' in filters and filters['price_type']:
                 price_type = filters['price_type'].lower()
-                # Map to correct DB column
-                price_field = None
+                # Map to correct DB columns for all three sources
+                price_fields = []
                 if price_type == 'buy':
-                    price_field = 'buy_price_spot2'
+                    price_fields = ['buy_price_spot2', 'buy_price_inmuebles24', 'buy_price_propiedades']
                 elif price_type == 'rent':
-                    price_field = 'rent_price_spot2'
-                # You can extend to use inmuebles24/propiedades as needed
-                if price_field:
+                    price_fields = ['rent_price_spot2', 'rent_price_inmuebles24', 'rent_price_propiedades']
+                
+                if price_fields:
+                    price_conditions = []
                     if 'price_min' in filters and filters['price_min'] is not None:
-                        filter_query += f" AND {price_field} >= {filters['price_min']}"
+                        min_conditions = [f"{field} >= {filters['price_min']}" for field in price_fields]
+                        price_conditions.append(f"({' OR '.join(min_conditions)})")
                     if 'price_max' in filters and filters['price_max'] is not None:
-                        filter_query += f" AND {price_field} <= {filters['price_max']}"
+                        max_conditions = [f"{field} <= {filters['price_max']}" for field in price_fields]
+                        price_conditions.append(f"({' OR '.join(max_conditions)})")
+                    
+                    if price_conditions:
+                        filter_query += f" AND {' AND '.join(price_conditions)}"
             # Geometry (location on block)
             if 'geometry' in filters and filters['geometry']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['geometry']} = '{filters['geometry']}'"
