@@ -1375,7 +1375,7 @@ class PropertyController:
                 )
             elif  search_key_type == "municipality_nm" and search_value:
                 query = f"SELECT DISTINCT id_municipality, {search_key_type} FROM presentation.dim_municipality WHERE {search_key_type} ILIKE %s"
-                cursor.execute(query, (f"%{search_value}%"))
+                cursor.execute(query, (f"%{search_value}%",))
                 results = cursor.fetchall()
                 items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
                 message = "Municipality IDs found" if items else "No municipality ID found"
