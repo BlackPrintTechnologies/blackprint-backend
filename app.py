@@ -73,7 +73,7 @@ api.add_resource(PropertyTraffic, '/property/traffic')
 api.add_resource(PropertyMarketInfo, '/property/marketinfo')  # Catchment and fid as parameters
 api.add_resource(PropertyCommercialGrowth, '/property/commercial-growth')
 api.add_resource(PropertyFilter, '/property/filter')
-api.add_resource(AdvancedMunicipalitySearch, '/properties/municipality_search/')
+api.add_resource(AdvancedMunicipalitySearch, '/properties/municipality_search')
 
 @app.after_request
 def after_request(response):
