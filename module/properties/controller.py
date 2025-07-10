@@ -1374,8 +1374,19 @@ class PropertyController:
                     message=message
                 )
             elif  search_key_type == "municipality_nm" and search_value:
-                query = f"SELECT  DISTINCT ON ({search_key_type}) {search_key_type}, id_municipality FROM presentation.dim_municipality WHERE {search_key_type} ILIKE %s limit 50"
+                query = f"""
+                    SELECT {search_key_type}, id_municipality
+                    FROM (
+                        SELECT {search_key_type}, id_municipality,
+                            ROW_NUMBER() OVER (PARTITION BY {search_key_type} ORDER BY id_municipality) as row_num
+                        FROM presentation.dim_municipality
+                        WHERE {search_key_type} ILIKE %s
+                    ) t
+                    WHERE row_num = 1
+                    LIMIT 50
+                """
                 cursor.execute(query, (f"%{search_value}%",))
+
                 results = cursor.fetchall()
                 items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
                 message = "Municipality IDs found" if items else "No municipality ID found"
