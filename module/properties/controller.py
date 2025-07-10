@@ -1359,7 +1359,7 @@ class PropertyController:
             allowed_keys = {"neighborhood", "zip_code", "municipality_nm"}
             # If both municipality_nm and (search_key_type + search_value) are provided, filter within municipality_nm
             if municipality_nm and search_key_type in {"neighborhood", "zip_code"} and search_value:
-                query = f"SELECT DISTINCT id_municipality, {search_key_type} FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s AND {search_key_type} ILIKE %s"
+                query = f"SELECT DISTINCT id_municipality, {search_key_type} FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s AND {search_key_type} ILIKE %s limit 50"
                 cursor.execute(query, (f"%{municipality_nm}%", f"%{search_value}%"))
                 results = cursor.fetchall()
                 items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
@@ -1374,7 +1374,7 @@ class PropertyController:
                     message=message
                 )
             elif  search_key_type == "municipality_nm" and search_value:
-                query = f"SELECT DISTINCT id_municipality, {search_key_type} FROM presentation.dim_municipality WHERE {search_key_type} ILIKE %s"
+                query = f"SELECT DISTINCT id_municipality, {search_key_type} FROM presentation.dim_municipality WHERE {search_key_type} ILIKE %s limit 50"
                 cursor.execute(query, (f"%{search_value}%",))
                 results = cursor.fetchall()
                 items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
