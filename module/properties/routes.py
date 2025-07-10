@@ -240,10 +240,14 @@ class PropertyFilter(Resource):
 
 class AdvancedMunicipalitySearch(Resource):
     # Remove parser, use request.get_json()
+    parser = reqparse.RequestParser()
+    parser.add_argument('search_key_type', type=str, required=True )
+    parser.add_argument('search_value', type=str, required=True )
+    parser.add_argument('municipality_nm', type=str, required=False)
 
     @authenticate
     def post(self, current_user):
-        data = request.get_json(force=True) or {}
+        data = self.parser.parse_args()
         search_key_type = data.get('search_key_type')
         search_value = data.get('search_value')
         municipality_nm = data.get('municipality_nm')
