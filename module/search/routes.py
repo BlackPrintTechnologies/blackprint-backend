@@ -3,6 +3,7 @@ from flask import request, jsonify
 from utils.responseUtils import Response
 from module.search.controller import SavedSearchesController  # Assuming SavedSearchesController is in search_controller.py
 from utils.commonUtil import authenticate
+from utils.redis_cache import redis_cache, generate_cache_key
 
 # Initialize SavedSearchesController
 saved_searches_controller = SavedSearchesController()
@@ -36,9 +37,21 @@ class SavedSearches(Resource):
 
     @authenticate
     def get(self, current_user, search_id=None):
-        # data = self.update_parser.parse_args()
-        # search_id = data.get('id')
+        # Generate cache key for saved searches
+        cache_key = generate_cache_key("saved_searches", current_user, search_id)
+        
+        # Try to get from cache
+        cached_response = redis_cache.get(cache_key)
+        if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
+            return cached_response
+        
+        # Get from database
         response = saved_searches_controller.get_saved_searches(id=search_id, user_id=current_user)
+        
+        # Cache successful responses with data
+        if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
+            redis_cache.set(cache_key, response, ttl=1800)  # 30 minutes
+        
         return response
 
     @authenticate
@@ -57,6 +70,12 @@ class SavedSearches(Resource):
             search_value=search_value,
             search_response=search_response
         )
+        
+        # Invalidate user's saved searches cache
+        if response[1] == 200:
+            cache_pattern = f"*saved_searches*{user_id}*"
+            redis_cache.redis_client.delete(*redis_cache.redis_client.keys(cache_pattern))
+        
         return response
 
     @authenticate
@@ -77,6 +96,12 @@ class SavedSearches(Resource):
             search_response=search_response,
             search_status=search_status
         )
+        
+        # Invalidate user's saved searches cache
+        if response[1] == 200:
+            cache_pattern = f"*saved_searches*{current_user}*"
+            redis_cache.redis_client.delete(*redis_cache.redis_client.keys(cache_pattern))
+        
         return response
 
     @authenticate
@@ -84,4 +109,10 @@ class SavedSearches(Resource):
         data = self.update_parser.parse_args()
         search_id = data.get('id')
         response = saved_searches_controller.delete_saved_search(id=search_id)
+        
+        # Invalidate user's saved searches cache
+        if response[1] == 200:
+            cache_pattern = f"*saved_searches*{current_user}*"
+            redis_cache.redis_client.delete(*redis_cache.redis_client.keys(cache_pattern))
+        
         return response

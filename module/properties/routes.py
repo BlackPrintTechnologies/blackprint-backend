@@ -68,7 +68,7 @@ class Property(Resource):
             
             # Try to get from cache
             cached_response = redis_cache.get(filter_cache_key)
-            if cached_response and isinstance(cached_response, dict) and cached_response.get('status') == 'success':
+            if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
                 logger.info(f"Cache HIT for property filter: {filter_cache_key}")
                 return cached_response
             
@@ -77,7 +77,7 @@ class Property(Resource):
             response = pc.filter_properties(filters)
             
             # Cache only successful responses with data
-            if response and isinstance(response, dict) and response.get('status') == 'success' and response.get('data'):
+            if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
                 redis_cache.set(filter_cache_key, response, ttl=1800)  # 30 minutes
                 logger.info(f"Cache SET for property filter: {filter_cache_key}")
             
@@ -95,7 +95,7 @@ class Property(Resource):
             
             # Try to get from cache
             cached_response = redis_cache.get(property_cache_key)
-            if cached_response and isinstance(cached_response, dict) and cached_response.get('status') == 'success':
+            if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
                 logger.info(f"Cache HIT for property search: {property_cache_key}")
                 return cached_response
             
@@ -104,7 +104,7 @@ class Property(Resource):
             response = pc.get_properties(current_user, fid, lat, lng)
             
             # Cache only successful responses with data
-            if response and isinstance(response, dict) and response.get('status') == 'success' and response.get('data'):
+            if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
                 redis_cache.set(property_cache_key, response, ttl=3600)  # 1 hour
                 logger.info(f"Cache SET for property search: {property_cache_key}")
             
@@ -124,7 +124,7 @@ class PropertyDemographic(Resource):
         
         # Try to get from cache
         cached_response = redis_cache.get(demographic_cache_key)
-        if cached_response and isinstance(cached_response, dict) and cached_response.get('status') == 'success':
+        if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
             logger.info(f"Cache HIT for demographic: {demographic_cache_key}")
             return cached_response
         
@@ -133,7 +133,7 @@ class PropertyDemographic(Resource):
         response = pc.get_property_demographic(norm_fid, current_user)
         
         # Cache only successful responses with data
-        if response and isinstance(response, dict) and response.get('status') == 'success' and response.get('data'):
+        if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
             redis_cache.set(demographic_cache_key, response, ttl=7200)  # 2 hours
             logger.info(f"Cache SET for demographic: {demographic_cache_key}")
         
@@ -155,8 +155,22 @@ class UserProperty(Resource):
         fid = data.get('fid')
         prop_status = data.get('prop_status')
         norm_fid = normalize_fid(fid)
+        
+        # Generate cache key for user properties
+        cache_key = generate_cache_key("user_properties", current_user, norm_fid, prop_status)
+        
+        # Try to get from cache
+        cached_response = redis_cache.get(cache_key)
+        if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
+            return cached_response
+        
         upc = UserPropertyController()
         response = upc.get_user_properties(current_user, norm_fid,  prop_status)
+        
+        # Cache successful responses with data
+        if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
+            redis_cache.set(cache_key, response, ttl=1800)  # 30 minutes
+        
         return response
 
     @authenticate
@@ -173,8 +187,21 @@ class UserProperty(Resource):
 class RequestedProperties(Resource):
     @authenticate
     def get(self, current_user):
+        # Generate cache key for requested properties
+        cache_key = generate_cache_key("requested_properties", current_user)
+        
+        # Try to get from cache
+        cached_response = redis_cache.get(cache_key)
+        if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
+            return cached_response
+        
         upc = UserPropertyController()
         response = upc.get_requested_properties(current_user)
+        
+        # Cache successful responses with data
+        if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
+            redis_cache.set(cache_key, response, ttl=1800)  # 30 minutes
+        
         return response
     
 
@@ -199,8 +226,23 @@ class PropertyTraffic(Resource):
     def post(self):
         args = self.parser.parse_args()
         fid = args['fid']
+        
+        # Generate cache key for property traffic
+        cache_key = generate_cache_key("property_traffic", fid)
+        
+        # Try to get from cache
+        cached_response = redis_cache.get(cache_key)
+        if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
+            return cached_response
+        
         pc = PropertyController()
-        return pc.get_property_traffic(fid)
+        response = pc.get_property_traffic(fid)
+        
+        # Cache successful responses with data
+        if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
+            redis_cache.set(cache_key, response, ttl=7200)  # 2 hours
+        
+        return response
     
 
 class PropertyMarketInfo(Resource):
@@ -221,7 +263,7 @@ class PropertyMarketInfo(Resource):
         
         # Try to get from cache
         cached_response = redis_cache.get(market_cache_key)
-        if cached_response and isinstance(cached_response, dict) and cached_response.get('status') == 'success':
+        if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
             logger.info(f"Cache HIT for market info: {market_cache_key}")
             return cached_response
         
@@ -230,7 +272,7 @@ class PropertyMarketInfo(Resource):
         response = pc.get_property_market_info(spot2_id, inmuebles24_id, propiedades_id)
         
         # Cache only successful responses with data
-        if response and isinstance(response, dict) and response.get('status') == 'success' and response.get('data'):
+        if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
             redis_cache.set(market_cache_key, response, ttl=7200)  # 2 hours
             logger.info(f"Cache SET for market info: {market_cache_key}")
         
@@ -262,7 +304,7 @@ class PropertyCommercialGrowth(Resource):
         
         # Try to get from cache
         cached_response = redis_cache.get(commercial_cache_key)
-        if cached_response and isinstance(cached_response, dict) and cached_response.get('status') == 'success':
+        if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
             logger.info(f"Cache HIT for commercial growth: {commercial_cache_key}")
             return cached_response
         
@@ -271,7 +313,7 @@ class PropertyCommercialGrowth(Resource):
         response = pc.get_property_commercial_growth(norm_fid)
         
         # Cache only successful responses with data
-        if response and isinstance(response, dict) and response.get('status') == 'success' and response.get('data'):
+        if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
             redis_cache.set(commercial_cache_key, response, ttl=21600)  # 6 hours
             logger.info(f"Cache SET for commercial growth: {commercial_cache_key}")
         
@@ -303,7 +345,7 @@ class AdvancedMunicipalitySearch(Resource):
         
         # Try to get from cache
         cached_response = redis_cache.get(municipality_cache_key)
-        if cached_response and isinstance(cached_response, dict) and cached_response.get('status') == 'success':
+        if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
             logger.info(f"Cache HIT for municipality search: {municipality_cache_key}")
             return cached_response
         
@@ -312,7 +354,7 @@ class AdvancedMunicipalitySearch(Resource):
         response = pc.advanced_municipality_search(search_key_type, search_value, municipality_nm)
         
         # Cache only successful responses with data
-        if response and isinstance(response, dict) and response.get('status') == 'success' and response.get('data'):
+        if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
             redis_cache.set(municipality_cache_key, response, ttl=86400)  # 24 hours
             logger.info(f"Cache SET for municipality search: {municipality_cache_key}")
         

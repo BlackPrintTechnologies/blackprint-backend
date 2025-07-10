@@ -43,7 +43,10 @@ class RedisCache:
         if not self.redis_client:
             return False
         try:
-            if isinstance(value, (dict, list)):
+            # Handle different value types
+            if isinstance(value, (dict, list, tuple)):
+                value = json.dumps(value)
+            elif not isinstance(value, (str, int, float, bytes)):
                 value = json.dumps(value)
             self.redis_client.setex(key, ttl, value)
             logger.info(f"💾 Redis CACHE SET: {key} (TTL: {ttl}s)")
@@ -62,7 +65,11 @@ class RedisCache:
                 logger.info(f"✅ Redis CACHE HIT: {key}")
                 # Try to parse as JSON, if fails return as string
                 try:
-                    return json.loads(value)
+                    parsed_value = json.loads(value)
+                    # If it's a tuple (response, status_code), return as tuple
+                    if isinstance(parsed_value, list) and len(parsed_value) == 2:
+                        return (parsed_value[0], parsed_value[1])
+                    return parsed_value
                 except:
                     return value
             else:

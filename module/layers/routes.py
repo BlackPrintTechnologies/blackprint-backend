@@ -8,6 +8,7 @@ import logging
 import time
 from psycopg2.extras import RealDictCursor
 import json
+from utils.redis_cache import redis_cache, generate_cache_key
 
 
 # Initialize logging
@@ -67,7 +68,20 @@ class Brands(Resource):
         category = data.get('category')
         logger.debug(f"Parsed input: fid={fid}, radius={radius} ,category={category}")
 
+        # Generate cache key for brands
+        cache_key = generate_cache_key("brands", fid, radius, category)
+        
+        # Try to get from cache
+        cached_response = redis_cache.get(cache_key)
+        if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
+            return cached_response
+
         response = brand_controller.get_brands(radius, fid, category)
+        
+        # Cache successful responses with data
+        if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
+            redis_cache.set(cache_key, response, ttl=3600)  # 1 hour
+        
         logger.info(f"Successfully retrieved brands for fid={fid}, radius={radius}")
         
         return response
@@ -81,8 +95,22 @@ class SearchBrands(Resource):
         data = self.create_parser.parse_args()
         brand_name = data.get('brand_name')
         logger.debug(f"Parsed input: brand_name={brand_name}")
+        
+        # Generate cache key for brand search
+        cache_key = generate_cache_key("search_brands", brand_name)
+        
+        # Try to get from cache
+        cached_response = redis_cache.get(cache_key)
+        if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
+            return cached_response
+        
         brand_controller = BrandController()
         response = brand_controller.search_brands(brand_name)
+        
+        # Cache successful responses with data
+        if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
+            redis_cache.set(cache_key, response, ttl=3600)  # 1 hour
+        
         return response
 
 class Traffic(Resource):
@@ -97,8 +125,22 @@ class Traffic(Resource):
         fid = data.get('fid')
         radius = data.get('radius')
         logger.debug(f"Parsed input: fid={fid}, radius={radius}")
+        
+        # Generate cache key for traffic data
+        cache_key = generate_cache_key("traffic", fid, radius)
+        
+        # Try to get from cache
+        cached_response = redis_cache.get(cache_key)
+        if cached_response and isinstance(cached_response, tuple) and cached_response[1] == 200:
+            return cached_response
+        
         traffic_controller = TrafficController()
         response = traffic_controller.get_mobility_data_within_buffer(fid,radius)
+        
+        # Cache successful responses with data
+        if response and isinstance(response, tuple) and response[1] == 200 and response[0].get('data'):
+            redis_cache.set(cache_key, response, ttl=7200)  # 2 hours
+        
         # if response.status_code == 200:
         logger.info(f"Successfully retrieved traffic data for fid={fid}, radius={radius}")
         # else:
