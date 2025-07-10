@@ -1253,6 +1253,8 @@ class PropertyController:
             "property_type": ["property_type_spot2", "property_type_inmuebles24", "property_type_propiedades"],
             "plot_min": "total_surface_area",
             "plot_max": "total_surface_area",
+            "buy": ["buy_price_spot2",  "buy_price_inmuebles24", "buy_price_propiedades"],
+            "rent": ["rent_price_spot2", "rent_price_inmuebles24", "rent_price_propiedades"],
             "construction_min": "total_construction_area",
             "construction_max": "total_construction_area",
             "geometry": "block_type",
@@ -1304,17 +1306,14 @@ class PropertyController:
             if 'price_type' in filters and filters['price_type']:
                 price_type = filters['price_type'].lower()
                 # Map to correct DB column
-                price_field = None
-                if price_type == 'buy':
-                    price_field = 'buy_price_spot2'
-                elif price_type == 'rent':
-                    price_field = 'rent_price_spot2'
-                # You can extend to use inmuebles24/propiedades as needed
-                if price_field:
+                price_fields = FILTER_COLUMN_MAP.get(price_type, [])
+                if price_fields:
                     if 'price_min' in filters and filters['price_min'] is not None:
-                        filter_query += f" AND {price_field} >= {filters['price_min']}"
+                        min_conditions = " OR ".join([f"{field} >= {filters['price_min']}" for field in price_fields])
+                        filter_query += f" AND ({min_conditions})"
                     if 'price_max' in filters and filters['price_max'] is not None:
-                        filter_query += f" AND {price_field} <= {filters['price_max']}"
+                        max_conditions = " OR ".join([f"{field} <= {filters['price_max']}" for field in price_fields])
+                        filter_query += f" AND ({max_conditions})"
             # Geometry (location on block)
             if 'geometry' in filters and filters['geometry']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['geometry']} = '{filters['geometry']}'"
