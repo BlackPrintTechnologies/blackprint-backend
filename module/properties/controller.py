@@ -1358,58 +1358,116 @@ class PropertyController:
             allowed_keys = {"neighborhood", "zip_code", "municipality_nm"}
             # If both municipality_nm and (search_key_type + search_value) are provided, filter within municipality_nm
             if municipality_nm and search_key_type in {"neighborhood", "zip_code"} and search_value:
-                query = f"SELECT DISTINCT id_municipality, {search_key_type} FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s AND {search_key_type} ILIKE %s"
+                query = f"""
+                    SELECT id_municipality, {search_key_type} as name 
+                    FROM (
+                        SELECT id_municipality, {search_key_type}, 
+                               ROW_NUMBER() OVER (PARTITION BY {search_key_type} ORDER BY id_municipality) as rn
+                        FROM presentation.dim_municipality 
+                        WHERE municipality_nm ILIKE %s AND {search_key_type} ILIKE %s
+                    ) ranked 
+                    WHERE rn = 1 
+                    ORDER BY {search_key_type} 
+                    LIMIT 50
+                """
                 cursor.execute(query, (f"%{municipality_nm}%", f"%{search_value}%"))
                 results = cursor.fetchall()
-                items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
-                message = "Municipality IDs found" if items else "No municipality ID found"
+                items = [{"id": row["id_municipality"], "name": row["name"]} for row in results]
+                message = f"Found {len(items)} distinct {search_key_type} names" if items else f"No {search_key_type} found"
                 return Response.success(
                     data={
                         "municipalities": items,
                         "search_key_type": search_key_type,
                         "search_value": search_value,
-                        "municipality_nm": municipality_nm
+                        "municipality_nm": municipality_nm,
+                        "count": len(items)
                     },
                     message=message
                 )
 
             if municipality_nm:
-                query = "SELECT id_municipality, municipality_nm FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s"
+                query = """
+                    SELECT id_municipality, municipality_nm as name 
+                    FROM (
+                        SELECT id_municipality, municipality_nm, 
+                               ROW_NUMBER() OVER (PARTITION BY municipality_nm ORDER BY id_municipality) as rn
+                        FROM presentation.dim_municipality 
+                        WHERE municipality_nm ILIKE %s
+                    ) ranked 
+                    WHERE rn = 1 
+                    ORDER BY municipality_nm 
+                    LIMIT 50
+                """
                 cursor.execute(query, (f"%{municipality_nm}%",))
                 results = cursor.fetchall()
-                items = [{"id": row["id_municipality"], "name": row["municipality_nm"]} for row in results]
-                message = "Municipality IDs found" if items else "No municipality ID found"
+                items = [{"id": row["id_municipality"], "name": row["name"]} for row in results]
+                message = f"Found {len(items)} distinct municipality names" if items else "No municipality names found"
                 return Response.success(
                     data={
                         "municipalities": items,
                         "search_key_type": "municipality_nm",
-                        "search_value": municipality_nm
+                        "search_value": municipality_nm,
+                        "count": len(items)
                     },
                     message=message
                 )
 
             if search_key_type and search_value and search_key_type in allowed_keys:
                 if search_key_type == "zip_code":
-                    query = "SELECT DISTINCT id_municipality, zip_code FROM presentation.dim_municipality WHERE zip_code ILIKE %s"
+                    query = """
+                        SELECT id_municipality, zip_code as name 
+                        FROM (
+                            SELECT id_municipality, zip_code, 
+                                   ROW_NUMBER() OVER (PARTITION BY zip_code ORDER BY id_municipality) as rn
+                            FROM presentation.dim_municipality 
+                            WHERE zip_code ILIKE %s
+                        ) ranked 
+                        WHERE rn = 1 
+                        ORDER BY zip_code 
+                        LIMIT 50
+                    """
                     cursor.execute(query, (f"%{search_value}%",))
                     results = cursor.fetchall()
-                    items = [{"id": row["id_municipality"], "name": row["zip_code"]} for row in results]
+                    items = [{"id": row["id_municipality"], "name": row["name"]} for row in results]
                 elif search_key_type == "neighborhood":
-                    query = "SELECT DISTINCT id_municipality, neighborhood FROM presentation.dim_municipality WHERE neighborhood ILIKE %s"
+                    query = """
+                        SELECT id_municipality, neighborhood as name 
+                        FROM (
+                            SELECT id_municipality, neighborhood, 
+                                   ROW_NUMBER() OVER (PARTITION BY neighborhood ORDER BY id_municipality) as rn
+                            FROM presentation.dim_municipality 
+                            WHERE neighborhood ILIKE %s
+                        ) ranked 
+                        WHERE rn = 1 
+                        ORDER BY neighborhood 
+                        LIMIT 50
+                    """
                     cursor.execute(query, (f"%{search_value}%",))
                     results = cursor.fetchall()
-                    items = [{"id": row["id_municipality"], "name": row["neighborhood"]} for row in results]
+                    items = [{"id": row["id_municipality"], "name": row["name"]} for row in results]
                 else:  # municipality_nm
-                    query = "SELECT DISTINCT id_municipality, municipality_nm FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s"
+                    query = """
+                        SELECT id_municipality, municipality_nm as name 
+                        FROM (
+                            SELECT id_municipality, municipality_nm, 
+                                   ROW_NUMBER() OVER (PARTITION BY municipality_nm ORDER BY id_municipality) as rn
+                            FROM presentation.dim_municipality 
+                            WHERE municipality_nm ILIKE %s
+                        ) ranked 
+                        WHERE rn = 1 
+                        ORDER BY municipality_nm 
+                        LIMIT 50
+                    """
                     cursor.execute(query, (f"%{search_value}%",))
                     results = cursor.fetchall()
-                    items = [{"id": row["id_municipality"], "name": row["municipality_nm"]} for row in results]
-                message = "Municipality IDs found" if items else "No municipality ID found"
+                    items = [{"id": row["id_municipality"], "name": row["name"]} for row in results]
+                message = f"Found {len(items)} distinct {search_key_type} names" if items else f"No {search_key_type} found"
                 return Response.success(
                     data={
                         "municipalities": items,
                         "search_key_type": search_key_type,
-                        "search_value": search_value
+                        "search_value": search_value,
+                        "count": len(items)
                     },
                     message=message
                 )
