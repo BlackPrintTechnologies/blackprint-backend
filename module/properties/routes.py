@@ -58,7 +58,7 @@ class Property(Resource):
         filter_keys = [
             'availability', 'property_type', 'plot_min', 'plot_max', 'construction_min', 'construction_max',
             'geometry', 'price_type', 'price_min', 'price_max',
-            'city', 'municipality', 'alcaldia', 'colonia', 'zip_code', 'search_within'
+            'city', 'id_municipality'
         ]
         filters['show_all_keys'] = parser_data.get('show_all_keys', True)
         print("Filters:", filters)
