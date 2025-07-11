@@ -1320,7 +1320,7 @@ class PropertyController:
             # Zoning fields (updated, removed search_within)
             for key in ["id_municipality"]:
                 if key in filters and filters[key]:
-                    filter_query += f" AND {FILTER_COLUMN_MAP[key]} = {filters[key]} "
+                    filter_query += f" AND {FILTER_COLUMN_MAP[key]} in ({','.join([str(f) for f in filters[key]])}) "
             # TODO: Add more filters as needed (currency, block position, etc.)
 
             print("Filter Query", filter_query)
