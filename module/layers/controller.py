@@ -83,7 +83,7 @@ class BrandController:
         self.db = RedshiftDatabase()
     
     @staticmethod
-    def get_brand_query(catchment, fid):
+    def get_brand_query(catchment, fid, category_1=None):
         if catchment == '500':
             query = f'''WITH split_values AS (
                         SELECT SPLIT_PART((SELECT ids_pois_500m FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',', n)::INTEGER as value
@@ -93,7 +93,7 @@ class BrandController:
                         SELECT brand, names_pri,  geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
 
-        if catchment == '1000':
+        elif catchment == '1000':
             query = f'''WITH split_values AS (
                         SELECT SPLIT_PART((SELECT ids_pois_1km FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',', n)::INTEGER as value
                         FROM numbers
@@ -102,7 +102,7 @@ class BrandController:
                         SELECT brand, names_pri,  geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
 
-        if catchment == '50':
+        elif catchment == '50':
             query = f'''WITH split_values AS (
                         SELECT SPLIT_PART((SELECT ids_pois_front FROM blackprint_db_prd.data_product.v_parcel_v3 WHERE fid = {fid}), ',', n)::INTEGER as value
                         FROM numbers
@@ -110,6 +110,10 @@ class BrandController:
                         )
                         SELECT brand, names_pri,  geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
+        else :
+            query = f'''SELECT brand, names_pri,  geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places
+                        WHERE where category_1 = '{category_1}' ;'''
+
         return query
     
     # @cache_response(prefix='brands',expiration=3600)
@@ -120,7 +124,7 @@ class BrandController:
         try :
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = self.get_brand_query(radius, fid)
+            query = self.get_brand_query(radius, fid, category_1=category)
             cursor.execute(query)
             connection.commit()
             res = cursor.fetchall()
