@@ -112,7 +112,7 @@ class BrandController:
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
         else :
             query = f'''SELECT brand, names_pri,  geometry_wkt, category_1 FROM blackprint_db_prd.presentation.dim_places
-                        WHERE where category_1 = '{category_1}' ;'''
+                        WHERE  category_1 = '{category_1}' ;'''
 
         return query
     
