@@ -1348,17 +1348,15 @@ class PropertyController:
             return resp
 
     def advanced_municipality_search(self, search_key_type=None, search_value=None, municipality_nm=None):
-        
         connection = None
         cursor = None
         try:
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-
-            allowed_keys = {"neighborhood", "zip_code", "municipality_nm"}
+            allowed_keys = {"nb_cleaned", "zip_code", "municipality_nm"}
             # If both municipality_nm and (search_key_type + search_value) are provided, filter within municipality_nm
-            if municipality_nm and search_key_type in {"neighborhood", "zip_code"} and search_value:
-                query = f"SELECT DISTINCT id_municipality, {search_key_type} FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s AND {search_key_type} ILIKE %s limit 50"
+            if municipality_nm and search_key_type in {"nb_cleaned", "zip_code"} and search_value:
+                query = f"SELECT DISTINCT id_municipality, {search_key_type} FROM data_product.v_municipality WHERE municipality_nm ILIKE %s AND {search_key_type} ILIKE %s limit 50"
                 cursor.execute(query, (f"%{municipality_nm}%", f"%{search_value}%"))
                 results = cursor.fetchall()
                 items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
@@ -1378,7 +1376,7 @@ class PropertyController:
                     FROM (
                         SELECT {search_key_type}, id_municipality,
                             ROW_NUMBER() OVER (PARTITION BY {search_key_type} ORDER BY id_municipality) as row_num
-                        FROM presentation.dim_municipality
+                        FROM data_product.v_municipality
                         WHERE {search_key_type} ILIKE %s
                     ) t
                     WHERE row_num = 1
