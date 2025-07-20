@@ -113,6 +113,40 @@ class HealthCheck(Resource):
 
 api.add_resource(HealthCheck, '/health')
 
+# Cache monitoring endpoint
+class CacheStats(Resource):
+    def get(self):
+        try:
+            from utils.redis_client import get_redis_client
+            redis_client = get_redis_client()
+            
+            if redis_client.is_connected():
+                stats = redis_client.get_stats()
+                health = redis_client.health_check()
+                
+                return {
+                    'status': 'connected',
+                    'redis_stats': stats,
+                    'redis_health': health,
+                    'cache_namespaces': [
+                        'property', 'demographic', 'user', 'search', 
+                        'layer', 'market_info', 'brands', 'traffic'
+                    ]
+                }, 200
+            else:
+                return {
+                    'status': 'disconnected',
+                    'message': 'Redis is not connected'
+                }, 503
+                
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': f'Cache monitoring failed: {str(e)}'
+            }, 500
+
+api.add_resource(CacheStats, '/cache/stats')
+
 # Startup warmup function
 def startup_warmup():
     """Run warmup in background thread during startup"""

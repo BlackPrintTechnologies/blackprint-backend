@@ -3,7 +3,8 @@ from flask import request, jsonify, Response as FlaskResponse
 from utils.responseUtils import Response
 from module.layers.controller import BrandController, TrafficController, PropertyLayerController  # Assuming SavedSearchesController is in search_controller.py
 from utils.commonUtil import authenticate
-from utils.async_utils import async_route, run_sync_in_executor, run_controller_method
+from utils.async_utils import async_route, run_sync_in_executor, run_controller_method, async_route_with_cache
+from utils.cache_decorators import cache_async_response, cache_response
 from logsmanager.logging_config import setup_logging
 import logging
 import time
@@ -86,7 +87,7 @@ class Brands(Resource):
     create_parser.add_argument('fid', type=str, required=False, help='User ID is required')
     create_parser.add_argument('category', type=str, required=False, help='Category is required')
 
-    @async_route
+    @async_route_with_cache(prefix="brands", ttl=14400)
     async def post(self):
         logger.info("Received request to fetch brands.")
         brand_controller = BrandController()
@@ -105,7 +106,7 @@ class SearchBrands(Resource):
     create_parser = reqparse.RequestParser()
     create_parser.add_argument('brand_name', type=str, required=True, help='Brand name is required', location='args')
 
-    @async_route
+    @async_route_with_cache(prefix="brand_search", ttl=1800)
     async def get(self):
         logger.info("Received request to search brands.")
         data = self.create_parser.parse_args()
@@ -121,7 +122,7 @@ class Traffic(Resource):
     create_parser.add_argument('fid', type=str, required=False, help='User ID is required')
 
     
-    @async_route
+    @async_route_with_cache(prefix="traffic_layer", ttl=14400)
     async def post(self):
         logger.info("Received request to fetch traffic data.")
         data = self.create_parser.parse_args()
@@ -139,7 +140,7 @@ class Traffic(Resource):
 class PropertyLayer(Resource):
     create_parser = reqparse.RequestParser()
 
-    @async_route
+    @async_route_with_cache(prefix="property_layer", ttl=14400)
     async def get(self):
         logger.info("Fetching property layer data (async).")
         response_data = await fetch_properties_layer_data_async()

@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import time
+import json
+import os
 from concurrent.futures import ThreadPoolExecutor
 from utils.async_utils import get_thread_pool, run_sync_in_executor
 from module.properties.controller import PropertyController, UserPropertyController
@@ -164,6 +166,34 @@ class AppWarmup:
         except Exception as e:
             logger.error(f"❌ Query plan warmup failed: {e}")
 
+    def warmup_redis_connection(self):
+        """Pre-test Redis connection during warmup"""
+        try:
+            logger.info("🔥 Warming up Redis connection...")
+            from utils.redis_client import get_redis_client
+            
+            redis_client = get_redis_client()
+            if redis_client.is_connected():
+                # Test basic operations
+                test_key = "warmup_test_key"
+                redis_client.set("test", test_key, "warmup_test", ttl=10)
+                test_result = redis_client.get("test", test_key)
+                redis_client.delete("test", test_key)
+                
+                if test_result == "warmup_test":
+                    logger.info("✅ Redis connection and operations warmed successfully")
+                    return True
+                else:
+                    logger.warning("⚠️ Redis test operation failed")
+                    return False
+            else:
+                logger.warning("⚠️ Redis connection not available")
+                return False
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Redis warmup failed (application will continue): {e}")
+            return False
+
     async def full_warmup(self):
         """Perform complete application warmup"""
         self.warmup_start_time = time.time()
@@ -182,7 +212,10 @@ class AppWarmup:
             # Step 4: Warm up async operations
             await self.warmup_async_operations()
             
-            # Step 5: Warm up query plans
+            # Step 5: Warm up Redis connection
+            redis_warmed = self.warmup_redis_connection()
+            
+            # Step 6: Warm up query plans
             self.warmup_query_plans()
             
             self.warmup_end_time = time.time()
@@ -191,7 +224,8 @@ class AppWarmup:
             logger.info(f"🎉 Application warmup completed in {warmup_duration:.2f} seconds")
             logger.info(f"📊 Warmup status - Thread Pool: {self.thread_pool_warmed}, "
                        f"DB Connections: {self.db_connections_warmed}, "
-                       f"Controllers: {self.controllers_warmed}")
+                       f"Controllers: {self.controllers_warmed}, "
+                       f"Redis: {redis_warmed}")
             
             return True
             

@@ -3,7 +3,8 @@ from flask import request
 from utils.responseUtils import Response
 from module.group.controller import GroupsController  # Assuming GroupsController is in group/controller.py
 from utils.commonUtil import authenticate
-from utils.async_utils import async_route, run_sync_in_executor, run_controller_method
+from utils.async_utils import async_route, run_sync_in_executor, run_controller_method, async_route_with_cache
+from utils.cache_decorators import cache_async_response, cache_response
 import asyncio
 
 # Initialize GroupsController
@@ -24,7 +25,7 @@ class Group(Resource):
     update_parser.add_argument('grp_status', type=int, required=False)
 
     @authenticate
-    @async_route
+    @async_route_with_cache(prefix="user_groups", ttl=1800)
     async def get(self, current_user, grp_id=None):
         # data = self.get_parser.parse_args()
         # grp_id = data.get('grp_id')
@@ -32,6 +33,7 @@ class Group(Resource):
         return response
 
     @authenticate
+    # No caching for POST (create) operations
     @async_route
     async def post(self, current_user):
         data = self.create_parser.parse_args()

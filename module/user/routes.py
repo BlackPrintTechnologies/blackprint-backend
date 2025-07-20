@@ -10,7 +10,8 @@ from utils.responseUtils import Response  # Assuming ResponseUtil is in response
 from module.user.controller import UsersController, UserQuestionareController  # Assuming UsersController is in users_controller.py
 from decimal import Decimal
 from utils.commonUtil import authenticate, get_token, get_user_id_from_token
-from utils.async_utils import async_route, run_sync_in_executor, run_controller_method
+from utils.async_utils import async_route, run_sync_in_executor, run_controller_method, async_route_with_cache
+from utils.cache_decorators import cache_async_response, cache_response
 from logsmanager.logging_config import setup_logging
 import logging
 
@@ -142,7 +143,7 @@ class ForgotPassword(Resource):
 class GetUser(Resource):
     
     @authenticate
-    @async_route
+    @async_route_with_cache(prefix="user_profile", ttl=300)
     async def get(self, current_user):
         logger.info(f"user {current_user}")
         response = await run_controller_method(users_controller, 'get_users', id=current_user)
@@ -241,6 +242,7 @@ class UserQuestionare(Resource):
     update_parser.add_argument('bp_phone_number', type=str, required=False, help='Phone number is optional')
 
     @authenticate
+    # No caching for POST (create) operations
     @async_route
     async def post(self, current_user):
         logger.info(f"Received request to create questionnaire for user {current_user}")
@@ -287,7 +289,7 @@ class UserQuestionare(Resource):
         return response
 
     @authenticate
-    @async_route
+    @async_route_with_cache(prefix="user_questionnaire", ttl=300)
     async def get(self, current_user, id=None):
         logger.info(f"Recevied GET request for user {current_user}")
         response = await run_controller_method(user_questionare_controller, 'get_questionare', id=id, bp_user_id=current_user)

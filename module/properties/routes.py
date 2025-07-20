@@ -4,7 +4,8 @@ from utils.responseUtils import Response
 from module.properties.controller import PropertyController, UserPropertyController
 from utils.commonUtil import authenticate
 from utils.streetViewUtils import get_street_view_image
-from utils.async_utils import async_route, run_sync_in_executor, run_controller_method
+from utils.async_utils import async_route, run_sync_in_executor, run_controller_method, async_route_with_cache
+from utils.cache_decorators import cache_async_response, cache_response
 import json
 import asyncio
 # Removed unused prefetch imports
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 #Route for the Street View image proxy endpoint
 class StreetViewImage(Resource):
     # @authenticate do we realy need to authenticate this 
-    @async_route
+    @async_route_with_cache(prefix="streetview", ttl=300)
     async def get(self):#, current_user):
         pano_id = request.args.get("pano_id")
         heading = request.args.get("heading")
@@ -40,7 +41,7 @@ class Property(Resource):
     create_parser.add_argument("show_all_keys", type=bool, required=False, default=True, help="Show all keys in response", location='json')
 
     @authenticate
-    @async_route
+    @async_route_with_cache(prefix="property", ttl=3600)
     async def post(self, current_user):
         # Accept all JSON data for flexible filter support
         data = request.get_json(force=True)
@@ -78,7 +79,7 @@ class PropertyDemographic(Resource):
     create_parser = reqparse.RequestParser()
     create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='args')
     @authenticate
-    @async_route
+    @async_route_with_cache(prefix="demographic", ttl=3600)
     async def get(self, current_user):
         data = self.create_parser.parse_args()
         fid = data.get('fid')
@@ -99,15 +100,15 @@ class UserProperty(Resource):
     update_parser.add_argument('prop_status', type=str, required=False, help='status is required')
 
     @authenticate
-    @async_route
-    async def get(self, current_user):
+    @cache_response(prefix="user_property", ttl=300)  # 5 minutes for user-specific data
+    def get(self, current_user):
         data = self.get_parser.parse_args()
         fid = data.get('fid')
         prop_status = data.get('prop_status')
         norm_fid = normalize_fid(fid)
 
         upc = UserPropertyController()
-        response = await run_controller_method(upc, 'get_user_properties', current_user, norm_fid, prop_status)
+        response = upc.get_user_properties(current_user, norm_fid, prop_status)
         return response
 
     @authenticate
@@ -124,10 +125,10 @@ class UserProperty(Resource):
 #route for get requested property
 class RequestedProperties(Resource):
     @authenticate
-    @async_route
-    async def get(self, current_user):
+    @cache_response(prefix="user_requests", ttl=300)  # 5 minutes for user requests
+    def get(self, current_user):
         upc = UserPropertyController()
-        response = await run_controller_method(upc, 'get_requested_properties', current_user)
+        response = upc.get_requested_properties(current_user)
         return response
     
 
@@ -150,12 +151,12 @@ class PropertyTraffic(Resource):
     parser = reqparse.RequestParser()
     parser.add_argument('fid', type=int, required=True, help='fid is required')
 
-    @async_route
-    async def post(self):
+    @cache_response(prefix="traffic", ttl=14400)  # 4 hours cache for traffic data
+    def post(self):
         args = self.parser.parse_args()
         fid = args['fid']
         pc = PropertyController()
-        return await run_controller_method(pc, 'get_property_traffic', fid)
+        return pc.get_property_traffic(fid)
     
 
 class PropertyMarketInfo(Resource):
@@ -165,15 +166,15 @@ class PropertyMarketInfo(Resource):
     create_parser.add_argument('propiedades_id', type=str, required=False, help='propiedades_id is required', location='args')
 
     @authenticate
-    @async_route
-    async def get(self, current_user):
+    @cache_response(prefix="market_info", ttl=3600)  # 1 hour cache for market info
+    def get(self, current_user):
         data = self.create_parser.parse_args()
         spot2_id = normalize_market_id(data.get('spot2_id'))
         inmuebles24_id = normalize_market_id(data.get('inmuebles24_id'))
         propiedades_id = normalize_market_id(data.get("propiedades_id"))
 
         pc = PropertyController()
-        response = await run_controller_method(pc, 'get_property_market_info', spot2_id, inmuebles24_id, propiedades_id)
+        response = pc.get_property_market_info(spot2_id, inmuebles24_id, propiedades_id)
         return response
 
 class PropertyDetailsBundle(Resource):
@@ -181,7 +182,7 @@ class PropertyDetailsBundle(Resource):
     parser.add_argument('fid', type=str, required=True, help='fid is required', location='args')
 
     @authenticate
-    @async_route
+    @async_route_with_cache(prefix="property_details", ttl=3600)
     async def get(self, current_user):
         args = self.parser.parse_args()
         fid = args['fid']
@@ -193,7 +194,7 @@ class PropertyCommercialGrowth(Resource):
     parser.add_argument('fid', type=str, required=True, help='fid is required', location='args')
     
     @authenticate
-    @async_route
+    @async_route_with_cache(prefix="commercial_growth", ttl=14400)
     async def get(self,current_user):
         args = self.parser.parse_args()
         fid = args['fid']
@@ -203,7 +204,7 @@ class PropertyCommercialGrowth(Resource):
         return response
 
 class PropertyFilter(Resource):
-    @async_route
+    @async_route_with_cache(prefix="property_filter", ttl=3600)
     async def post(self):
         data = request.get_json(force=True)
         pc = PropertyController()
@@ -218,7 +219,7 @@ class AdvancedMunicipalitySearch(Resource):
     parser.add_argument('municipality_nm', type=str, required=False)
 
     @authenticate
-    @async_route
+    @async_route_with_cache(prefix="municipality_search", ttl=1800)
     async def post(self, current_user):
         data = self.parser.parse_args()
         search_key_type = data.get('search_key_type')
