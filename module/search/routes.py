@@ -3,6 +3,8 @@ from flask import request, jsonify
 from utils.responseUtils import Response
 from module.search.controller import SavedSearchesController  # Assuming SavedSearchesController is in search_controller.py
 from utils.commonUtil import authenticate
+from utils.async_utils import async_route, run_sync_in_executor, run_controller_method
+import asyncio
 
 # Initialize SavedSearchesController
 saved_searches_controller = SavedSearchesController()
@@ -35,14 +37,16 @@ class SavedSearches(Resource):
     update_parser.add_argument('search_status', type=int, required=False)
 
     @authenticate
-    def get(self, current_user, search_id=None):
+    @async_route
+    async def get(self, current_user, search_id=None):
         # data = self.update_parser.parse_args()
         # search_id = data.get('id')
-        response = saved_searches_controller.get_saved_searches(id=search_id, user_id=current_user)
+        response = await run_controller_method(saved_searches_controller, 'get_saved_searches', id=search_id, user_id=current_user)
         return response
 
     @authenticate
-    def post(self, current_user):
+    @async_route
+    async def post(self, current_user):
         data = self.create_parser.parse_args()
         user_id = current_user
         search_name = data.get('search_name')
@@ -50,7 +54,7 @@ class SavedSearches(Resource):
         search_value = data.get('search_value')
         search_response = data.get('search_response')
 
-        response = saved_searches_controller.create_saved_search(
+        response = await run_controller_method(saved_searches_controller, 'create_saved_search',
             user_id=user_id,
             search_name=search_name,
             search_query=search_query,
@@ -60,7 +64,8 @@ class SavedSearches(Resource):
         return response
 
     @authenticate
-    def put(self, current_user):
+    @async_route
+    async def put(self, current_user):
         data = self.update_parser.parse_args()
         search_id = data.get('id')
         search_name = data.get('search_name')
@@ -69,7 +74,7 @@ class SavedSearches(Resource):
         search_response = data.get('search_response')
         search_status = data.get('search_status')
 
-        response = saved_searches_controller.update_saved_search(
+        response = await run_controller_method(saved_searches_controller, 'update_saved_search',
             id=search_id,
             search_name=search_name,
             search_query=search_query,
@@ -80,8 +85,9 @@ class SavedSearches(Resource):
         return response
 
     @authenticate
-    def delete(self, current_user):
+    @async_route
+    async def delete(self, current_user):
         data = self.update_parser.parse_args()
         search_id = data.get('id')
-        response = saved_searches_controller.delete_saved_search(id=search_id)
+        response = await run_controller_method(saved_searches_controller, 'delete_saved_search', id=search_id)
         return response

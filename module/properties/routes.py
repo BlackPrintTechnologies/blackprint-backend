@@ -4,15 +4,10 @@ from utils.responseUtils import Response
 from module.properties.controller import PropertyController, UserPropertyController
 from utils.commonUtil import authenticate
 from utils.streetViewUtils import get_street_view_image
-import hashlib
+from utils.async_utils import async_route, run_sync_in_executor, run_controller_method
 import json
-from utils.app_cache import get_from_cache, set_in_cache
-from module.properties.prefetch import (
-    prefetch_fid_response, 
-    prefetch_userproperty_response,
-    prefetch_demographic_response,
-    prefetch_marketinfo_response
-)
+import asyncio
+# Removed unused prefetch imports
 from utils.normalization_utils import normalize_fid, normalize_market_id
 import logging
 logger = logging.getLogger(__name__)
@@ -20,7 +15,8 @@ logger = logging.getLogger(__name__)
 #Route for the Street View image proxy endpoint
 class StreetViewImage(Resource):
     # @authenticate do we realy need to authenticate this 
-    def get(self):#, current_user):
+    @async_route
+    async def get(self):#, current_user):
         pano_id = request.args.get("pano_id")
         heading = request.args.get("heading")
         fov = request.args.get("fov", default=90)
@@ -29,7 +25,8 @@ class StreetViewImage(Resource):
         if not pano_id or not heading:
             return Response.bad_request(message="Missing parameters")
 
-        image_data = get_street_view_image(pano_id, heading, fov, size)
+        # Run street view image fetch asynchronously
+        image_data = await run_sync_in_executor(get_street_view_image, pano_id, heading, fov, size)
         if not image_data:
             return Response.internal_server_error(message="Failed to fetch image")
 
@@ -43,7 +40,8 @@ class Property(Resource):
     create_parser.add_argument("show_all_keys", type=bool, required=False, default=True, help="Show all keys in response", location='json')
 
     @authenticate
-    def post(self, current_user):
+    @async_route
+    async def post(self, current_user):
         # Accept all JSON data for flexible filter support
         data = request.get_json(force=True)
         parser_data = self.create_parser.parse_args()
@@ -63,15 +61,8 @@ class Property(Resource):
         filters['show_all_keys'] = parser_data.get('show_all_keys', True)
         print("Filters:", filters)
         if any(key in filters for key in filter_keys):
-            # Add filter-based caching
-            filter_key_raw = f"user={current_user}|filters={json.dumps(filters, sort_keys=True)}"
-            filter_cache_key = hashlib.sha256(filter_key_raw.encode()).hexdigest()
-            # cached_response = get_from_cache('property', filter_cache_key)
-            # if cached_response:
-            #     return cached_response
             pc = PropertyController()
-            response = pc.filter_properties(filters)
-            # set_in_cache('property', filter_cache_key, response)
+            response = await run_controller_method(pc, 'filter_properties', filters)
             return response
         else:
             print("No filters provided, using fid, lat, lng")
@@ -79,35 +70,22 @@ class Property(Resource):
             lat = filters.get('lat')
             lng = filters.get('lng')
             norm_fid = normalize_fid(fid)
-            norm_lat = str(lat) if lat is not None else None
-            norm_lng = str(lng) if lng is not None else None
-            cache_key_raw = f"user={current_user}|fid={norm_fid}|lat={norm_lat}|lng={norm_lng}"
-            cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
-            cached_response = get_from_cache('property', cache_key)
-            if cached_response:
-                return cached_response
             pc = PropertyController()
-            response = pc.get_properties(current_user, fid, lat, lng)
-            set_in_cache('property', cache_key, response)
+            response = await run_controller_method(pc, 'get_properties', current_user, fid, lat, lng)
             return response
     
 class PropertyDemographic(Resource):
     create_parser = reqparse.RequestParser()
     create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='args')
     @authenticate
-    def get(self, current_user):
+    @async_route
+    async def get(self, current_user):
         data = self.create_parser.parse_args()
         fid = data.get('fid')
         norm_fid = normalize_fid(fid)
-        cache_key = f"user={current_user}|fid={norm_fid}"
-        
-        cached_response = get_from_cache('demographic', cache_key)
-        if cached_response:
-            return cached_response
 
         pc = PropertyController()
-        response = pc.get_property_demographic(norm_fid, current_user)
-        set_in_cache('demographic', cache_key, response)
+        response = await run_controller_method(pc, 'get_property_demographic', norm_fid, current_user)
         return response
     
 
@@ -121,38 +99,35 @@ class UserProperty(Resource):
     update_parser.add_argument('prop_status', type=str, required=False, help='status is required')
 
     @authenticate
-    def get(self, current_user):
+    @async_route
+    async def get(self, current_user):
         data = self.get_parser.parse_args()
         fid = data.get('fid')
         prop_status = data.get('prop_status')
         norm_fid = normalize_fid(fid)
-        cache_key = f"user={current_user}|fid={norm_fid}|prop_status={prop_status}"
-        
-        cached_response = get_from_cache('user_property', cache_key)
-        if cached_response:
-            return cached_response
 
         upc = UserPropertyController()
-        response = upc.get_user_properties(current_user, norm_fid,  prop_status)
-        set_in_cache('user_property', cache_key, response)
+        response = await run_controller_method(upc, 'get_user_properties', current_user, norm_fid, prop_status)
         return response
 
     @authenticate
-    def put(self, current_user):
+    @async_route
+    async def put(self, current_user):
         data = self.update_parser.parse_args()
         fid = data.get('fid')
         prop_status = data.get('prop_status')
         norm_fid = normalize_fid(fid)
         upc = UserPropertyController()
-        response = upc.update_property_status(current_user, norm_fid, prop_status)
+        response = await run_controller_method(upc, 'update_property_status', current_user, norm_fid, prop_status)
         return response
 
 #route for get requested property
 class RequestedProperties(Resource):
     @authenticate
-    def get(self, current_user):
+    @async_route
+    async def get(self, current_user):
         upc = UserPropertyController()
-        response = upc.get_requested_properties(current_user)
+        response = await run_controller_method(upc, 'get_requested_properties', current_user)
         return response
     
 
@@ -162,23 +137,25 @@ class UpdateRequestInfo(Resource):
     create_parser.add_argument('request_status', type=int, required=False, help='status is required')
 
     @authenticate
-    def post(self, current_user):
+    @async_route
+    async def post(self, current_user):
         upc = UserPropertyController()
         data = self.create_parser.parse_args()
         fid = data.get('fid')
         request_status = data.get('request_status')
-        response = upc.update_property_request_status(fid, current_user, request_status)
+        response = await run_controller_method(upc, 'update_property_request_status', fid, current_user, request_status)
         return response
 
 class PropertyTraffic(Resource):
     parser = reqparse.RequestParser()
     parser.add_argument('fid', type=int, required=True, help='fid is required')
 
-    def post(self):
+    @async_route
+    async def post(self):
         args = self.parser.parse_args()
         fid = args['fid']
         pc = PropertyController()
-        return pc.get_property_traffic(fid)
+        return await run_controller_method(pc, 'get_property_traffic', fid)
     
 
 class PropertyMarketInfo(Resource):
@@ -188,23 +165,15 @@ class PropertyMarketInfo(Resource):
     create_parser.add_argument('propiedades_id', type=str, required=False, help='propiedades_id is required', location='args')
 
     @authenticate
-    def get(self, current_user):
+    @async_route
+    async def get(self, current_user):
         data = self.create_parser.parse_args()
         spot2_id = normalize_market_id(data.get('spot2_id'))
         inmuebles24_id = normalize_market_id(data.get('inmuebles24_id'))
         propiedades_id = normalize_market_id(data.get("propiedades_id"))
-        
-        cache_key_raw = f"user={current_user}|spot2_id={spot2_id}|inmuebles24_id={inmuebles24_id}|propiedades_id={propiedades_id}"
-        cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
-        
-        cached_response = get_from_cache('market_info', cache_key)
-        if cached_response:
-            return cached_response
 
         pc = PropertyController()
-        response = pc.get_property_market_info(spot2_id, inmuebles24_id, propiedades_id)
-
-        set_in_cache('market_info', cache_key, response)
+        response = await run_controller_method(pc, 'get_property_market_info', spot2_id, inmuebles24_id, propiedades_id)
         return response
 
 class PropertyDetailsBundle(Resource):
@@ -212,30 +181,33 @@ class PropertyDetailsBundle(Resource):
     parser.add_argument('fid', type=str, required=True, help='fid is required', location='args')
 
     @authenticate
-    def get(self, current_user):
+    @async_route
+    async def get(self, current_user):
         args = self.parser.parse_args()
         fid = args['fid']
         pc = PropertyController()
-        return pc.get_property_details_bundle(current_user, fid)
+        return await run_controller_method(pc, 'get_property_details_bundle', current_user, fid)
 
 class PropertyCommercialGrowth(Resource):
     parser = reqparse.RequestParser()
     parser.add_argument('fid', type=str, required=True, help='fid is required', location='args')
     
     @authenticate
-    def get(self,current_user):
+    @async_route
+    async def get(self,current_user):
         args = self.parser.parse_args()
         fid = args['fid']
         norm_fid = normalize_fid(fid)
         pc = PropertyController()
-        response = pc.get_property_commercial_growth(norm_fid)
+        response = await run_controller_method(pc, 'get_property_commercial_growth', norm_fid)
         return response
 
 class PropertyFilter(Resource):
-    def post(self):
+    @async_route
+    async def post(self):
         data = request.get_json(force=True)
         pc = PropertyController()
-        response = pc.filter_properties(data)
+        response = await run_controller_method(pc, 'filter_properties', data)
         return response
 
 class AdvancedMunicipalitySearch(Resource):
@@ -246,13 +218,14 @@ class AdvancedMunicipalitySearch(Resource):
     parser.add_argument('municipality_nm', type=str, required=False)
 
     @authenticate
-    def post(self, current_user):
+    @async_route
+    async def post(self, current_user):
         data = self.parser.parse_args()
         search_key_type = data.get('search_key_type')
         search_value = data.get('search_value')
         municipality_nm = data.get('municipality_nm')
         pc = PropertyController()
-        return pc.advanced_municipality_search(search_key_type, search_value, municipality_nm)
+        return await run_controller_method(pc, 'advanced_municipality_search', search_key_type, search_value, municipality_nm)
 
 # At the end of the file, add the resource to the API (example, actual registration may vary)
 # from your main app or blueprint registration, add:

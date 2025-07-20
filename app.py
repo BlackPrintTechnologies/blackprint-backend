@@ -8,8 +8,18 @@ from flask_compress import Compress
 from decimal import Decimal
 import uuid
 import json
+import asyncio
+import threading
+from utils.async_utils import setup_async_environment
+from utils.app_warmup import perform_startup_warmup, get_app_warmup
+# Pre-initialize thread pool as early as possible
+from utils.pre_init_thread_pool import pre_init_thread_pool
+
 app = Flask(__name__)
 api = Api(app)
+
+# Setup async environment
+setup_async_environment()
 
 # Allow CORS for specific origins (localhost:3000 in this case)
 
@@ -81,6 +91,52 @@ def after_request(response):
     response.headers['X-Request-ID'] = getattr(request, 'request_id', 'none')
     logger.info(f"Completed request {getattr(request, 'request_id', 'none')} with status {response.status_code}")
     return response
+
+# Health check endpoint to verify warmup status
+class HealthCheck(Resource):
+    def get(self):
+        warmup = get_app_warmup()
+        status = warmup.get_warmup_status()
+        
+        if status['is_warmed_up']:
+            return {
+                'status': 'healthy',
+                'message': 'Application is warmed up and ready',
+                'warmup_details': status
+            }, 200
+        else:
+            return {
+                'status': 'warming_up',
+                'message': 'Application is still warming up',
+                'warmup_details': status
+            }, 202
+
+api.add_resource(HealthCheck, '/health')
+
+# Startup warmup function
+def startup_warmup():
+    """Run warmup in background thread during startup"""
+    def run_warmup():
+        try:
+            logger.info("🚀 Starting background warmup process...")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            success = loop.run_until_complete(perform_startup_warmup())
+            if success:
+                logger.info("🎉 Background warmup completed successfully")
+            else:
+                logger.warning("⚠️ Background warmup completed with some issues")
+            loop.close()
+        except Exception as e:
+            logger.error(f"❌ Background warmup failed: {e}")
+    
+    # Start warmup in background thread
+    warmup_thread = threading.Thread(target=run_warmup, daemon=True)
+    warmup_thread.start()
+    logger.info("🔄 Warmup process started in background")
+
+# Start warmup process during application initialization
+startup_warmup()
 
 # Log routes being added
 logger.debug("API routes have been configured.")

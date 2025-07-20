@@ -5,10 +5,12 @@ import jwt
 import datetime
 import os
 import json
+import asyncio
 from utils.responseUtils import Response  # Assuming ResponseUtil is in response_util.py
 from module.user.controller import UsersController, UserQuestionareController  # Assuming UsersController is in users_controller.py
 from decimal import Decimal
 from utils.commonUtil import authenticate, get_token, get_user_id_from_token
+from utils.async_utils import async_route, run_sync_in_executor, run_controller_method
 from logsmanager.logging_config import setup_logging
 import logging
 
@@ -72,7 +74,8 @@ class Signup(Resource):
     signup_parser.add_argument('password', type=str, required=True, help='Password is required')
     signup_parser.add_argument('name', type=str, required=True, help='Name is required')
 
-    def post(self):
+    @async_route
+    async def post(self):
         logger.info("Received signup request")
         data = self.signup_parser.parse_args()
         email = data.get('email')
@@ -80,11 +83,12 @@ class Signup(Resource):
         name = data.get('name')
         logger.debug(f"Signup details: email={email}, name={name}")
         
-        if User.user_exists(email):
+        user_exists = await run_sync_in_executor(User.user_exists, email)
+        if user_exists:
             logger.warning(f"Signup failed - User with email {email} already exists")
             return Response.bad_request(message='User already exists')
         
-        response = User.create_user(email, password, name)
+        response = await run_sync_in_executor(User.create_user, email, password, name)
         logger.info(f"User {email} created successfully")
         return response
 
@@ -93,14 +97,15 @@ class Signin(Resource):
     signin_parser.add_argument('email', type=str, required=True, help='Email is required')
     signin_parser.add_argument('password', type=str, required=True, help='Password is required')
 
-    def post(self):
+    @async_route
+    async def post(self):
         logger.info("Received sign-in request")
         data = self.signin_parser.parse_args()
         email = data.get('email')
         password = data.get('password')
         logger.debug(f"Sign-in attempt for email: {email}")
 
-        user = User.validate_user(email, password)
+        user = await run_sync_in_executor(User.validate_user, email, password)
         
         if not user:
             logger.warning(f"Sign-in failed - Invalid credentials for email: {email}")
@@ -118,12 +123,14 @@ class ForgotPassword(Resource):
     signin_parser = reqparse.RequestParser()
     signin_parser.add_argument('email', type=str, required=True, help='Email is required')
 
-    def post(self):
+    @async_route
+    async def post(self):
         logger.info("Received password reset request")
         data = self.signin_parser.parse_args()
         email = data.get('email')
         logger.debug(f"Password reset attempt for email: {email}")
-        if not User.user_exists(email):
+        user_exists = await run_sync_in_executor(User.user_exists, email)
+        if not user_exists:
             logger.warning(f"Password reset failed - User not found: {email}")
             return Response.not_found(message='User not found')
         
@@ -135,11 +142,10 @@ class ForgotPassword(Resource):
 class GetUser(Resource):
     
     @authenticate
-    def get(self, current_user):
+    @async_route
+    async def get(self, current_user):
         logger.info(f"user {current_user}")
-        response = users_controller.get_users(
-            id=current_user
-        )
+        response = await run_controller_method(users_controller, 'get_users', id=current_user)
         return response
 
 class UpdateUser(Resource):
@@ -152,7 +158,8 @@ class UpdateUser(Resource):
     update_parser.add_argument('status', type=int, required=False)
 
     @authenticate
-    def put(self, user_id):
+    @async_route
+    async def put(self, user_id):
         logger.info(f"Received update request for user_id: {user_id}")
         data = self.update_parser.parse_args()
         name = data.get('name')
@@ -166,7 +173,7 @@ class UpdateUser(Resource):
             logger.info(f"Updating password for user_id: {user_id}")
             password = generate_password_hash(password, method='sha256')
 
-        response = users_controller.update_user(
+        response = await run_controller_method(users_controller, 'update_user',
             id=user_id,
             bp_name=name,
             bp_company=company,
@@ -182,25 +189,27 @@ class VerifyUser(Resource):
     verify_parser.add_argument('email', type=str, required=True, help='Email is required')
     verify_parser.add_argument('token', type=str, required=True, help='Token is required')
 
-    def post(self):
+    @async_route
+    async def post(self):
         logger.info("Received user verification request")
         data = self.verify_parser.parse_args()
         email = data.get('email')
         token = data.get('token')
         logger.debug(f"Verifying user with email: {email} and token: {token}")
-        return users_controller.verify_user(bp_email=email, token=token) 
+        return await run_controller_method(users_controller, 'verify_user', bp_email=email, token=token) 
 
 class ResendVerification(Resource):
     resend_parser = reqparse.RequestParser()
     resend_parser.add_argument('email', type=str, required=True, help='Email is required')
 
-    def post(self):
+    @async_route
+    async def post(self):
         logger.info("Received request to resend verification email")
         data = self.resend_parser.parse_args()
         email = data.get('email')
         logger.debug(f"Attempting to resend verification email to: {email}")
 
-        return users_controller.send_user_verification_email(bp_email=email)
+        return await run_controller_method(users_controller, 'send_user_verification_email', bp_email=email)
 
 
 class UserQuestionare(Resource):
@@ -232,12 +241,13 @@ class UserQuestionare(Resource):
     update_parser.add_argument('bp_phone_number', type=str, required=False, help='Phone number is optional')
 
     @authenticate
-    def post(self, current_user):
+    @async_route
+    async def post(self, current_user):
         logger.info(f"Received request to create questionnaire for user {current_user}")
         data = self.user_questionare_parser.parse_args()
         logger.debug(f"Parsed request data: {data}")
 
-        response = user_questionare_controller.create_questionare(
+        response = await run_controller_method(user_questionare_controller, 'create_questionare',
             bp_user_id=current_user,
             bp_brand_name=data['bp_brand_name'],
             bp_user_type=data['bp_user_type'],
@@ -254,12 +264,13 @@ class UserQuestionare(Resource):
         return response
 
     @authenticate
-    def put(self, current_user):
+    @async_route
+    async def put(self, current_user):
         logger.info(f"Received request to update questionnaire for user {current_user}")
         data = self.update_parser.parse_args()
         logger.debug(f"Parsed update data: {data}")
 
-        response = user_questionare_controller.update_questionare(
+        response = await run_controller_method(user_questionare_controller, 'update_questionare',
             bp_user_id=current_user,
             bp_brand_name=data.get('bp_brand_name'),
             bp_user_type=data.get('bp_user_type'),
@@ -276,9 +287,10 @@ class UserQuestionare(Resource):
         return response
 
     @authenticate
-    def get(self, current_user, id=None):
+    @async_route
+    async def get(self, current_user, id=None):
         logger.info(f"Recevied GET request for user {current_user}")
-        response = user_questionare_controller.get_questionare(id=id, bp_user_id=current_user)
+        response = await run_controller_method(user_questionare_controller, 'get_questionare', id=id, bp_user_id=current_user)
         return response
 
 
@@ -293,11 +305,12 @@ class UpdateQuestionare(Resource):
     update_parser.add_argument('bp_complementary_brands', type=list, location='json', required=False)
 
     @authenticate
-    def post(self, current_user):
+    @async_route
+    async def post(self, current_user):
         logger.info(f"Received request to update questionnaire for user {current_user}")
         data = self.update_parser.parse_args()
         logger.debug(f"Parsed update data: {data}")
-        response = user_questionare_controller.update_questionare(
+        response = await run_controller_method(user_questionare_controller, 'update_questionare',
             bp_user_id=current_user,
             bp_brand_name=data['bp_brand_name'],
             bp_category=data['bp_category'],

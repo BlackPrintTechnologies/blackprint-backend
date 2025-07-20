@@ -3,9 +3,11 @@ from flask import request, jsonify, Response as FlaskResponse
 from utils.responseUtils import Response
 from module.layers.controller import BrandController, TrafficController, PropertyLayerController  # Assuming SavedSearchesController is in search_controller.py
 from utils.commonUtil import authenticate
+from utils.async_utils import async_route, run_sync_in_executor, run_controller_method
 from logsmanager.logging_config import setup_logging
 import logging
 import time
+import asyncio
 from psycopg2.extras import RealDictCursor
 import json
 
@@ -16,6 +18,33 @@ setup_logging()
 # Retrieve the logger
 logger = logging.getLogger(__name__)
 
+async def fetch_properties_layer_data_async():
+    """Async version of fetch_properties_layer_data_raw"""
+    def _fetch_data():
+        controller = PropertyLayerController()
+        connection = None
+        resp = None
+        try:
+            connection = controller.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            query = controller.get_property_query()
+            cursor.execute(query)
+            res = cursor.fetchall()
+            resp = {"message": "Success", "data": {"response": res}}, 200
+        except Exception as e:
+            if connection:
+                connection.rollback()
+            resp = {"message": "Internal Server Error", "data": str(e)}, 500
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                controller.db.disconnect(connection)
+            return resp
+    
+    return await run_sync_in_executor(_fetch_data)
+
+# Keep the synchronous version for initial loading
 def fetch_properties_layer_data_raw():
     controller = PropertyLayerController()
     connection = None
@@ -38,8 +67,7 @@ def fetch_properties_layer_data_raw():
             controller.db.disconnect(connection)
         return resp
 
-_property_layer_cache = fetch_properties_layer_data_raw()
-_property_layer_cache_json = json.dumps(_property_layer_cache[0])  # Only the dict, not the status
+# Removed static caching - will be handled by new caching system later
 
 # {
 #     "search_name" : "test",
@@ -58,7 +86,8 @@ class Brands(Resource):
     create_parser.add_argument('fid', type=str, required=False, help='User ID is required')
     create_parser.add_argument('category', type=str, required=False, help='Category is required')
 
-    def post(self):
+    @async_route
+    async def post(self):
         logger.info("Received request to fetch brands.")
         brand_controller = BrandController()
         data = self.create_parser.parse_args()
@@ -67,7 +96,7 @@ class Brands(Resource):
         category = data.get('category')
         logger.debug(f"Parsed input: fid={fid}, radius={radius} ,category={category}")
 
-        response = brand_controller.get_brands(radius, fid, category)
+        response = await run_controller_method(brand_controller, 'get_brands', radius, fid, category)
         logger.info(f"Successfully retrieved brands for fid={fid}, radius={radius}")
         
         return response
@@ -76,13 +105,14 @@ class SearchBrands(Resource):
     create_parser = reqparse.RequestParser()
     create_parser.add_argument('brand_name', type=str, required=True, help='Brand name is required', location='args')
 
-    def get(self):
+    @async_route
+    async def get(self):
         logger.info("Received request to search brands.")
         data = self.create_parser.parse_args()
         brand_name = data.get('brand_name')
         logger.debug(f"Parsed input: brand_name={brand_name}")
         brand_controller = BrandController()
-        response = brand_controller.search_brands(brand_name)
+        response = await run_controller_method(brand_controller, 'search_brands', brand_name)
         return response
 
 class Traffic(Resource):
@@ -91,14 +121,15 @@ class Traffic(Resource):
     create_parser.add_argument('fid', type=str, required=False, help='User ID is required')
 
     
-    def post(self):
+    @async_route
+    async def post(self):
         logger.info("Received request to fetch traffic data.")
         data = self.create_parser.parse_args()
         fid = data.get('fid')
         radius = data.get('radius')
         logger.debug(f"Parsed input: fid={fid}, radius={radius}")
         traffic_controller = TrafficController()
-        response = traffic_controller.get_mobility_data_within_buffer(fid,radius)
+        response = await run_controller_method(traffic_controller, 'get_mobility_data_within_buffer', fid, radius)
         # if response.status_code == 200:
         logger.info(f"Successfully retrieved traffic data for fid={fid}, radius={radius}")
         # else:
@@ -108,6 +139,13 @@ class Traffic(Resource):
 class PropertyLayer(Resource):
     create_parser = reqparse.RequestParser()
 
-    def get(self):
-        logger.info("Serving cached property layer data (pre-serialized JSON).")
-        return FlaskResponse(_property_layer_cache_json, status=200, mimetype='application/json')
+    @async_route
+    async def get(self):
+        logger.info("Fetching property layer data (async).")
+        response_data = await fetch_properties_layer_data_async()
+        
+        if response_data and len(response_data) >= 2:
+            response_json = json.dumps(response_data[0])
+            return FlaskResponse(response_json, status=response_data[1], mimetype='application/json')
+        else:
+            return FlaskResponse('{"message": "Failed to fetch property layer data"}', status=500, mimetype='application/json')
