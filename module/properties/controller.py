@@ -285,13 +285,16 @@ class PropertyController:
                 # pictures is expected to be a JSON array or comma-separated string
                 try:
                     # Try to parse as JSON
-                    images = json.loads(row['pictures']) if isinstance(row['pictures'], str) else row['pictures']
-                    if isinstance(images, str):
+                    raw_images = json.loads(row['pictures']) if isinstance(row['pictures'], str) else row['pictures']
+                    if isinstance(raw_images, str):
                         # If still a string, split by comma
-                        images = [img.strip() for img in images.split(',') if img.strip()]
+                        raw_images = [img.strip() for img in raw_images.split(',') if img.strip()]
+                    # Filter out None, empty strings, and "None" strings
+                    images = [img for img in raw_images if img and img.strip() and img.strip().lower() != "none"]
                 except Exception:
-                    # Fallback: split by comma
-                    images = [img.strip() for img in row['pictures'].split(',') if img.strip()]
+                    # Fallback: split by comma and filter
+                    raw_images = [img.strip() for img in row['pictures'].split(',') if img.strip()]
+                    images = [img for img in raw_images if img and img.strip() and img.strip().lower() != "none"]
         except Exception as e:
             logger.error(f"Error fetching inmuebles24 images: {e}")
         finally:
@@ -317,13 +320,16 @@ class PropertyController:
                 # pictures is expected to be a JSON array or comma-separated string
                 try:
                     # Try to parse as JSON
-                    images = json.loads(row['pictures']) if isinstance(row['pictures'], str) else row['pictures']
-                    if isinstance(images, str):
+                    raw_images = json.loads(row['pictures']) if isinstance(row['pictures'], str) else row['pictures']
+                    if isinstance(raw_images, str):
                         # If still a string, split by comma
-                        images = [img.strip() for img in images.split(',') if img.strip()]
+                        raw_images = [img.strip() for img in raw_images.split(',') if img.strip()]
+                    # Filter out None, empty strings, and "None" strings
+                    images = [img for img in raw_images if img and img.strip() and img.strip().lower() != "none"]
                 except Exception:
-                    # Fallback: split by comma
-                    images = [img.strip() for img in row['pictures'].split(',') if img.strip()]
+                    # Fallback: split by comma and filter
+                    raw_images = [img.strip() for img in row['pictures'].split(',') if img.strip()]
+                    images = [img for img in raw_images if img and img.strip() and img.strip().lower() != "none"]
         except Exception as e:
             logger.error(f"Error fetching spot2 images: {e}")
         finally:
@@ -348,10 +354,13 @@ class PropertyController:
             cursor.execute(query, (ids_market_data_propiedades,))
             row = cursor.fetchone()
             if row:
-                # Collect all non-null image URLs
+                # Collect all non-null and non-"None" image URLs
                 for i in range(1, 6):
                     image_url = row.get(f'image_{i}')
-                    if image_url and isinstance(image_url, str) and image_url.strip():
+                    if (image_url and 
+                        isinstance(image_url, str) and 
+                        image_url.strip() and 
+                        image_url.strip().lower() != "none"):
                         images.append(image_url.strip())
         except Exception as e:
             logger.error(f"Error fetching propiedades images: {e}")
@@ -421,33 +430,46 @@ class PropertyController:
                     if valid_ids:
                         valid_propiedades_id = valid_ids[0]
                 print("valid id", valid_ids)
+                
+                # Helper function to check if images are valid
+                def has_valid_images(images_list):
+                    if not images_list:
+                        return False
+                    # Filter out None, empty strings, and "None" strings
+                    valid_images = [img for img in images_list if img and img.strip() and img.strip().lower() != "none"]
+                    return len(valid_images) > 0
+
                 # Now use the valid IDs in the if-elif ladder
                 if valid_inmuebles24_id:
                     images = self._fetch_inmuebles24_images(valid_inmuebles24_id)
                     print("INMUEBLES24 IMAGES", images)
-                    if images:
-                        # Resize images to 600x300
+                    if has_valid_images(images):
+                        # Resize images to 600x300 and filter out None values
+                        valid_images = [img for img in images if img and img.strip() and img.strip().lower() != "none"]
                         street_images = [
                             img.replace("1200x1200", "600x300") if "1200x1200" in img else img
-                            for img in images[:6]
+                            for img in valid_images[:6]
                         ]
 
                 # If no inmuebles24 images, try spot2
-                elif valid_spot2_id:
+                if not street_images and valid_spot2_id:
                     spot2_images = self._fetch_spot2_images(valid_spot2_id)
                     print("SPOT2 IMAGES", spot2_images)
-                    if spot2_images:
-                        street_images = spot2_images[:6]
+                    if has_valid_images(spot2_images):
+                        valid_images = [img for img in spot2_images if img and img.strip() and img.strip().lower() != "none"]
+                        street_images = valid_images[:6]
 
                 # If no spot2 images, try propiedades
-                elif valid_propiedades_id:
+                if not street_images and valid_propiedades_id:
                     propiedades_images = self._fetch_propiedades_images(valid_propiedades_id)
                     print("PROPIEDADES IMAGES", propiedades_images)
-                    if propiedades_images:
-                        street_images = propiedades_images[:6]
+                    if has_valid_images(propiedades_images):
+                        valid_images = [img for img in propiedades_images if img and img.strip() and img.strip().lower() != "none"]
+                        street_images = valid_images[:6]
 
                 # If no marketplace images found, try street view
                 if not street_images and property_details.get("lat") and property_details.get("lng"):
+                    print("NO VALID IMAGES FOUND - FALLING BACK TO STREET VIEW")
                     prop_lat = property_details["lat"]
                     prop_lng = property_details["lng"]
                     pano_id = get_street_view_metadata_cached(float(prop_lat), float(prop_lng))
@@ -459,8 +481,12 @@ class PropertyController:
                             f"{BASE_URL}/properties/street_view_image?pano_id={pano_id}&heading={heading}&fov={fov}&size={size}"
                             for heading in headings
                         ]
-                # Filter out None values 
-                street_images = [img for img in street_images if img and img.lower() != "none"]
+                        print("STREET VIEW IMAGES GENERATED:", len(street_images))
+                    else:
+                        print("NO STREET VIEW PANORAMA FOUND FOR COORDINATES")
+                
+                # Final filter to ensure no invalid images make it through
+                street_images = [img for img in street_images if img and img.strip() and img.strip().lower() != "none"]
                 property_details["street_images"] = street_images
 
                 market_info = {
