@@ -4,12 +4,22 @@ from flask_cors import CORS
 import logging
 from logsmanager.logging_config import setup_logging
 from flask import Flask, g, request 
+from flask_compress import Compress
+from decimal import Decimal
 import uuid
+import json
 app = Flask(__name__)
 api = Api(app)
 
 # Allow CORS for specific origins (localhost:3000 in this case)
+
+
 CORS(app)
+Compress(app)  # Enable compression
+# Set custom encoder
+app.config['COMPRESS_ALGORITHM'] = 'gzip'
+app.config['COMPRESS_LEVEL'] = 1  # 1 (fastest) to 9 (best compression)
+app.config['COMPRESS_MIMETYPES'] = ['text/html', 'application/json']
 
 @app.before_request
 def before_request():
@@ -18,6 +28,7 @@ def before_request():
     g.request_id = request.request_id  # Make available in Flask context
     logger.info(f"Starting request {request.request_id}")
 # Initialize logging
+
 setup_logging()
 
 # Retrieve the logger
@@ -32,7 +43,7 @@ from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUs
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
 from module.layers.routes import Brands, Traffic, SearchBrands, PropertyLayer
-from module.properties.routes import Property, PropertyDemographic, StreetViewImage, RequestInfo,RequestedProperties
+from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyMarketInfo, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch
 
 # Define API routes
 api.add_resource(Signup, '/user/signup')
@@ -50,12 +61,19 @@ api.add_resource(ResendVerification, '/user/resend-verification')
 api.add_resource(Brands, '/brands')
 api.add_resource(SearchBrands, '/searchbrands/')
 api.add_resource(Traffic, '/traffic')
+# property related routes
 api.add_resource(Property, '/property')
+api.add_resource(UserProperty, '/property/userproperty')
 api.add_resource(PropertyLayer, '/property/layer')
 api.add_resource(PropertyDemographic, '/property/demographic')
-api.add_resource(RequestInfo, '/property/requestinfo')
+api.add_resource(UpdateRequestInfo, '/property/requestinfo')
 api.add_resource(StreetViewImage, '/properties/street_view_image') #act as a proxy url to serve the image
-api.add_resource(RequestedProperties, '/properties/requested')  
+api.add_resource(RequestedProperties, '/property/requested')  
+api.add_resource(PropertyTraffic, '/property/traffic')
+api.add_resource(PropertyMarketInfo, '/property/marketinfo')  # Catchment and fid as parameters
+api.add_resource(PropertyCommercialGrowth, '/property/commercial-growth')
+api.add_resource(PropertyFilter, '/property/filter')
+api.add_resource(AdvancedMunicipalitySearch, '/properties/municipality_search/')
 
 @app.after_request
 def after_request(response):
@@ -69,5 +87,5 @@ logger.debug("API routes have been configured.")
 
 if __name__ == '__main__':
     logger.info("Starting the Flask development server.....")
-    logger.error("This is an  test error message. for slack integration")
-    app.run(debug=True)
+    logger.error("Logs Check for production")
+    app.run(debug=True,port=5002)

@@ -32,14 +32,27 @@ class Database:
             'password': config['DB_PASSWORD'],
             'port': config['DB_PORT']
         }
-        self._pool = psycopg2.pool.SimpleConnectionPool(
-            1, 20, **self.db_config
+        self._pool = pool.SimpleConnectionPool(
+            1, 40, **self.db_config
         )
+        self._current_db = config['DB_NAME']  # Track current database
 
     def connect(self, db_name=None):
-        if db_name:
-            self.db_config['database'] = db_name
         st = time.time()
+        
+        # If a different database is requested, create a new pool
+        if db_name and db_name != self._current_db:
+            # Close existing pool if it exists
+            if self._pool:
+                self._pool.closeall()
+            
+            # Update config and create new pool
+            self.db_config['database'] = db_name
+            self._pool = pool.SimpleConnectionPool(
+                1, 40, **self.db_config
+            )
+            self._current_db = db_name
+        
         connection = self._pool.getconn()
         print("Time taken to connect to db: ", time.time() - st)
         return connection
@@ -68,8 +81,8 @@ class RedshiftDatabase:
             'password': config['AWS_PASSWORD'],
             'port': config['AWS_PORT']
         }
-        self._pool = psycopg2.pool.SimpleConnectionPool(
-            1, 20, **self.db_config
+        self._pool = pool.SimpleConnectionPool(
+            1, 40, **self.db_config
         )
 
     def connect(self, db_name=None):

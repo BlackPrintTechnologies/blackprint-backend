@@ -213,6 +213,9 @@ class UserQuestionare(Resource):
     user_questionare_parser.add_argument('bp_target_audience', type=str, required=True, help='Target audience is required')
     user_questionare_parser.add_argument('bp_competitor_brands', type=list, location='json', required=True, help='Competitor brands are required')
     user_questionare_parser.add_argument('bp_complementary_brands', type=list, location='json', required=True, help='Complementary brands are required')
+    user_questionare_parser.add_argument('bp_company_role', type=str, required=True, help='Company role is required')
+    user_questionare_parser.add_argument('bp_full_name', type=str, required=True, help='Full name is required')
+    user_questionare_parser.add_argument('bp_phone_number', type=str, required=False, help='Phone number is optional')
 
     update_parser = reqparse.RequestParser()
     update_parser.add_argument('bp_user_questionare_id', type=int, required=False)
@@ -224,6 +227,9 @@ class UserQuestionare(Resource):
     update_parser.add_argument('bp_target_audience', type=str, required=False)
     update_parser.add_argument('bp_competitor_brands', type=list, location='json', required=False)
     update_parser.add_argument('bp_complementary_brands', type=list, location='json', required=False)
+    update_parser.add_argument('bp_company_role', type=str, required=True, help='Company role is required')
+    update_parser.add_argument('bp_full_name', type=str, required=True, help='Full name is required')
+    update_parser.add_argument('bp_phone_number', type=str, required=False, help='Phone number is optional')
 
     @authenticate
     def post(self, current_user):
@@ -240,7 +246,10 @@ class UserQuestionare(Resource):
             bp_market_segment=data['bp_market_segment'],
             bp_target_audience=data['bp_target_audience'],
             bp_competitor_brands=data['bp_competitor_brands'],
-            bp_complementary_brands=data['bp_complementary_brands']
+            bp_complementary_brands=data['bp_complementary_brands'],
+            bp_full_name= data['bp_full_name'],
+            bp_company_role=data['bp_company_role'],
+            bp_phone_number=data.get('bp_phone_number', None)  # Optional field
         )
         return response
 
@@ -259,7 +268,10 @@ class UserQuestionare(Resource):
             bp_market_segment=data.get('bp_market_segment'),
             bp_target_audience=data.get('bp_target_audience'),
             bp_competitor_brands=data.get('bp_competitor_brands'),
-            bp_complementary_brands=data.get('bp_complementary_brands')
+            bp_complementary_brands=data.get('bp_complementary_brands'),
+            bp_full_name=data.get('bp_full_name'),
+            bp_company_role=data.get('bp_company_role'),
+            bp_phone_number=data.get('bp_phone_number', None)  # Optional field
         )
         return response
 
