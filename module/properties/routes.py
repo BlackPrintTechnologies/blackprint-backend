@@ -40,6 +40,7 @@ class Property(Resource):
     create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='json')
     create_parser.add_argument('lat', type=str, required=False, help='property_id is required', location='json')
     create_parser.add_argument('lng', type=str, required=False, help='property_id is required', location='json')
+    create_parser.add_argument('config_city', type=str, required=False, default='cdmx', help='City for property data', location='json')
     create_parser.add_argument("show_all_keys", type=bool, required=False, default=True, help="Show all keys in response", location='json')
 
     @authenticate
@@ -47,6 +48,7 @@ class Property(Resource):
         # Accept all JSON data for flexible filter support
         data = request.get_json(force=True)
         parser_data = self.create_parser.parse_args()
+        city = parser_data.get('config_city', 'cdmx')
         # Support grouped filter JSON (e.g., {"property": {...}, "zoning": {...}})
         filters = {}
         for group in ["property", "zoning", "demographics", "points_of_interest"]:
@@ -70,7 +72,7 @@ class Property(Resource):
             # if cached_response:
             #     return cached_response
             pc = PropertyController()
-            response = pc.filter_properties(filters)
+            response = pc.filter_properties(filters, city=city)
             # set_in_cache('property', filter_cache_key, response)
             return response
         else:
@@ -81,32 +83,34 @@ class Property(Resource):
             norm_fid = normalize_fid(fid)
             norm_lat = str(lat) if lat is not None else None
             norm_lng = str(lng) if lng is not None else None
-            cache_key_raw = f"user={current_user}|fid={norm_fid}|lat={norm_lat}|lng={norm_lng}"
+            cache_key_raw = f"user={current_user}|fid={norm_fid}|lat={norm_lat}|lng={norm_lng}|city={city}"
             cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
             cached_response = get_from_cache('property', cache_key)
             if cached_response:
                 return cached_response
             pc = PropertyController()
-            response = pc.get_properties(current_user, fid, lat, lng)
+            response = pc.get_properties(current_user, fid, lat, lng, city=city)
             set_in_cache('property', cache_key, response)
             return response
     
 class PropertyDemographic(Resource):
     create_parser = reqparse.RequestParser()
     create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='args')
+    create_parser.add_argument('config_city', type=str, required=False, default='cdmx', help='City for property data', location='args')
     @authenticate
     def get(self, current_user):
         data = self.create_parser.parse_args()
         fid = data.get('fid')
+        city = data.get('config_city', 'cdmx')
         norm_fid = normalize_fid(fid)
-        cache_key = f"user={current_user}|fid={norm_fid}"
+        cache_key = f"user={current_user}|fid={norm_fid}|city={city}"
         
         cached_response = get_from_cache('demographic', cache_key)
         if cached_response:
             return cached_response
 
         pc = PropertyController()
-        response = pc.get_property_demographic(norm_fid, current_user)
+        response = pc.get_property_demographic(norm_fid, current_user, city=city)
         set_in_cache('demographic', cache_key, response)
         return response
     
@@ -186,15 +190,17 @@ class PropertyMarketInfo(Resource):
     create_parser.add_argument('spot2_id', type=str, required=False, help='spot2_id is required', location='args')
     create_parser.add_argument('inmuebles24_id', type=str, required=False, help='inmuebles24_id is required', location='args')
     create_parser.add_argument('propiedades_id', type=str, required=False, help='propiedades_id is required', location='args')
+    create_parser.add_argument('config_city', type=str, required=False, default='cdmx', help='City for property data', location='args')
 
     @authenticate
     def get(self, current_user):
         data = self.create_parser.parse_args()
-        spot2_id = normalize_market_id(data.get('spot2_id'))
-        inmuebles24_id = normalize_market_id(data.get('inmuebles24_id'))
-        propiedades_id = normalize_market_id(data.get("propiedades_id"))
+        spot2_id = data.get('spot2_id')
+        inmuebles24_id = data.get('inmuebles24_id')
+        propiedades_id = data.get('propiedades_id')
+        city = data.get('config_city', 'cdmx')
         
-        cache_key_raw = f"user={current_user}|spot2_id={spot2_id}|inmuebles24_id={inmuebles24_id}|propiedades_id={propiedades_id}"
+        cache_key_raw = f"user={current_user}|spot2_id={spot2_id}|inmuebles24_id={inmuebles24_id}|propiedades_id={propiedades_id}|city={city}"
         cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
         
         cached_response = get_from_cache('market_info', cache_key)
@@ -202,7 +208,7 @@ class PropertyMarketInfo(Resource):
             return cached_response
 
         pc = PropertyController()
-        response = pc.get_property_market_info(spot2_id, inmuebles24_id, propiedades_id)
+        response = pc.get_property_market_info(spot2_id, inmuebles24_id, propiedades_id, city=city)
 
         set_in_cache('market_info', cache_key, response)
         return response

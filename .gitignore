@@ -16,4 +16,8 @@ __pycache__/
 *.pyd
 newapp.json
 temp.json
+cdmx_query.txt
+qro_query.txt
+qro_report.json
+mexico_report.json
 
