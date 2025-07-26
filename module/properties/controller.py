@@ -1046,124 +1046,286 @@ class PropertyController:
             return resp
         
     @staticmethod
-    def get_demographic_json(result):
+    def get_demographic_json(result, city='cdmx'):
         # print("DEMOGRAPHIC RESULT",result)
         result = result[0]
         try:
-            demographic = {
-                "general" : {
-                    "block" : {
-                            "neighborhood" : result["neighborhood"],
-                            "predominant_level" : result["predominant_level"],
-                            "ageb_code" : result["ageb_code"],
-                            "total_household": result["vivtot"],
-                            "average_household_size": result["prom_ocup"],
-                            "average_number_of_rooms": result["pro_ocup_c"]
-                            
-                            },
-                    "colonia": {
-                            "neighborhood" : result["neighborhood"],
-                            "predominant_level" : result["predominant_level"],
-                            "ageb_code" : result["ageb_code"],
-                            "total_household": result["vivtot_colonia"],
-                            "average_household_size": result["prom_ocup_colonia"],
-                            "average_number_of_rooms": result["pro_ocup_c_colonia"]
-                            },
-                    
-                    "alcaldia": {
-                            "neighborhood" : result['nom_mun'],
-                            "predominant_level" : result["predominant_level"],
-                            "ageb_code" : result["ageb_code"],
-                            "total_household": result["vivtot_alcaldia"],
-                            "average_household_size": result["prom_ocup_alcaldia"],
-                            "average_number_of_rooms": result["pro_ocup_c_alcaldia"]
+            if city == 'qro':
+                # QRO demographic structure - use .get() to handle missing columns
+                demographic = {
+                    "general" : {
+                        "block" : {
+                                "neighborhood" : result.get("nom_loc", None),
+                                "predominant_level" : result.get("niv_predom", None),
+                                "ageb_code" : result.get("cve_ageb", None),
+                                "total_household": result.get("tot_vivien", None),
+                                "average_household_size": result.get("pobtot", None) / result.get("tot_vivien", 1) if result.get("tot_vivien") else None,
+                                "average_number_of_rooms": None  # Not available in QRO
+                                
+                                },
+                        "colonia": {
+                                "neighborhood" : result.get("nom_loc", None),
+                                "predominant_level" : result.get("niv_predom", None),
+                                "ageb_code" : result.get("cve_ageb", None),
+                                "total_household": result.get("tot_vivien", None),
+                                "average_household_size": result.get("pobtot", None) / result.get("tot_vivien", 1) if result.get("tot_vivien") else None,
+                                "average_number_of_rooms": None  # Not available in QRO
+                                },
+                        
+                        "alcaldia": {
+                                "neighborhood" : result.get('nom_mun', None),
+                                "predominant_level" : result.get("niv_predom", None),
+                                "ageb_code" : result.get("cve_ageb", None),
+                                "total_household": result.get("tot_vivien", None),
+                                "average_household_size": result.get("pobtot", None) / result.get("tot_vivien", 1) if result.get("tot_vivien") else None,
+                                "average_number_of_rooms": None  # Not available in QRO
+                        }
+                    },
+                    "socio_economic_level": {
+                        "block": {
+                            "ses_ab": result.get("pct_viv_ab", None),
+                            "ses_c_plus": result.get("pct_viv_cp", None),
+                            "ses_c": result.get("pct_viv_c", None),
+                            "ses_c_minus": result.get("pct_viv_cm", None),
+                            "ses_d": result.get("pct_viv_d", None),
+                            "ses_d_plus": result.get("pct_viv_dp", None),
+                            "ses_e": result.get("pct_viv_e", None)
+                        },
+                        "colonia": {
+                            "ses_ab": result.get("pct_viv_ab", None),
+                            "ses_c_plus": result.get("pct_viv_cp", None),
+                            "ses_c": result.get("pct_viv_c", None),
+                            "ses_c_minus": result.get("pct_viv_cm", None),
+                            "ses_d": result.get("pct_viv_d", None),
+                            "ses_d_plus": result.get("pct_viv_dp", None),
+                            "ses_e": result.get("pct_viv_e", None)
+                        },
+                        "alcaldia": {
+                            "ses_ab": result.get("pct_viv_ab", None),
+                            "ses_c_plus": result.get("pct_viv_cp", None),
+                            "ses_c": result.get("pct_viv_c", None),
+                            "ses_c_minus": result.get("pct_viv_cm", None),
+                            "ses_d": result.get("pct_viv_d", None),
+                            "ses_d_plus": result.get("pct_viv_dp", None),
+                            "ses_e": result.get("pct_viv_e", None)
+                        }
+                    },
+                    "population": {
+                        "block": {
+                            "total_population": result.get("pobtot", None),
+                            "male_population": result.get("pea_m", None),  # Approximate
+                            "female_population": result.get("pea_f", None),  # Approximate
+                        },
+                        "colonia": {
+                            "total_population": result.get("pobtot", None),
+                            "male_population": result.get("pea_m", None),
+                            "female_population": result.get("pea_f", None),
+                        },
+                        "alcaldia": {
+                            "total_population": result.get("pobtot", None),
+                            "male_population": result.get("pea_m", None),
+                            "female_population": result.get("pea_f", None),
+                        }
+                    },
+                    "education": {
+                        "block": {
+                            "education_3_5": result.get("p_3a5", None),
+                            "education_6_11": result.get("p_6a11", None),
+                            "education_12_14": result.get("p_12a14", None),
+                            "education_15_17": result.get("p_15a17", None),
+                            "education_18_24": result.get("p_18a24", None),
+                            "education_3_5_attending_school": result.get("p3a5_noa", None),
+                            "education_6_11_attending_school": result.get("p6a11_noa", None),
+                            "education_12_14_attending_school": result.get("p12a14noa", None),
+                            "education_15_17_attending_school": result.get("p18a24a", None),  # Closest match
+                            "education_18_24_attending_school": result.get("p18a24a", None)
+                        },
+                        "colonia": {
+                            "education_3_5": result.get("p_3a5", None),
+                            "education_6_11": result.get("p_6a11", None),
+                            "education_12_14": result.get("p_12a14", None),
+                            "education_15_17": result.get("p_15a17", None),
+                            "education_18_24": result.get("p_18a24", None),
+                            "education_3_5_attending_school": result.get("p3a5_noa", None),
+                            "education_6_11_attending_school": result.get("p6a11_noa", None),
+                            "education_12_14_attending_school": result.get("p12a14noa", None),
+                            "education_15_17_attending_school": result.get("p18a24a", None),
+                            "education_18_24_attending_school": result.get("p18a24a", None)
+                        },
+                        "alcaldia": {
+                            "education_3_5": result.get("p_3a5", None),
+                            "education_6_11": result.get("p_6a11", None),
+                            "education_12_14": result.get("p_12a14", None),
+                            "education_15_17": result.get("p_15a17", None),
+                            "education_18_24": result.get("p_18a24", None),
+                            "education_3_5_attending_school": result.get("p3a5_noa", None),
+                            "education_6_11_attending_school": result.get("p6a11_noa", None),
+                            "education_12_14_attending_school": result.get("p12a14noa", None),
+                            "education_15_17_attending_school": result.get("p18a24a", None),
+                            "education_18_24_attending_school": result.get("p18a24a", None)
+                        }
+                    },
+                    "workforce": {
+                        "block": {
+                            "total_workforce": result.get("pea", None),
+                            "male_workforce": result.get("pea_m", None),
+                            "female_workforce": result.get("pea_f", None),
+                            "inactive_population": result.get("pe_inac", None),
+                            "inactive_male_population": result.get("pe_inac_m", None),
+                            "inactive_female_population": result.get("pe_inac_f", None),
+                            "employed_population": result.get("pocupada", None),
+                            "employed_male_population": result.get("pocupada_m", None),
+                            "employed_female_population": result.get("pocupada_f", None),
+                            "unemployed_population": result.get("pdesocup", None),
+                            "unemployed_male_population": result.get("pdesocup_m", None),
+                            "unemployed_female_population": result.get("pdesocup_f", None)
+                        },
+                        "colonia": {
+                            "total_workforce": result.get("pea", None),
+                            "male_workforce": result.get("pea_m", None),
+                            "female_workforce": result.get("pea_f", None),
+                            "inactive_population": result.get("pe_inac", None),
+                            "inactive_male_population": result.get("pe_inac_m", None),
+                            "inactive_female_population": result.get("pe_inac_f", None),
+                            "employed_population": result.get("pocupada", None),
+                            "employed_male_population": result.get("pocupada_m", None),
+                            "employed_female_population": result.get("pocupada_f", None),
+                            "unemployed_population": result.get("pdesocup", None),
+                            "unemployed_male_population": result.get("pdesocup_m", None),
+                            "unemployed_female_population": result.get("pdesocup_f", None)
+                        },
+                        "alcaldia": {
+                            "total_workforce": result.get("pea", None),
+                            "male_workforce": result.get("pea_m", None),
+                            "female_workforce": result.get("pea_f", None),
+                            "inactive_population": result.get("pe_inac", None),
+                            "inactive_male_population": result.get("pe_inac_m", None),
+                            "inactive_female_population": result.get("pe_inac_f", None),
+                            "employed_population": result.get("pocupada", None),
+                            "employed_male_population": result.get("pocupada_m", None),
+                            "employed_female_population": result.get("pocupada_f", None),
+                            "unemployed_population": result.get("pdesocup", None),
+                            "unemployed_male_population": result.get("pdesocup_m", None),
+                            "unemployed_female_population": result.get("pdesocup_f", None)
+                        }
                     }
-                },
-                "socio_economic_level": {
-                    "block": {
-                        "ses_ab": result["ses_ab"],
-                        "ses_c_plus": result["ses_c_plus"],
-                        "ses_c": result["ses_c"],
-                        "ses_c_minus": result["ses_c_minus"],
-                        "ses_d": result["ses_d"],
-                        "ses_d_plus": result["ses_d_plus"],
-                        "ses_e": result["ses_e"]
+                }
+            else:
+                # CDMX demographic structure - original structure
+                demographic = {
+                    "general" : {
+                        "block" : {
+                                "neighborhood" : result["neighborhood"],
+                                "predominant_level" : result["predominant_level"],
+                                "ageb_code" : result["ageb_code"],
+                                "total_household": result["vivtot"],
+                                "average_household_size": result["prom_ocup"],
+                                "average_number_of_rooms": result["pro_ocup_c"]
+                                
+                                },
+                        "colonia": {
+                                "neighborhood" : result["neighborhood"],
+                                "predominant_level" : result["predominant_level"],
+                                "ageb_code" : result["ageb_code"],
+                                "total_household": result["vivtot_colonia"],
+                                "average_household_size": result["prom_ocup_colonia"],
+                                "average_number_of_rooms": result["pro_ocup_c_colonia"]
+                                },
+                        
+                        "alcaldia": {
+                                "neighborhood" : result['nom_mun'],
+                                "predominant_level" : result["predominant_level"],
+                                "ageb_code" : result["ageb_code"],
+                                "total_household": result["vivtot_alcaldia"],
+                                "average_household_size": result["prom_ocup_alcaldia"],
+                                "average_number_of_rooms": result["pro_ocup_c_alcaldia"]
+                        }
                     },
-                    "colonia": {
-                        "ses_ab": result["ses_ab_colonia"],
-                        "ses_c_plus": result["ses_c_plus_colonia"],
-                        "ses_c": result["ses_c_colonia"],
-                        "ses_c_minus": result["ses_c_minus_colonia"],
-                        "ses_d": result["ses_d_colonia"],
-                        "ses_d_plus": result["ses_d_plus_colonia"],
-                        "ses_e": result["ses_e_colonia"]
+                    "socio_economic_level": {
+                        "block": {
+                            "ses_ab": result["ses_ab"],
+                            "ses_c_plus": result["ses_c_plus"],
+                            "ses_c": result["ses_c"],
+                            "ses_c_minus": result["ses_c_minus"],
+                            "ses_d": result["ses_d"],
+                            "ses_d_plus": result["ses_d_plus"],
+                            "ses_e": result["ses_e"]
+                        },
+                        "colonia": {
+                            "ses_ab": result["ses_ab_colonia"],
+                            "ses_c_plus": result["ses_c_plus_colonia"],
+                            "ses_c": result["ses_c_colonia"],
+                            "ses_c_minus": result["ses_c_minus_colonia"],
+                            "ses_d": result["ses_d_colonia"],
+                            "ses_d_plus": result["ses_d_plus_colonia"],
+                            "ses_e": result["ses_e_colonia"]
+                        },
+                        "alcaldia": {
+                            "ses_ab": result["ses_ab_alcaldia"],
+                            "ses_c_plus": result["ses_c_plus_alcaldia"],
+                            "ses_c": result["ses_c_alcaldia"],
+                            "ses_c_minus": result["ses_c_minus_alcaldia"],
+                            "ses_d": result["ses_d_alcaldia"],
+                            "ses_d_plus": result["ses_d_plus_alcaldia"],
+                            "ses_e": result["ses_e_alcaldia"]
+                        }
                     },
-                    "alcaldia": {
-                        "ses_ab": result["ses_ab_alcaldia"],
-                        "ses_c_plus": result["ses_c_plus_alcaldia"],
-                        "ses_c": result["ses_c_alcaldia"],
-                        "ses_c_minus": result["ses_c_minus_alcaldia"],
-                        "ses_d": result["ses_d_alcaldia"],
-                        "ses_d_plus": result["ses_d_plus_alcaldia"],
-                        "ses_e": result["ses_e_alcaldia"]
-                    }
-                },
-                "population": {
-                    "block": {
-                        "total_population": result["pobtot"],
-                        "male_population": result["pobmas"],
-                        "female_population": result["pobfem"],
+                    "population": {
+                        "block": {
+                            "total_population": result["pobtot"],
+                            "male_population": result["pobmas"],
+                            "female_population": result["pobfem"],
+                        },
+                        "colonia": {
+                            "total_population": result["pobtot_colonia"],
+                            "male_population": result["pobmas_colonia"], 
+                            "female_population": result["pobfem_colonia"],
+                        },
+                        "alcaldia": {
+                            "total_population": result["pobtot_alcaldia"],
+                            "male_population": result["pobmas_alcaldia"],
+                            "female_population": result["pobfem_alcaldia"],
+                        }
                     },
-                    "colonia": {
-                        "total_population": result["pobtot_colonia"],
-                        "male_population": result["pobmas_colonia"], 
-                        "female_population": result["pobfem_colonia"],
+                    "education": {
+                        "block": {
+                            "education_3_5": result["p_3a5"],
+                            "education_6_11": result["p_6a11"],
+                            "education_12_14": result["p_12a14"],
+                            "education_15_17": result["p_15a17"],
+                            "education_18_24": result["p_18a24"],
+                            "education_3_5_attending_school": result["p3a5_noa"],
+                            "education_6_11_attending_school": result["p6a11_noa"],
+                            "education_12_14_attending_school": result["p12a14noa"],
+                            "education_15_17_attending_school": result["p15a17a"],
+                            "education_18_24_attending_school": result["p18a24a"]
+                        },
+                        "colonia": {
+                            "education_3_5": result["p_3a5_colonia"],
+                            "education_6_11": result["p_6a11_colonia"],
+                            "education_12_14": result["p_12a14_colonia"],
+                            "education_15_17": result["p_15a17_colonia"],
+                            "education_18_24": result["p_18a24_colonia"],
+                            "education_3_5_attending_school": result["p3a5_noa_colonia"],
+                            "education_6_11_attending_school": result["p6a11_noa_colonia"],
+                            "education_12_14_attending_school": result["p12a14noa_colonia"],
+                            "education_15_17_attending_school": result["p15a17a_colonia"],
+                            "education_18_24_attending_school": result["p18a24a_colonia"]
+                        },
+                        "alcaldia": {
+                            "education_3_5": result["p_3a5_alcaldia"],
+                            "education_6_11": result["p_6a11_alcaldia"],
+                            "education_12_14": result["p_12a14_alcaldia"],
+                            "education_15_17": result["p_15a17_alcaldia"],
+                            "education_18_24": result["p_18a24_alcaldia"],
+                            "education_3_5_attending_school": result["p3a5_noa_alcaldia"],
+                            "education_6_11_attending_school": result["p6a11_noa_alcaldia"],
+                            "education_12_14_attending_school": result["p12a14noa_alcaldia"],
+                            "education_15_17_attending_school": result["p15a17a_alcaldia"],
+                            "education_18_24_attending_school": result["p18a24a_alcaldia"]
+                        }
                     },
-                    "alcaldia": {
-                        "total_population": result["pobtot_alcaldia"],
-                        "male_population": result["pobmas_alcaldia"],
-                        "female_population": result["pobfem_alcaldia"],
-                    }
-                },
-                "education": {
-                    "block": {
-                        "education_3_5": result["p_3a5"],
-                        "education_6_11": result["p_6a11"],
-                        "education_12_14": result["p_12a14"],
-                        "education_15_17": result["p_15a17"],
-                        "education_18_24": result["p_18a24"],
-                        "education_3_5_attending_school": result["p3a5_noa"],
-                        "education_6_11_attending_school": result["p6a11_noa"],
-                        "education_12_14_attending_school": result["p12a14noa"],
-                        "education_15_17_attending_school": result["p15a17a"],
-                        "education_18_24_attending_school": result["p18a24a"]
-                    },
-                    "colonia": {
-                        "education_3_5": result["p_3a5_colonia"],
-                        "education_6_11": result["p_6a11_colonia"],
-                        "education_12_14": result["p_12a14_colonia"],
-                        "education_15_17": result["p_15a17_colonia"],
-                        "education_18_24": result["p_18a24_colonia"],
-                        "education_3_5_attending_school": result["p3a5_noa_colonia"],
-                        "education_6_11_attending_school": result["p6a11_noa_colonia"],
-                        "education_12_14_attending_school": result["p12a14noa_colonia"],
-                        "education_15_17_attending_school": result["p15a17a_colonia"],
-                        "education_18_24_attending_school": result["p18a24a_colonia"]
-                    },
-                    "alcaldia": {
-                        "education_3_5": result["p_3a5_alcaldia"],
-                        "education_6_11": result["p_6a11_alcaldia"],
-                        "education_12_14": result["p_12a14_alcaldia"],
-                        "education_15_17": result["p_15a17_alcaldia"],
-                        "education_18_24": result["p_18a24_alcaldia"],
-                        "education_3_5_attending_school": result["p3a5_noa_alcaldia"],
-                        "education_6_11_attending_school": result["p6a11_noa_alcaldia"],
-                        "education_12_14_attending_school": result["p12a14noa_alcaldia"],
-                        "education_15_17_attending_school": result["p15a17a_alcaldia"],
-                        "education_18_24_attending_school": result["p18a24a_alcaldia"]
-                    }
-                    },
-                "workforce": {
+                    "workforce": {
                         "block": {
                             "total_workforce": result["pea"],
                             "total_male_workforce": result["pea_m"],
@@ -1190,57 +1352,56 @@ class PropertyController:
                             
                     }
                     },
-                "employment": {
-                    "block": {
-                        "total_employed_population": result["pocupada"],
-                        "total_male_employed_population": result["pocupada_m"],
-                        "total_female_emloyed_population": result["pocupada_f"],
-                        "total_unemployed_population": result["pdesocup"],
-                        "total_unemployed_male_population": result["pdesocup_m"],
-                        "total_unemployed_female_population": result["pdesocup_f"]
-                    },
-                    "colonia": {
-                        "total_employed_population": result["pocupada_colonia"],
-                        "total_male_employed_population": result["pocupada_m_colonia"],
-                        "total_female_emloyed_population": result["pocupada_f_colonia"],
-                        "total_unemployed_population": result["pdesocup_colonia"],
-                        "total_unemployed_male_population": result["pdesocup_m_colonia"],
-                        "total_unemployed_female_population": result["pdesocup_f_colonia"] 
-                        },
-                    "alcaldia": {
-                        "total_employed_population": result["pocupada_alcaldia"],
-                        "total_male_employed_population": result["pocupada_m_alcaldia"],
-                        "total_female_emloyed_population": result["pocupada_f_alcaldia"],
-                        "total_unemployed_population": result["pdesocup_alcaldia"],
-                        "total_unemployed_male_population": result["pdesocup_m_alcaldia"],
-                        "total_unemployed_female_population": result["pdesocup_f_alcaldia"],
-                    }   
-                },    
-               "population_growth": {
-                        "block": { 
-                            "2000": [result.get('pob_2000_ageb', 0), 0],
-                            "2005": [result.get('pob_2005_ageb', 0), float(result.get('cambio_porcentual_2005_ageb', 0) or 0)],
-                            "2010": [result.get('pob_2010_ageb', 0), float(result.get('cambio_porcentual_2010_ageb', 0) or 0)],
-                            "2015": [result.get('pob_2015_ageb', 0), float(result.get('cambio_porcentual_2015_ageb', 0) or 0)],
-                            "2020": [result.get('pob_2020_ageb', 0), float(result.get('cambio_porcentual_2020_ageb', 0) or 0)]
+                    "employment": {
+                        "block": {
+                            "total_employed_population": result["pocupada"],
+                            "total_male_employed_population": result["pocupada_m"],
+                            "total_female_emloyed_population": result["pocupada_f"],
+                            "total_unemployed_population": result["pdesocup"],
+                            "total_unemployed_male_population": result["pdesocup_m"],
+                            "total_unemployed_female_population": result["pdesocup_f"]
                         },
                         "colonia": {
-                            "2000": [result.get('pob_2000_entidad', 0), 0],
-                            "2005": [result.get('pob_2005_entidad', 0), float(result.get('cambio_porcentual_2005_entidad', 0) or 0)],
-                            "2010": [result.get('pob_2010_entidad', 0), float(result.get('cambio_porcentual_2010_entidad', 0) or 0)],
-                            "2015": [result.get('pob_2015_entidad', 0), float(result.get('cambio_porcentual_2015_entidad', 0) or 0)],
-                            "2020": [result.get('pob_2020_entidad', 0), float(result.get('cambio_porcentual_2020_entidad', 0) or 0)]
-                        },
+                            "total_employed_population": result["pocupada_colonia"],
+                            "total_male_employed_population": result["pocupada_m_colonia"],
+                            "total_female_emloyed_population": result["pocupada_f_colonia"],
+                            "total_unemployed_population": result["pdesocup_colonia"],
+                            "total_unemployed_male_population": result["pdesocup_m_colonia"],
+                            "total_unemployed_female_population": result["pdesocup_f_colonia"] 
+                            },
                         "alcaldia": {
-                            "2000": [result.get('pob_2000_municipal', 0), 0],
-                            "2005": [result.get('pob_2005_municipal', 0), float(result.get('cambio_porcentual_2005_municipal', 0) or 0)],
-                            "2010": [result.get('pob_2010_municipal', 0), float(result.get('cambio_porcentual_2010_municipal', 0) or 0)],
-                            "2015": [result.get('pob_2015_municipal', 0), float(result.get('cambio_porcentual_2015_municipal', 0) or 0)],
-                            "2020": [result.get('pob_2020_municipal', 0), float(result.get('cambio_porcentual_2020_municipal', 0) or 0)]
+                            "total_employed_population": result["pocupada_alcaldia"],
+                            "total_male_employed_population": result["pocupada_m_alcaldia"],
+                            "total_female_emloyed_population": result["pocupada_f_alcaldia"],
+                            "total_unemployed_population": result["pdesocup_alcaldia"],
+                            "total_unemployed_male_population": result["pdesocup_m_alcaldia"],
+                            "total_unemployed_female_population": result["pdesocup_f_alcaldia"],
+                        }   
+                    },    
+                   "population_growth": {
+                            "block": { 
+                                "2000": [result.get('pob_2000_ageb', 0), 0],
+                                "2005": [result.get('pob_2005_ageb', 0), float(result.get('cambio_porcentual_2005_ageb', 0) or 0)],
+                                "2010": [result.get('pob_2010_ageb', 0), float(result.get('cambio_porcentual_2010_ageb', 0) or 0)],
+                                "2015": [result.get('pob_2015_ageb', 0), float(result.get('cambio_porcentual_2015_ageb', 0) or 0)],
+                                "2020": [result.get('pob_2020_ageb', 0), float(result.get('cambio_porcentual_2020_ageb', 0) or 0)]
+                            },
+                            "colonia": {
+                                "2000": [result.get('pob_2000_entidad', 0), 0],
+                                "2005": [result.get('pob_2005_entidad', 0), float(result.get('cambio_porcentual_2005_entidad', 0) or 0)],
+                                "2010": [result.get('pob_2010_entidad', 0), float(result.get('cambio_porcentual_2010_entidad', 0) or 0)],
+                                "2015": [result.get('pob_2015_entidad', 0), float(result.get('cambio_porcentual_2015_entidad', 0) or 0)],
+                                "2020": [result.get('pob_2020_entidad', 0), float(result.get('cambio_porcentual_2020_entidad', 0) or 0)]
+                            },
+                            "alcaldia": {
+                                "2000": [result.get('pob_2000_municipal', 0), 0],
+                                "2005": [result.get('pob_2005_municipal', 0), float(result.get('cambio_porcentual_2005_municipal', 0) or 0)],
+                                "2010": [result.get('pob_2010_municipal', 0), float(result.get('cambio_porcentual_2010_municipal', 0) or 0)],
+                                "2015": [result.get('pob_2015_municipal', 0), float(result.get('cambio_porcentual_2015_municipal', 0) or 0)],
+                                "2020": [result.get('pob_2020_municipal', 0), float(result.get('cambio_porcentual_2020_municipal', 0) or 0)]
+                            }
                         }
-                    }
                 }
-            
             return demographic
         except Exception as e:
             raise e
@@ -1251,19 +1412,19 @@ class PropertyController:
         cursor = None
         resp = None
         try:
-            logger.info("Fetching demographic data for fid=%s, user=%s", fid, current_user)
+            logger.info("Fetching demographic data for fid=%s, user=%s, city=%s", fid, current_user, city)
             start_time = time.time()
             # connection = self.db.connect('redshiftdb')
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = self.qc.get_demographics_query(fid, city=city)
-            logger.debug("Executing query: %s", query)
+            logger.info("Executing demographic query for city=%s: %s", city, query)
 
             cursor.execute(query)
             res = cursor.fetchall()
             logger.info("Fetched demographic data for fid=%s", fid)
             if res:
-                response = self.get_demographic_json(res)
+                response = self.get_demographic_json(res, city=city)
                 json_time = time.time()  # Time after JSON conversion
                 
                 upc = UserPropertyController()
