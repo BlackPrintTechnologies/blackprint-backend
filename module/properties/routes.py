@@ -40,7 +40,7 @@ class Property(Resource):
     create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='json')
     create_parser.add_argument('lat', type=str, required=False, help='property_id is required', location='json')
     create_parser.add_argument('lng', type=str, required=False, help='property_id is required', location='json')
-    create_parser.add_argument('data_city', type=str, required=False, default='cdmx', help='City for property data', location='json')
+    create_parser.add_argument('config_city', type=str, required=False, default='cdmx', help='City for property data', location='json')
     create_parser.add_argument("show_all_keys", type=bool, required=False, default=True, help="Show all keys in response", location='json')
 
     @authenticate
@@ -48,7 +48,7 @@ class Property(Resource):
         # Accept all JSON data for flexible filter support
         data = request.get_json(force=True)
         parser_data = self.create_parser.parse_args()
-        city = parser_data.get('data_city', 'cdmx')
+        city = parser_data.get('config_city', 'cdmx')
         # Support grouped filter JSON (e.g., {"property": {...}, "zoning": {...}})
         filters = {}
         for group in ["property", "zoning", "demographics", "points_of_interest"]:
@@ -96,12 +96,12 @@ class Property(Resource):
 class PropertyDemographic(Resource):
     create_parser = reqparse.RequestParser()
     create_parser.add_argument('fid', type=str, required=False, help='fid is required', location='args')
-    create_parser.add_argument('data_city', type=str, required=False, default='cdmx', help='City for property data', location='args')
+    create_parser.add_argument('config_city', type=str, required=False, default='cdmx', help='City for property data', location='args')
     @authenticate
     def get(self, current_user):
         data = self.create_parser.parse_args()
         fid = data.get('fid')
-        city = data.get('data_city', 'cdmx')
+        city = data.get('config_city', 'cdmx')
         norm_fid = normalize_fid(fid)
         cache_key = f"user={current_user}|fid={norm_fid}|city={city}"
         
@@ -190,7 +190,7 @@ class PropertyMarketInfo(Resource):
     create_parser.add_argument('spot2_id', type=str, required=False, help='spot2_id is required', location='args')
     create_parser.add_argument('inmuebles24_id', type=str, required=False, help='inmuebles24_id is required', location='args')
     create_parser.add_argument('propiedades_id', type=str, required=False, help='propiedades_id is required', location='args')
-    create_parser.add_argument('data_city', type=str, required=False, default='cdmx', help='City for property data', location='args')
+    create_parser.add_argument('config_city', type=str, required=False, default='cdmx', help='City for property data', location='args')
 
     @authenticate
     def get(self, current_user):
@@ -198,7 +198,7 @@ class PropertyMarketInfo(Resource):
         spot2_id = data.get('spot2_id')
         inmuebles24_id = data.get('inmuebles24_id')
         propiedades_id = data.get('propiedades_id')
-        city = data.get('data_city', 'cdmx')
+        city = data.get('config_city', 'cdmx')
         
         cache_key_raw = f"user={current_user}|spot2_id={spot2_id}|inmuebles24_id={inmuebles24_id}|propiedades_id={propiedades_id}|city={city}"
         cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
