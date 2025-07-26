@@ -1103,9 +1103,23 @@ class PropertyController:
             if fid:
                 filter_query += f" AND fid = {fid}"
             elif lat and lng:
-                h3Index = h3.latlng_to_cell(float(lat), float(lng), 13)
-                h3_index_decimal = str(int(h3Index, 16))
-                filter_query += f" AND h3_indexes ILIKE '%{h3_index_decimal}%'"
+                if city == 'qro':
+                    # QRO: Use H3 resolution 12 with neighbors to handle cell boundary issues
+                    h3Index = h3.latlng_to_cell(float(lat), float(lng), 12)
+                    h3_index_decimal = str(int(h3Index, 16))
+                    
+                    # Get neighbors to handle properties spanning multiple H3 cells
+                    neighbors = h3.grid_disk(h3Index, 1)  # Get the cell + its immediate neighbors
+                    neighbor_decimals = [str(int(neighbor, 16)) for neighbor in neighbors]
+                    
+                    # Create OR condition for the cell and its neighbors
+                    h3_conditions = " OR ".join([f"h3_indexes ILIKE '%{h3_decimal}%'" for h3_decimal in neighbor_decimals])
+                    filter_query += f" AND ({h3_conditions})"
+                else:
+                    # CDMX: Use original approach with H3 resolution 13
+                    h3Index = h3.latlng_to_cell(float(lat), float(lng), 13)
+                    h3_index_decimal = str(int(h3Index, 16))
+                    filter_query += f" AND h3_indexes ILIKE '%{h3_index_decimal}%'"
             else:
                 logger.warning("Invalid request: Missing fid or lat/lng")
                 return Response.bad_request(message="Invalid request")
@@ -1160,6 +1174,7 @@ class PropertyController:
                 upc = UserPropertyController()
                 if fid:
                     upc.add_user_property(fid, current_user, 'view')
+                logger.info(f"[get_properties] Successfully fetched {len(result_jsons)} properties")
                 resp = Response.success(data=result_jsons, message='Success')
         except Exception as e:
             logger.error("Error fetching properties: %s", str(e), exc_info=True)
