@@ -134,10 +134,11 @@ class BrandController:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = self.get_brand_query(radius, fid, category_1=category, city=city)
+            print("query=====>", query)
             cursor.execute(query)
             connection.commit()
             res = cursor.fetchall()
-            print("res=====>", res)
+            # print("res=====>", res)
             #new chnage 
             # Add icon URLs to the results
             
