@@ -4,8 +4,8 @@ class QueryController :
         pass
 
     @staticmethod
-    def get_property_query(filter, city='cdmx', show_all_keys=True):
-        if city == 'qro':
+    def get_property_query(filter, city='mexico', show_all_keys=True):
+        if city == 'queretaro':
             table = 'blackprint_db_prd.data_product.v_qro'
             fid_col = 'id_stg_demographic_socioeconomic_qro as fid'
             # Use QRO columns (from v_qro_column.txt, map as needed)
@@ -261,7 +261,7 @@ class QueryController :
         query = f'SELECT {base_columns}'
         if show_all_keys:
             # Add extra columns for both cities as needed
-            if city == 'qro':
+            if city == 'queretaro':
                 query += ''',
                 -- QRO-specific POI and traffic columns
                 brands_active_life_front,
@@ -705,8 +705,8 @@ class QueryController :
         return query
     
     @staticmethod
-    def get_demographics_query(fid, city='cdmx'):
-        if city == 'qro':
+    def get_demographics_query(fid, city='mexico'):
+        if city == 'queretaro':
             # QRO demographic query - use v_qro table
             query = f'''select 
                 id_stg_demographic_socioeconomic_qro as fid,

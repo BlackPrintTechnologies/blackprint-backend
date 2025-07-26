@@ -63,7 +63,7 @@ class UserPropertyController:
             # Process results using existing property JSON formatter
             if property_results:
                 property_controller = PropertyController()
-                formatted_results = property_controller.get_property_json(property_results, city='cdmx')  # Default to CDMX for user properties
+                formatted_results = property_controller.get_property_json(property_results, city='mexico')  # Default to CDMX for user properties
                 print("Formatted results I am getting %s",len(formatted_results))
                 final_res = []
                 for result in formatted_results:
@@ -369,14 +369,14 @@ class PropertyController:
                 self.redshift_connection.disconnect(connection)
         return images
 
-    def get_property_json(self, results, show_all_keys=True, city='cdmx'):
+    def get_property_json(self, results, show_all_keys=True, city='mexico'):
         resp = []
         try:
             logger.info("Processing property JSON for %d results with city=%s", len(results), city)
             for result in results:
                 traffic = {}  # Always initialize traffic to an empty dict
                 # Handle different column structures for CDMX vs QRO
-                if city == 'qro':
+                if city == 'queretaro':
                     # QRO now uses same structure as CDMX (no demographic fields)
                     property_details = {
                         "fid": result["fid"],
@@ -522,7 +522,7 @@ class PropertyController:
                 property_details["street_images"] = street_images
 
                 # Handle market_info for different cities
-                if city == 'qro':
+                if city == 'queretaro':
                     market_info = {
                         "ids_market_data_spot2" : result.get("ids_market_data_spot2", None),
                         "ids_market_data_inmuebles24" : result.get("ids_market_data_inmuebles24", None),
@@ -594,7 +594,7 @@ class PropertyController:
                     }
                 if show_all_keys:
                     # Handle POI data for different cities
-                    if city == 'qro':
+                    if city == 'queretaro':
                         pois = {
                             #add category here for icon image
                             "category": {
@@ -685,7 +685,7 @@ class PropertyController:
                         }
                 if show_all_keys:
                     # Handle traffic data for different cities
-                    if city == 'qro':
+                    if city == 'queretaro':
                         traffic = {
                             "front": {
                                 "at_rest_avg_x_hour_0_front": result.get("at_rest_avg_x_hour_0_front", None),
@@ -1090,7 +1090,7 @@ class PropertyController:
             logger.error("Error processing property JSON: %s", str(e), exc_info=True)
             raise e
 
-    def get_properties(self, current_user, fid=None, lat=None, lng=None, city='cdmx'):
+    def get_properties(self, current_user, fid=None, lat=None, lng=None, city='mexico'):
         from utils.streetViewUtils import get_street_view_metadata_cached
         import copy
         logger.info(f"[get_properties] Called with city={city}, fid={fid}, lat={lat}, lng={lng}")
@@ -1103,7 +1103,7 @@ class PropertyController:
             if fid:
                 filter_query += f" AND fid = {fid}"
             elif lat and lng:
-                if city == 'qro':
+                if city == 'queretaro':
                     # QRO: Use H3 resolution 12 with neighbors to handle cell boundary issues
                     h3Index = h3.latlng_to_cell(float(lat), float(lng), 12)
                     h3_index_decimal = str(int(h3Index, 16))
@@ -1186,7 +1186,7 @@ class PropertyController:
                 self.redshift_connection.disconnect(connection)
             return resp
 
-    def get_property_market_info(self, spot2_id, inmuebles24_id, propiedades_id, city='cdmx'):
+    def get_property_market_info(self, spot2_id, inmuebles24_id, propiedades_id, city='mexico'):
         connection = None
         cursor = None
         try:
@@ -1208,11 +1208,11 @@ class PropertyController:
             return resp
         
     @staticmethod
-    def get_demographic_json(result, city='cdmx'):
+    def get_demographic_json(result, city='mexico'):
         # print("DEMOGRAPHIC RESULT",result)
         result = result[0]
         try:
-            if city == 'qro':
+            if city == 'queretaro':
                 # QRO demographic structure - use .get() to handle missing columns
                 demographic = {
                     "general" : {
@@ -1569,7 +1569,7 @@ class PropertyController:
             raise e
     # @cache_response(prefix='demographic',expiration=3600)
     
-    def get_property_demographic(self, fid, current_user, city='cdmx'):
+    def get_property_demographic(self, fid, current_user, city='mexico'):
         connection = None
         cursor = None
         resp = None
@@ -1759,7 +1759,7 @@ class PropertyController:
             if connection:
                 self.redshift_connection.disconnect(connection)
 
-    def filter_properties(self, filters, city='cdmx'):
+    def filter_properties(self, filters, city='mexico'):
         """
         Accepts a dict of filter fields and returns filtered properties.
         Maps UI keys to DB columns for correct filtering.
