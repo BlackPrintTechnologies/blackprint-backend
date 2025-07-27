@@ -16,14 +16,14 @@ setup_logging()
 # Retrieve the logger
 logger = logging.getLogger(__name__)
 
-def fetch_properties_layer_data_raw():
+def fetch_properties_layer_data_raw(city='mexico'):
     controller = PropertyLayerController()
     connection = None
     resp = None
     try:
         connection = controller.db.connect()
         cursor = connection.cursor(cursor_factory=RealDictCursor)
-        query = controller.get_property_query()
+        query = controller.get_property_query(city=city)
         cursor.execute(query)
         res = cursor.fetchall()
         resp = {"message": "Success", "data": {"response": res}}, 200
@@ -38,9 +38,12 @@ def fetch_properties_layer_data_raw():
             controller.db.disconnect(connection)
         return resp
 
-# Remove the global cache initialization
-# _property_layer_cache = fetch_properties_layer_data_raw()
-# _property_layer_cache_json = json.dumps(_property_layer_cache[0])  # Only the dict, not the status
+# Initialize caches for both cities
+_property_layer_cache_mexico = fetch_properties_layer_data_raw('mexico')
+_property_layer_cache_mexico_json = json.dumps(_property_layer_cache_mexico[0])  # Only the dict, not the status
+
+_property_layer_cache_qro = fetch_properties_layer_data_raw('queretaro')
+_property_layer_cache_qro_json = json.dumps(_property_layer_cache_qro[0])  # Only the dict, not the status
 
 # {
 #     "search_name" : "test",
@@ -113,11 +116,12 @@ class PropertyLayer(Resource):
     create_parser.add_argument('config_city', type=str, required=False, default='mexico', help='City configuration', location='args')
 
     def get(self):
-        logger.info("Serving property layer data.")
+        logger.info("Serving cached property layer data (pre-serialized JSON).")
         data = self.create_parser.parse_args()
         city = data.get('config_city', 'mexico')
-        logger.info(f"Fetching property layer data for city: {city}")
         
-        controller = PropertyLayerController()
-        response = controller.get_properties_layer_data(city=city)
-        return response
+        # Serve from appropriate cache based on city
+        if city == 'queretaro':
+            return FlaskResponse(_property_layer_cache_qro_json, status=200, mimetype='application/json')
+        else:
+            return FlaskResponse(_property_layer_cache_mexico_json, status=200, mimetype='application/json')
