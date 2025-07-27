@@ -191,20 +191,26 @@ class TrafficController:
         self.db = RedshiftDatabase()
 
     @staticmethod
-    def get_traffic_query(catchment, fid):
+    def get_traffic_query(catchment, fid, config_city=None):
         """Generates SQL query based on catchment radius and fid."""
+        if config_city == "queretaro":
+            table_name = 'blackprint_db_prd.presentation.dataset_mobility_data_h3_qro'
+            fid_column = 'id_stg_demographic_socioeconomic_qro'
+        else:
+            table_name = 'blackprint_db_prd.presentation.dataset_mobility_data_h3'
+            fid_column = 'fid'
         query_map = {
             '500': f'''SELECT *
-                        FROM blackprint_db_prd.presentation.dataset_mobility_data_h3 where fid={fid} and type='CIRCLE_500_METERS' ''',
+                        FROM {table_name} where {fid_column}={fid} and type='CIRCLE_500_METERS' ''',
             '1000': f'''SELECT *
-                        FROM blackprint_db_prd.presentation.dataset_mobility_data_h3 where fid={fid} and type='CIRCLE_1000_METERS' ''',
+                        FROM {table_name} where {fid_column}={fid} and type='CIRCLE_1000_METERS' ''',
             '5': f'''SELECT *
-                        FROM blackprint_db_prd.presentation.dataset_mobility_data_h3 where fid={fid} and type='FRONT_OF_STORE' '''
+                        FROM {table_name} where {fid_column}={fid} and type='FRONT_OF_STORE' '''
         }
         return query_map.get(catchment)
 
-    def get_mobility_data_within_buffer(self, fid, radius):
-        query  = self.get_traffic_query(radius, fid)
+    def get_mobility_data_within_buffer(self, fid, radius, config_city=None):
+        query  = self.get_traffic_query(radius, fid, config_city=config_city)
         # Execute the query using your database connection
         connection = None
         cursor = None

@@ -90,16 +90,17 @@ class Traffic(Resource):
     create_parser = reqparse.RequestParser()
     create_parser.add_argument('radius', type=str, required=False, help='User ID is required')
     create_parser.add_argument('fid', type=str, required=False, help='User ID is required')
-
+    create_parser.add_argument('config_city', type=str, default='mexico', required=False, help='City is required')
     
     def post(self):
         logger.info("Received request to fetch traffic data.")
         data = self.create_parser.parse_args()
         fid = data.get('fid')
         radius = data.get('radius')
+        config_city = data.get('config_city', 'mexico')
         logger.debug(f"Parsed input: fid={fid}, radius={radius}")
         traffic_controller = TrafficController()
-        response = traffic_controller.get_mobility_data_within_buffer(fid,radius)
+        response = traffic_controller.get_mobility_data_within_buffer(fid,radius,config_city=config_city)
         # if response.status_code == 200:
         logger.info(f"Successfully retrieved traffic data for fid={fid}, radius={radius}")
         # else:
