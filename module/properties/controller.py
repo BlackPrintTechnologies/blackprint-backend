@@ -1275,8 +1275,8 @@ class PropertyController:
                     "population": {
                         "block": {
                             "total_population": result.get("pobtot", None),
-                            "male_population": result.get("pea_m", None),  # Approximate
-                            "female_population": result.get("pea_f", None),  # Approximate
+                            "male_population": result.get("pea_m", None),  # Best available approximation from workforce data
+                            "female_population": result.get("pea_f", None),  # Best available approximation from workforce data
                         },
                         "colonia": {
                             "total_population": result.get("pobtot", None),
@@ -1330,45 +1330,76 @@ class PropertyController:
                     "workforce": {
                         "block": {
                             "total_workforce": result.get("pea", None),
-                            "male_workforce": result.get("pea_m", None),
-                            "female_workforce": result.get("pea_f", None),
-                            "inactive_population": result.get("pe_inac", None),
-                            "inactive_male_population": result.get("pe_inac_m", None),
-                            "inactive_female_population": result.get("pe_inac_f", None),
-                            "employed_population": result.get("pocupada", None),
-                            "employed_male_population": result.get("pocupada_m", None),
-                            "employed_female_population": result.get("pocupada_f", None),
-                            "unemployed_population": result.get("pdesocup", None),
-                            "unemployed_male_population": result.get("pdesocup_m", None),
-                            "unemployed_female_population": result.get("pdesocup_f", None)
+                            "total_male_workforce": result.get("pea_m", None),
+                            "total_female_workforce": result.get("pea_f", None),
+                            "total_inactive_population": result.get("pe_inac", None),
+                            "total_inactive_male_population": result.get("pe_inac_m", None),
+                            "total_inactive_female_population": result.get("pe_inac_f", None)
                         },
                         "colonia": {
                             "total_workforce": result.get("pea", None),
-                            "male_workforce": result.get("pea_m", None),
-                            "female_workforce": result.get("pea_f", None),
-                            "inactive_population": result.get("pe_inac", None),
-                            "inactive_male_population": result.get("pe_inac_m", None),
-                            "inactive_female_population": result.get("pe_inac_f", None),
-                            "employed_population": result.get("pocupada", None),
-                            "employed_male_population": result.get("pocupada_m", None),
-                            "employed_female_population": result.get("pocupada_f", None),
-                            "unemployed_population": result.get("pdesocup", None),
-                            "unemployed_male_population": result.get("pdesocup_m", None),
-                            "unemployed_female_population": result.get("pdesocup_f", None)
+                            "total_male_workforce": result.get("pea_m", None),
+                            "total_female_workforce": result.get("pea_f", None),
+                            "total_inactive_population": result.get("pe_inac", None),
+                            "total_inactive_male_population": result.get("pe_inac_m", None),
+                            "total_inactive_female_population": result.get("pe_inac_f", None)
                         },
                         "alcaldia": {
                             "total_workforce": result.get("pea", None),
-                            "male_workforce": result.get("pea_m", None),
-                            "female_workforce": result.get("pea_f", None),
-                            "inactive_population": result.get("pe_inac", None),
-                            "inactive_male_population": result.get("pe_inac_m", None),
-                            "inactive_female_population": result.get("pe_inac_f", None),
-                            "employed_population": result.get("pocupada", None),
-                            "employed_male_population": result.get("pocupada_m", None),
-                            "employed_female_population": result.get("pocupada_f", None),
-                            "unemployed_population": result.get("pdesocup", None),
-                            "unemployed_male_population": result.get("pdesocup_m", None),
-                            "unemployed_female_population": result.get("pdesocup_f", None)
+                            "total_male_workforce": result.get("pea_m", None),
+                            "total_female_workforce": result.get("pea_f", None),
+                            "total_inactive_population": result.get("pe_inac", None),
+                            "total_inactive_male_population": result.get("pe_inac_m", None),
+                            "total_inactive_female_population": result.get("pe_inac_f", None)
+                        }
+                    },
+                    "employment": {
+                        "block": {
+                            "total_employed_population": result.get("pocupada", None),
+                            "total_male_employed_population": result.get("pocupada_m", None),
+                            "total_female_emloyed_population": result.get("pocupada_f", None),  # Note: keeping Mexico's typo "emloyed"
+                            "total_unemployed_population": result.get("pdesocup", None),
+                            "total_unemployed_male_population": result.get("pdesocup_m", None),
+                            "total_unemployed_female_population": result.get("pdesocup_f", None)
+                        },
+                        "colonia": {
+                            "total_employed_population": result.get("pocupada", None),
+                            "total_male_employed_population": result.get("pocupada_m", None),
+                            "total_female_emloyed_population": result.get("pocupada_f", None),
+                            "total_unemployed_population": result.get("pdesocup", None),
+                            "total_unemployed_male_population": result.get("pdesocup_m", None),
+                            "total_unemployed_female_population": result.get("pdesocup_f", None)
+                        },
+                        "alcaldia": {
+                            "total_employed_population": result.get("pocupada", None),
+                            "total_male_employed_population": result.get("pocupada_m", None),
+                            "total_female_emloyed_population": result.get("pocupada_f", None),
+                            "total_unemployed_population": result.get("pdesocup", None),
+                            "total_unemployed_male_population": result.get("pdesocup_m", None),
+                            "total_unemployed_female_population": result.get("pdesocup_f", None)
+                        }
+                    },
+                    "population_growth": {
+                        "block": {
+                            "2000": [None, 0.0],
+                            "2005": [None, 0.0],
+                            "2010": [None, 0.0],
+                            "2015": [None, 0.0],
+                            "2020": [None, 0.0]
+                        },
+                        "colonia": {
+                            "2000": [None, 0.0],
+                            "2005": [None, 0.0],
+                            "2010": [None, 0.0],
+                            "2015": [None, 0.0],
+                            "2020": [None, 0.0]
+                        },
+                        "alcaldia": {
+                            "2000": [None, 0.0],
+                            "2005": [None, 0.0],
+                            "2010": [None, 0.0],
+                            "2015": [None, 0.0],
+                            "2020": [None, 0.0]
                         }
                     }
                 }
