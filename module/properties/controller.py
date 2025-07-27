@@ -153,7 +153,7 @@ class UserPropertyController:
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = f'''update bp_user_property set request_status = {request_status},  updated_at = now()  where fid = {fid} and user_id = {user} and config_city = {config_city} returning id'''
+            query = f'''update bp_user_property set request_status = {request_status},  updated_at = now()  where fid = {fid} and user_id = {user} and config_city = '{config_city}' returning id'''
             cursor.execute(query)
             connection.commit() 
             resp = Response.success(message='Property requested successfully')
@@ -175,7 +175,7 @@ class UserPropertyController:
             start_time = time.time()
             connection = self.db.connect()
             cursor = connection.cursor()
-            query = f"INSERT INTO bp_user_property (fid, user_id, user_property_status) VALUES ({fid}, {user_id}, '{prop_status}')"
+            query = f"INSERT INTO bp_user_property (fid, user_id, user_property_status, config_city) VALUES ({fid}, {user_id}, '{prop_status}', '{config_city}')"
             logger.debug("Executing query: %s", query)
 
             cursor.execute(query)
