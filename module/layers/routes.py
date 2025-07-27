@@ -38,8 +38,9 @@ def fetch_properties_layer_data_raw():
             controller.db.disconnect(connection)
         return resp
 
-_property_layer_cache = fetch_properties_layer_data_raw()
-_property_layer_cache_json = json.dumps(_property_layer_cache[0])  # Only the dict, not the status
+# Remove the global cache initialization
+# _property_layer_cache = fetch_properties_layer_data_raw()
+# _property_layer_cache_json = json.dumps(_property_layer_cache[0])  # Only the dict, not the status
 
 # {
 #     "search_name" : "test",
@@ -109,7 +110,14 @@ class Traffic(Resource):
 
 class PropertyLayer(Resource):
     create_parser = reqparse.RequestParser()
+    create_parser.add_argument('config_city', type=str, required=False, default='mexico', help='City configuration', location='args')
 
     def get(self):
-        logger.info("Serving cached property layer data (pre-serialized JSON).")
-        return FlaskResponse(_property_layer_cache_json, status=200, mimetype='application/json')
+        logger.info("Serving property layer data.")
+        data = self.create_parser.parse_args()
+        city = data.get('config_city', 'mexico')
+        logger.info(f"Fetching property layer data for city: {city}")
+        
+        controller = PropertyLayerController()
+        response = controller.get_properties_layer_data(city=city)
+        return response
