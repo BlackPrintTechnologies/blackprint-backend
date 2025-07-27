@@ -11,8 +11,50 @@ class PropertyLayerController:
         self.rdsDb = Database()
     
     @staticmethod
-    def get_property_query():
-        query = f'''
+    def get_property_query(city='mexico'):
+        if city == 'queretaro':
+            # QRO table with available columns from v_qro_column.txt
+            query = f'''
+                select   
+                id_stg_demographic_socioeconomic_qro as fid,
+                centroid,
+                is_on_market,
+                ids_market_data_spot2,
+                ids_market_data_inmuebles24,
+                geometry_type,
+                bbox,
+                h3_indexes,
+                -- QRO doesn't have these Mexico columns, so we'll use NULL or similar values
+                NULL as street_address,
+                NULL as total_surface_area,
+                NULL as total_construction_area,
+                NULL as property_type_inmuebles24,
+                NULL as year_built,
+                NULL as special_facilities,
+                NULL as unit_land_value,
+                NULL as land_value,
+                NULL as key_vus,
+                niv_predom as predominant_level,
+                tot_vivien as total_houses,
+                NULL as locality_size,
+                NULL as floor_levels,
+                NULL as open_space,
+                NULL as id_land_use,
+                cve_mun as id_municipality,
+                NULL as id_city_blocks,
+                NULL as height,
+                NULL as cos,
+                NULL as cus,
+                NULL as min_housing
+                from blackprint_db_prd.data_product.v_qro
+                WHERE 
+                (is_on_market != 'Off Market')
+                -- For QRO, we'll filter based on available market data
+                AND (ids_market_data_spot2 IS NOT NULL OR ids_market_data_inmuebles24 IS NOT NULL)
+                '''
+        else:
+            # Mexico (existing query)
+            query = f'''
                 select   
                 fid,
                 centroid,
@@ -53,16 +95,15 @@ class PropertyLayerController:
                 '''
         return query
     
-    @cache_response(prefix='properties_layer',expiration=360000)
-    def get_properties_layer_data(self):
+    # Remove @cache_response decorator for now - will implement city-aware caching manually
+    def get_properties_layer_data(self, city='mexico'):
         connection = None
         resp = None
         try :
-            print("get_properties_layer_data=====>")
-            # connection = self.rdsDb.connect('redshiftdb')
+            print(f"get_properties_layer_data for city: {city}")
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = self.get_property_query()
+            query = self.get_property_query(city=city)
             cursor.execute(query)
             connection.commit()
             res = cursor.fetchall()
