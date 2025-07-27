@@ -1385,47 +1385,16 @@ where fid = {fid}
         return query
     
     @staticmethod
-    def get_market_info_query(spot2, inmuebles24, propiedades):
-        if inmuebles24 :
-            query = f'''
-                    SELECT
-                    "id_market_data_inmuebles24" AS "id_market_data_inmuebles24",
-                    "title" AS "title",
-                    "description" AS "description",
-                    "rent_price" AS "rent_price",
-                    "rent_price_clean" AS "rent_price_clean",
-                    "rent_price_per_m2" AS "rent_price_per_m2",
-                    "buy_price" AS "buy_price",
-                    "buy_price_clean" AS "buy_price_clean",
-                    "buy_price_per_m2" AS "buy_price_per_m2",
-                    "maintenance_price" AS "maintenance_price",
-                    "publication_date" AS "publication_date",
-                    "parking_lot" AS "parking_lot",
-                    "bathrooms" AS "bathrooms",
-                    "bedrooms" AS "bedrooms",
-                    "age" AS "age",
-                    "pictures" AS "pictures",
-                    "property_type" AS "property_type",
-                    "operation_type" AS "operation_type",
-                    "property_dimension" AS "total_area",
-                    "property_dimension_clean" AS "total_area_clean",
-                    "zone" AS "zone",
-                    "city" AS "city",
-                    "address" AS "address",
-                    "url" AS "url",
-                    "amenities" AS "amenities"
-                    from blackprint_db_prd.presentation.dim_market_data_inmuebles24
-                    where id_market_data_inmuebles24 = {inmuebles24} '''
-        elif spot2:
-            query = f""" SELECT
-                        "id_market_data_spot2" AS "id_market_data_spot2",
+    def get_market_info_query(spot2, inmuebles24, propiedades, city='mexico'):
+        if inmuebles24:
+            if city == 'queretaro':
+                # QRO inmuebles24 query with QRO-specific table and columns
+                query = f'''
+                        SELECT
+                        "id_market_data_inmuebles24" AS "id_market_data_inmuebles24",
                         "title" AS "title",
-                        "address" AS "address",
-                        "street_address" AS "street_address",
-                        "city" AS "city",
-                        "zip_code" AS "zip_code",
-                        "description" AS "description",
-                        "operation_type" AS "operation_type",
+                        "generated_title" AS "generated_title",
+                        "description" AS "description", 
                         "rent_price" AS "rent_price",
                         "rent_price_clean" AS "rent_price_clean",
                         "rent_price_per_m2" AS "rent_price_per_m2",
@@ -1433,44 +1402,181 @@ where fid = {fid}
                         "buy_price_clean" AS "buy_price_clean",
                         "buy_price_per_m2" AS "buy_price_per_m2",
                         "maintenance_price" AS "maintenance_price",
-                        "property_type" AS "property_type",
-                        "total_area" AS "total_area",
-                        "total_area_clean" AS "total_area_clean",
-                        "amenities" AS "amenities",
+                        "publication_date" AS "publication_date",
+                        "parking_lot" AS "parking_lot",
+                        "bathrooms" AS "bathrooms",
+                        "bedrooms" AS "bedrooms",
+                        "age" AS "age",
+                        "latitude" AS "latitude",
+                        "longitude" AS "longitude",
                         "pictures" AS "pictures",
+                        "property_type" AS "property_type",
+                        "operation_type" AS "operation_type",
+                        "property_dimension" AS "total_area",
+                        "property_dimension_clean" AS "total_area_clean",
+                        "country" AS "country",
+                        "zone" AS "zone",
+                        "city" AS "city",
+                        "address" AS "address",
+                        "premier" AS "premier",
                         "url" AS "url",
-                        "parking_spaces" AS "parking_spaces",
-                        "condition" AS "condition",
-                        "date_published" AS "publication_date"
-                    FROM
-                    blackprint_db_prd.presentation.dim_market_data_spot2
-                    WHERE id_market_data_spot2 = {spot2} """       
-        elif propiedades :
-            query = f""" 
-                    SELECT
-                    "id_market_data_propiedades" AS "id_market_data_propiedades",
-                    "url" AS "url",
-                    "property_type" AS "property_type",
-                    "description" AS "description",
-                    "buy_price" AS "buy_price",
-                    "buy_price_usd" AS "buy_price_usd",
-                    "buy_price_clean" AS "buy_price_clean",
-                    "buy_price_per_m2" AS "buy_price_per_m2",
-                    "rent_price" AS "rent_price",
-                    "rent_price_usd" AS "rent_price_usd",
-                    "rent_price_clean" AS "rent_price_clean",
-                    "rent_price_per_m2" AS "rent_price_per_m2",
-                    "size" AS "size",
-                    "total_area_clean" AS "total_area_clean",
-                    "postal_code" AS "postal_code",
-                    "street_address" AS "street_address",
-                    "bedrooms" AS "bedrooms",
-                    "bathrooms" AS "bathrooms",
-                    "geometry_coords" AS "geometry_coords"
-                    FROM
-                    blackprint_db_prd.presentation.dim_market_data_propiedades
-                    where id_market_data_propiedades = {propiedades}
-                """
+                        "category" AS "category",
+                        "amenities" AS "amenities",
+                        "seller" AS "seller",
+                        "geometry_coords" AS "geometry_coords"
+                        FROM blackprint_db_prd.presentation.dim_market_data_inmuebles24_qro
+                        WHERE id_market_data_inmuebles24 = {inmuebles24} '''
+            else:
+                # Mexico inmuebles24 query - original
+                query = f'''
+                        SELECT
+                        "id_market_data_inmuebles24" AS "id_market_data_inmuebles24",
+                        "title" AS "title",
+                        "description" AS "description",
+                        "rent_price" AS "rent_price",
+                        "rent_price_clean" AS "rent_price_clean",
+                        "rent_price_per_m2" AS "rent_price_per_m2",
+                        "buy_price" AS "buy_price",
+                        "buy_price_clean" AS "buy_price_clean",
+                        "buy_price_per_m2" AS "buy_price_per_m2",
+                        "maintenance_price" AS "maintenance_price",
+                        "publication_date" AS "publication_date",
+                        "parking_lot" AS "parking_lot",
+                        "bathrooms" AS "bathrooms",
+                        "bedrooms" AS "bedrooms",
+                        "age" AS "age",
+                        "pictures" AS "pictures",
+                        "property_type" AS "property_type",
+                        "operation_type" AS "operation_type",
+                        "property_dimension" AS "total_area",
+                        "property_dimension_clean" AS "total_area_clean",
+                        "zone" AS "zone",
+                        "city" AS "city",
+                        "address" AS "address",
+                        "url" AS "url",
+                        "amenities" AS "amenities"
+                        FROM blackprint_db_prd.presentation.dim_market_data_inmuebles24
+                        WHERE id_market_data_inmuebles24 = {inmuebles24} '''
+        elif spot2:
+            if city == 'queretaro':
+                # QRO spot2 query using the available dim_market_data_spot2_qro table
+                query = f""" SELECT
+                            "id_market_data_spot2" AS "id_market_data_spot2",
+                            "title" AS "title",
+                            "address" AS "address",
+                            "street_address" AS "street_address",
+                            "delegacion" AS "delegacion",
+                            "city" AS "city",
+                            "zip_code" AS "zip_code",
+                            "latitude" AS "latitude",
+                            "longitude" AS "longitude",
+                            "description" AS "description",
+                            "operation_type" AS "operation_type",
+                            "rent_price" AS "rent_price",
+                            "rent_price_clean" AS "rent_price_clean",
+                            "rent_price_per_m2" AS "rent_price_per_m2",
+                            "buy_price" AS "buy_price",
+                            "buy_price_clean" AS "buy_price_clean",
+                            "buy_price_per_m2" AS "buy_price_per_m2",
+                            "maintenance_price" AS "maintenance_price",
+                            "property_type" AS "property_type",
+                            "total_area" AS "total_area",
+                            "total_area_clean" AS "total_area_clean",
+                            "amenities" AS "amenities",
+                            "pictures" AS "pictures",
+                            "url" AS "url",
+                            "parking_spaces" AS "parking_spaces",
+                            "condition" AS "condition",
+                            "date_published" AS "publication_date",
+                            "geometry_coords" AS "geometry_coords"
+                        FROM
+                        blackprint_db_prd.presentation.dim_market_data_spot2_qro
+                        WHERE id_market_data_spot2 = {spot2} """
+            else:
+                # Mexico spot2 query - original
+                query = f""" SELECT
+                            "id_market_data_spot2" AS "id_market_data_spot2",
+                            "title" AS "title",
+                            "address" AS "address",
+                            "street_address" AS "street_address",
+                            "city" AS "city",
+                            "zip_code" AS "zip_code",
+                            "description" AS "description",
+                            "operation_type" AS "operation_type",
+                            "rent_price" AS "rent_price",
+                            "rent_price_clean" AS "rent_price_clean",
+                            "rent_price_per_m2" AS "rent_price_per_m2",
+                            "buy_price" AS "buy_price",
+                            "buy_price_clean" AS "buy_price_clean",
+                            "buy_price_per_m2" AS "buy_price_per_m2",
+                            "maintenance_price" AS "maintenance_price",
+                            "property_type" AS "property_type",
+                            "total_area" AS "total_area",
+                            "total_area_clean" AS "total_area_clean",
+                            "amenities" AS "amenities",
+                            "pictures" AS "pictures",
+                            "url" AS "url",
+                            "parking_spaces" AS "parking_spaces",
+                            "condition" AS "condition",
+                            "date_published" AS "publication_date"
+                        FROM
+                        blackprint_db_prd.presentation.dim_market_data_spot2
+                        WHERE id_market_data_spot2 = {spot2} """       
+        elif propiedades:
+            if city == 'queretaro':
+                # QRO propiedades - table doesn't exist, return empty result
+                query = f""" 
+                        SELECT
+                        NULL AS "id_market_data_propiedades",
+                        NULL AS "url",
+                        NULL AS "property_type",
+                        NULL AS "description",
+                        NULL AS "buy_price",
+                        NULL AS "buy_price_usd",
+                        NULL AS "buy_price_clean",
+                        NULL AS "buy_price_per_m2",
+                        NULL AS "rent_price",
+                        NULL AS "rent_price_usd",
+                        NULL AS "rent_price_clean",
+                        NULL AS "rent_price_per_m2",
+                        NULL AS "size",
+                        NULL AS "total_area_clean",
+                        NULL AS "postal_code",
+                        NULL AS "street_address",
+                        NULL AS "bedrooms",
+                        NULL AS "bathrooms",
+                        NULL AS "geometry_coords"
+                        WHERE 1=0 """  # Return empty result - propiedades table not available for QRO
+            else:
+                # Mexico propiedades query - original
+                query = f""" 
+                        SELECT
+                        "id_market_data_propiedades" AS "id_market_data_propiedades",
+                        "url" AS "url",
+                        "property_type" AS "property_type",
+                        "description" AS "description",
+                        "buy_price" AS "buy_price",
+                        "buy_price_usd" AS "buy_price_usd",
+                        "buy_price_clean" AS "buy_price_clean",
+                        "buy_price_per_m2" AS "buy_price_per_m2",
+                        "rent_price" AS "rent_price",
+                        "rent_price_usd" AS "rent_price_usd",
+                        "rent_price_clean" AS "rent_price_clean",
+                        "rent_price_per_m2" AS "rent_price_per_m2",
+                        "size" AS "size",
+                        "total_area_clean" AS "total_area_clean",
+                        "postal_code" AS "postal_code",
+                        "street_address" AS "street_address",
+                        "bedrooms" AS "bedrooms",
+                        "bathrooms" AS "bathrooms",
+                        "geometry_coords" AS "geometry_coords"
+                        FROM
+                        blackprint_db_prd.presentation.dim_market_data_propiedades
+                        WHERE id_market_data_propiedades = {propiedades}
+                    """
+        else:
+            # No valid ID provided
+            query = "SELECT NULL WHERE 1=0"
 
         return query
 
