@@ -34,7 +34,7 @@ class UserPropertyController:
         self.redshift_connection = RedshiftDatabase()
         self.user_property_status = ['view', 'shortlisted', 'not_interested', 'finalized']
 
-    def get_additional_property_details(self, properties):
+    def get_additional_property_details(self, properties, config_city=None):
         connection = None
         cursor = None
         redshift_connection = None
@@ -50,12 +50,13 @@ class UserPropertyController:
             
             # Extract FIDs and create filter for property query
             fids = [str(result['fid']) for result in properties]
-            fid_filter = f"WHERE fid IN ({','.join(fids)})"
+            fid_col = "fid" if config_city == 'mexico' else "id_stg_demographic_socioeconomic_qro"
+            fid_filter = f"WHERE {fid_col} IN ({','.join(fids)})"
             
             # Get full property details from Redshift using existing query controller
             redshift_connection = self.redshift_connection.connect()
             redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-            property_query = self.qc.get_property_query(fid_filter)
+            property_query = self.qc.get_property_query(fid_filter, city=config_city)
             logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
             redshift_cursor.execute(property_query)
             property_results = redshift_cursor.fetchall()
@@ -112,7 +113,7 @@ class UserPropertyController:
             return resp
 
     
-    def get_user_properties(self, user_id, fid=None,  prop_status=None):
+    def get_user_properties(self, user_id, fid=None,  prop_status=None, config_city=None):
         connection = None
         cursor = None
         try:
@@ -126,13 +127,15 @@ class UserPropertyController:
                 query += f" AND user_property_status = '{prop_status}' "
             if fid :
                 query += f" AND fid = {fid} "
+            if config_city:
+                query += f" AND config_city = '{config_city}' "
             
             query += "order by updated_at desc"
             logger.debug("Executing query: %s", query)
             cursor.execute(query)
             result = cursor.fetchall()
             logger.info("Fetched %d user properties", len(result))
-            resp = self.get_additional_property_details(result)
+            resp = self.get_additional_property_details(result, config_city=config_city)
         except Exception as e:
             logger.error("Error fetching user properties: %s", str(e), exc_info=True)
             resp = Response.internal_server_error(message=str(e))
@@ -143,14 +146,14 @@ class UserPropertyController:
                 self.db.disconnect(connection)
             return resp
         
-    def update_property_request_status(self, fid, user, request_status=1):
+    def update_property_request_status(self, fid, user, request_status=1, config_city='mexico'):
         connection = None
         cursor = None
         resp = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = f'''update bp_user_property set request_status = {request_status},  updated_at = now()  where fid = {fid} and user_id = {user} returning id'''
+            query = f'''update bp_user_property set request_status = {request_status},  updated_at = now()  where fid = {fid} and user_id = {user} and config_city = {config_city} returning id'''
             cursor.execute(query)
             connection.commit() 
             resp = Response.success(message='Property requested successfully')
@@ -164,7 +167,7 @@ class UserPropertyController:
                 self.db.disconnect(connection)
             return resp
 
-    def add_user_property(self, fid, user_id, prop_status):
+    def add_user_property(self, fid, user_id, prop_status, config_city=None):
         connection = None
         cursor = None
         try:
@@ -194,7 +197,7 @@ class UserPropertyController:
                 self.db.disconnect(connection)
             return resp
         
-    def update_property_status(self, user_id, fid , prop_status='view'):
+    def update_property_status(self, user_id, fid , prop_status='view', config_city='mexico'):
         connection = None
         cursor = None
         resp = None
@@ -206,7 +209,7 @@ class UserPropertyController:
             start_time = time.time()
             connection = self.db.connect()
             cursor = connection.cursor()
-            query = f"UPDATE bp_user_property SET user_property_status = '{prop_status}', updated_at = now()  WHERE fid = {fid} AND user_id = {user_id}"
+            query = f"UPDATE bp_user_property SET user_property_status = '{prop_status}', updated_at = now()  WHERE fid = {fid} AND user_id = {user_id} AND config_city = '{config_city}' "
             logger.debug("Executing query: %s", query)
             cursor.execute(query)
             connection.commit()
@@ -225,7 +228,7 @@ class UserPropertyController:
             return resp
 
     #get request properties by user
-    def get_requested_properties(self, user_id):
+    def get_requested_properties(self, user_id, config_city=None):
         """Get all properties that have been requested by a specific user"""
         connection = None
         cursor = None
@@ -233,7 +236,7 @@ class UserPropertyController:
         redshift_cursor = None
         resp = None  # Initialize resp at the start
         try:
-            logger.info("Fetching requested properties for user_id: %s", user_id)
+            logger.info("Fetching requested properties for user_id: %s , config_city: %s", user_id, config_city)
             # First get all requested property FIDs from PostgreSQL
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -242,12 +245,13 @@ class UserPropertyController:
                 FROM bp_user_property 
                 WHERE user_id = {user_id} 
                 AND request_status = 1
+                AND config_city = '{config_city}'
                 order by updated_at desc
             '''
             # print("FID QUERY I AM GETTING %s", fid_query)
             cursor.execute(fid_query)
             fid_results = cursor.fetchall()
-            resp  = self.get_additional_property_details(fid_results)
+            resp  = self.get_additional_property_details(fid_results, config_city=config_city)
         except Exception as e:
             logger.error("Error fetching requested properties: %s", str(e), exc_info=True)
             resp = Response.internal_server_error(message=str(e))
@@ -1173,7 +1177,7 @@ class PropertyController:
                                 res_json["property_details"]["street_images"] = []
                 upc = UserPropertyController()
                 if fid:
-                    upc.add_user_property(fid, current_user, 'view')
+                    upc.add_user_property(fid, current_user, 'view', config_city=city)
                 logger.info(f"[get_properties] Successfully fetched {len(result_jsons)} properties")
                 resp = Response.success(data=result_jsons, message='Success')
         except Exception as e:
@@ -1623,7 +1627,7 @@ class PropertyController:
                 upc = UserPropertyController()
                 # print(f"Calling add_user_property with fid={fid}, current_user={current_user}", flush=True)
 
-                upc.add_user_property(fid, current_user, 'view')
+                upc.add_user_property(fid, current_user, 'view', config_city=city)
                 add_property_time = time.time()  # Time after adding user property
                 
                 resp = Response.success(data=response, message='Success')

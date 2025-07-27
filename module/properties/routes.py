@@ -120,24 +120,27 @@ class UserProperty(Resource):
     get_parser = reqparse.RequestParser()
     get_parser.add_argument('prop_status', type=str, required=False,location='args')
     get_parser.add_argument('fid', type=int, required=False,  location='args')
+    get_parser.add_argument('config_city', type=str, default="mexico", required=False, help='config_city is required', location='args')
     update_parser = reqparse.RequestParser()
     update_parser.add_argument('fid', type=str, required=False, help='fid is required')
     update_parser.add_argument('prop_status', type=str, required=False, help='status is required')
+    update_parser.add_argument('config_city', type=str, default="mexico", required=False, help='config_city is required')
 
     @authenticate
     def get(self, current_user):
         data = self.get_parser.parse_args()
         fid = data.get('fid')
         prop_status = data.get('prop_status')
+        config_city = data.get('config_city', 'mexico')
         norm_fid = normalize_fid(fid)
-        cache_key = f"user={current_user}|fid={norm_fid}|prop_status={prop_status}"
+        cache_key = f"user={current_user}|fid={norm_fid}|prop_status={prop_status}|config_city={config_city}"
         
         cached_response = get_from_cache('user_property', cache_key)
         if cached_response:
             return cached_response
 
         upc = UserPropertyController()
-        response = upc.get_user_properties(current_user, norm_fid,  prop_status)
+        response = upc.get_user_properties(current_user, norm_fid,  prop_status, config_city=config_city)
         set_in_cache('user_property', cache_key, response)
         return response
 
@@ -146,17 +149,21 @@ class UserProperty(Resource):
         data = self.update_parser.parse_args()
         fid = data.get('fid')
         prop_status = data.get('prop_status')
+        config_city = data.get('config_city', 'mexico')
         norm_fid = normalize_fid(fid)
         upc = UserPropertyController()
-        response = upc.update_property_status(current_user, norm_fid, prop_status)
+        response = upc.update_property_status(current_user, norm_fid, prop_status, config_city=config_city)
         return response
 
 #route for get requested property
 class RequestedProperties(Resource):
+    get_parser = reqparse.RequestParser()
+    get_parser.add_argument('config_city', type=str, default="mexico", required=False, help='config_city is required', location='args')
     @authenticate
     def get(self, current_user):
         upc = UserPropertyController()
-        response = upc.get_requested_properties(current_user)
+        config_city = self.get_parser.parse_args().get('config_city', 'mexico')
+        response = upc.get_requested_properties(current_user, config_city=config_city)
         return response
     
 
@@ -164,6 +171,7 @@ class UpdateRequestInfo(Resource):
     create_parser = reqparse.RequestParser()
     create_parser.add_argument('fid', type=str, required=False, help='fid is required')
     create_parser.add_argument('request_status', type=int, required=False, help='status is required')
+    create_parser.add_argument('config_city', type=str, default="mexico", required=False, help='config_city is required')
 
     @authenticate
     def post(self, current_user):
@@ -171,7 +179,8 @@ class UpdateRequestInfo(Resource):
         data = self.create_parser.parse_args()
         fid = data.get('fid')
         request_status = data.get('request_status')
-        response = upc.update_property_request_status(fid, current_user, request_status)
+        confg_city = data.get('config_city', 'mexico')
+        response = upc.update_property_request_status(fid, current_user, request_status, confg_city)
         return response
 
 class PropertyTraffic(Resource):
