@@ -1388,13 +1388,12 @@ where fid = {fid}
     def get_market_info_query(spot2, inmuebles24, propiedades, city='mexico'):
         if inmuebles24:
             if city == 'queretaro':
-                # QRO inmuebles24 query with QRO-specific table and columns
+                # QRO inmuebles24 query - aligned with Mexico City structure
                 query = f'''
                         SELECT
                         "id_market_data_inmuebles24" AS "id_market_data_inmuebles24",
                         "title" AS "title",
-                        "generated_title" AS "generated_title",
-                        "description" AS "description", 
+                        "description" AS "description",
                         "rent_price" AS "rent_price",
                         "rent_price_clean" AS "rent_price_clean",
                         "rent_price_per_m2" AS "rent_price_per_m2",
@@ -1407,23 +1406,16 @@ where fid = {fid}
                         "bathrooms" AS "bathrooms",
                         "bedrooms" AS "bedrooms",
                         "age" AS "age",
-                        "latitude" AS "latitude",
-                        "longitude" AS "longitude",
                         "pictures" AS "pictures",
                         "property_type" AS "property_type",
                         "operation_type" AS "operation_type",
                         "property_dimension" AS "total_area",
                         "property_dimension_clean" AS "total_area_clean",
-                        "country" AS "country",
                         "zone" AS "zone",
                         "city" AS "city",
                         "address" AS "address",
-                        "premier" AS "premier",
                         "url" AS "url",
-                        "category" AS "category",
-                        "amenities" AS "amenities",
-                        "seller" AS "seller",
-                        "geometry_coords" AS "geometry_coords"
+                        "amenities" AS "amenities"
                         FROM blackprint_db_prd.presentation.dim_market_data_inmuebles24_qro
                         WHERE id_market_data_inmuebles24 = {inmuebles24} '''
             else:
@@ -1459,17 +1451,14 @@ where fid = {fid}
                         WHERE id_market_data_inmuebles24 = {inmuebles24} '''
         elif spot2:
             if city == 'queretaro':
-                # QRO spot2 query using the available dim_market_data_spot2_qro table
+                # QRO spot2 query - aligned with Mexico City structure
                 query = f""" SELECT
                             "id_market_data_spot2" AS "id_market_data_spot2",
                             "title" AS "title",
                             "address" AS "address",
                             "street_address" AS "street_address",
-                            "delegacion" AS "delegacion",
                             "city" AS "city",
                             "zip_code" AS "zip_code",
-                            "latitude" AS "latitude",
-                            "longitude" AS "longitude",
                             "description" AS "description",
                             "operation_type" AS "operation_type",
                             "rent_price" AS "rent_price",
@@ -1487,8 +1476,7 @@ where fid = {fid}
                             "url" AS "url",
                             "parking_spaces" AS "parking_spaces",
                             "condition" AS "condition",
-                            "date_published" AS "publication_date",
-                            "geometry_coords" AS "geometry_coords"
+                            "date_published" AS "publication_date"
                         FROM
                         blackprint_db_prd.presentation.dim_market_data_spot2_qro
                         WHERE id_market_data_spot2 = {spot2} """
