@@ -73,7 +73,15 @@ class Property(Resource):
             #     return cached_response
             pc = PropertyController()
             response = pc.filter_properties(filters, city=city)
-            # set_in_cache('property', filter_cache_key, response)
+            
+            # Only cache successful responses (currently commented out but fixed for future use)
+            # if isinstance(response, dict) and response.get('message', '').lower() == 'success':
+            #     set_in_cache('property', filter_cache_key, response)
+            # elif isinstance(response, tuple) and len(response) == 2:
+            #     response_data, status_code = response
+            #     if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+            #         set_in_cache('property', filter_cache_key, response)
+            
             return response
         else:
             print("No filters provided, using fid, lat, lng")
@@ -90,7 +98,15 @@ class Property(Resource):
                 return cached_response
             pc = PropertyController()
             response = pc.get_properties(current_user, fid, lat, lng, city=city)
-            set_in_cache('property', cache_key, response)
+            
+            # Only cache successful responses
+            if isinstance(response, dict) and response.get('message', '').lower() == 'success':
+                set_in_cache('property', cache_key, response)
+            elif isinstance(response, tuple) and len(response) == 2:
+                response_data, status_code = response
+                if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+                    set_in_cache('property', cache_key, response)
+            
             return response
     
 class PropertyDemographic(Resource):
@@ -111,7 +127,15 @@ class PropertyDemographic(Resource):
 
         pc = PropertyController()
         response = pc.get_property_demographic(norm_fid, current_user, city=city)
-        set_in_cache('demographic', cache_key, response)
+        
+        # Only cache successful responses
+        if isinstance(response, dict) and response.get('message', '').lower() == 'success':
+            set_in_cache('demographic', cache_key, response)
+        elif isinstance(response, tuple) and len(response) == 2:
+            response_data, status_code = response
+            if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+                set_in_cache('demographic', cache_key, response)
+        
         return response
     
 
@@ -141,7 +165,15 @@ class UserProperty(Resource):
 
         upc = UserPropertyController()
         response = upc.get_user_properties(current_user, norm_fid,  prop_status, config_city=config_city)
-        set_in_cache('user_property', cache_key, response)
+        
+        # Only cache successful responses
+        if isinstance(response, dict) and response.get('message', '').lower() == 'success':
+            set_in_cache('user_property', cache_key, response)
+        elif isinstance(response, tuple) and len(response) == 2:
+            response_data, status_code = response
+            if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+                set_in_cache('user_property', cache_key, response)
+        
         return response
 
     @authenticate
@@ -220,7 +252,14 @@ class PropertyMarketInfo(Resource):
         pc = PropertyController()
         response = pc.get_property_market_info(spot2_id, inmuebles24_id, propiedades_id, city=city)
 
-        set_in_cache('market_info', cache_key, response)
+        # Only cache successful responses
+        if isinstance(response, dict) and response.get('message', '').lower() == 'success':
+            set_in_cache('market_info', cache_key, response)
+        elif isinstance(response, tuple) and len(response) == 2:
+            response_data, status_code = response
+            if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+                set_in_cache('market_info', cache_key, response)
+        
         return response
 
 class PropertyDetailsBundle(Resource):

@@ -38,12 +38,30 @@ def fetch_properties_layer_data_raw(city='mexico'):
             controller.db.disconnect(connection)
         return resp
 
-# Initialize caches for both cities
+# Initialize caches for both cities - only cache successful responses
 _property_layer_cache_mexico = fetch_properties_layer_data_raw('mexico')
-_property_layer_cache_mexico_json = json.dumps(_property_layer_cache_mexico[0])  # Only the dict, not the status
+_property_layer_cache_mexico_json = None
+if isinstance(_property_layer_cache_mexico, tuple) and len(_property_layer_cache_mexico) == 2:
+    response_data, status_code = _property_layer_cache_mexico
+    if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+        _property_layer_cache_mexico_json = json.dumps(response_data)
+        logger.info("Successfully cached Mexico property layer data")
+    else:
+        logger.warning("Mexico property layer data not cached - not a successful response")
+else:
+    logger.warning("Mexico property layer data not cached - unexpected response format")
 
 _property_layer_cache_qro = fetch_properties_layer_data_raw('queretaro')
-_property_layer_cache_qro_json = json.dumps(_property_layer_cache_qro[0])  # Only the dict, not the status
+_property_layer_cache_qro_json = None
+if isinstance(_property_layer_cache_qro, tuple) and len(_property_layer_cache_qro) == 2:
+    response_data, status_code = _property_layer_cache_qro
+    if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+        _property_layer_cache_qro_json = json.dumps(response_data)
+        logger.info("Successfully cached Queretaro property layer data")
+    else:
+        logger.warning("Queretaro property layer data not cached - not a successful response")
+else:
+    logger.warning("Queretaro property layer data not cached - unexpected response format")
 
 # {
 #     "search_name" : "test",
@@ -122,6 +140,16 @@ class PropertyLayer(Resource):
         
         # Serve from appropriate cache based on city
         if city == 'queretaro':
-            return FlaskResponse(_property_layer_cache_qro_json, status=200, mimetype='application/json')
+            if _property_layer_cache_qro_json:
+                return FlaskResponse(_property_layer_cache_qro_json, status=200, mimetype='application/json')
+            else:
+                logger.error("Queretaro property layer cache is not available - fetching fresh data")
+                controller = PropertyLayerController()
+                return controller.get_property_layer(city='queretaro')
         else:
-            return FlaskResponse(_property_layer_cache_mexico_json, status=200, mimetype='application/json')
+            if _property_layer_cache_mexico_json:
+                return FlaskResponse(_property_layer_cache_mexico_json, status=200, mimetype='application/json')
+            else:
+                logger.error("Mexico property layer cache is not available - fetching fresh data")
+                controller = PropertyLayerController()
+                return controller.get_property_layer(city='mexico')

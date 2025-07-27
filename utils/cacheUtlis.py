@@ -131,19 +131,32 @@ def cache_response(prefix, expiration=None):
                     # If not cached, execute the function
                     response = f(*args, **kwargs)
                     
-                    # If response is a tuple (response, status_code), only cache the response
-                    cache_data = response[0] if isinstance(response, tuple) else response
+                    # Only cache successful responses
+                    should_cache = False
+                    cache_data = None
+                    
+                    if isinstance(response, tuple) and len(response) == 2:
+                        response_data, status_code = response
+                        if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+                            should_cache = True
+                            cache_data = response_data
+                    elif isinstance(response, dict) and response.get('message', '').lower() == 'success':
+                        should_cache = True
+                        cache_data = response
 
-                    # Cache the response
-                    cursor.execute("""
-                        INSERT INTO cache (key, value, expiration)
-                        VALUES (%s, %s, NOW() + INTERVAL '%s seconds')
-                        ON CONFLICT (key) DO UPDATE SET
-                            value = EXCLUDED.value,
-                            expiration = EXCLUDED.expiration
-                    """, (cache_key, json.dumps(cache_data), expiration))
-                    conn.commit()
-                    logging.info(f"Response cached for key: {cache_key}, expires in {expiration} seconds.")
+                    # Cache the response only if it's successful
+                    if should_cache and cache_data:
+                        cursor.execute("""
+                            INSERT INTO cache (key, value, expiration)
+                            VALUES (%s, %s, NOW() + INTERVAL '%s seconds')
+                            ON CONFLICT (key) DO UPDATE SET
+                                value = EXCLUDED.value,
+                                expiration = EXCLUDED.expiration
+                        """, (cache_key, json.dumps(cache_data), expiration))
+                        conn.commit()
+                        logging.info(f"Response cached for key: {cache_key}, expires in {expiration} seconds.")
+                    else:
+                        logging.info(f"Response not cached for key: {cache_key} - not a successful response.")
 
                 return response
             except Exception as e:
