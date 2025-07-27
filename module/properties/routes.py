@@ -186,12 +186,13 @@ class UpdateRequestInfo(Resource):
 class PropertyTraffic(Resource):
     parser = reqparse.RequestParser()
     parser.add_argument('fid', type=int, required=True, help='fid is required')
+    parser.add_argument('config_city', type=str, default='mexico', required=False, help='City for property traffic data')
 
     def post(self):
         args = self.parser.parse_args()
         fid = args['fid']
         pc = PropertyController()
-        return pc.get_property_traffic(fid)
+        return pc.get_property_traffic(fid, config_city=args.get('config_city', 'mexico'))
     
 
 class PropertyMarketInfo(Resource):

@@ -1646,7 +1646,7 @@ class PropertyController:
                 self.redshift_connection.disconnect(connection)
             return resp
 
-    def get_property_traffic(self, fid):
+    def get_property_traffic(self, fid, config_city='mexico'):
         connection = None
         cursor = None
         try:
@@ -1661,6 +1661,13 @@ class PropertyController:
             else:
                 return Response.bad_request(message="Invalid fid type.")
 
+            if config_city == 'queretaro':
+                table_name = 'blackprint_db_prd.presentation.dataset_mobility_data_h3_qro'
+                id_col = 'id_stg_demographic_socioeconomic_qro'
+            else:
+                table_name = 'blackprint_db_prd.presentation.dataset_mobility_data_h3'
+                id_col = 'fid'
+            
             query = f"""
                 SELECT 
                     type,
@@ -1668,8 +1675,8 @@ class PropertyController:
                     max_pedestrian,
                     min_motor_vehicle,
                     max_motor_vehicle
-                FROM blackprint_db_prd.presentation.dataset_mobility_data_h3
-                WHERE fid = %s AND type IN ('CIRCLE_500_METERS', 'FRONT_OF_STORE')
+                FROM {table_name}
+                WHERE {id_col} = %s AND type IN ('CIRCLE_500_METERS', 'FRONT_OF_STORE')
             """
 
             # Use Redshift connection
