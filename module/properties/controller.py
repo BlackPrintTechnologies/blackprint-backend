@@ -64,7 +64,7 @@ class UserPropertyController:
             # Process results using existing property JSON formatter
             if property_results:
                 property_controller = PropertyController()
-                formatted_results = property_controller.get_property_json(property_results, show_all_keys=False, city='mexico')  # Default to CDMX for user properties
+                formatted_results = property_controller.get_property_json(property_results, show_all_keys=False, city=config_city)  # Default to CDMX for user properties
                 print("Formatted results I am getting %s",len(formatted_results))
                 final_res = []
                 for result in formatted_results:
