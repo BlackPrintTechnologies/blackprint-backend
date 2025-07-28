@@ -779,7 +779,38 @@ class QueryController :
                 pct_viv_d,
                 pct_viv_e,
                 geometry_type,
-                bbox
+                bbox,
+                -- Population growth fields - same as Mexico structure
+                -- AGEB level population data
+                pob_2000_ageb,
+                pob_2005_ageb,
+                pob_2010_ageb,
+                pob_2015_ageb,
+                pob_2020_ageb,
+                cambio_porcentual_2005_ageb,
+                cambio_porcentual_2010_ageb,
+                cambio_porcentual_2015_ageb,
+                cambio_porcentual_2020_ageb,
+                -- Entity level population data
+                pob_2000_entidad,
+                pob_2005_entidad,
+                pob_2010_entidad,
+                pob_2015_entidad,
+                pob_2020_entidad,
+                cambio_porcentual_2005_entidad,
+                cambio_porcentual_2010_entidad,
+                cambio_porcentual_2015_entidad,
+                cambio_porcentual_2020_entidad,
+                -- Municipal level population data
+                pob_2000_municipal,
+                pob_2005_municipal,
+                pob_2010_municipal,
+                pob_2015_municipal,
+                pob_2020_municipal,
+                cambio_porcentual_2005_municipal,
+                cambio_porcentual_2010_municipal,
+                cambio_porcentual_2015_municipal,
+                cambio_porcentual_2020_municipal
                 from blackprint_db_prd.data_product.v_qro
                 where id_stg_demographic_socioeconomic_qro = {fid}
                     '''
