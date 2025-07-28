@@ -391,7 +391,7 @@ class PropertyController:
                         "total_construction_area": result.get("total_construction_area", None),
                         "total_built_perm": result.get('total_built_perm', None),
                         "total_units": result.get('property_count_per_lot', None),
-                        "street_address": result.get("street_address", None),
+                        "street_address": result.get('nom_loc') + ' ' + result.get('nom_mun') ,
                         "year_built": result.get("year_built", None),
                         "special_facilities": result.get("special_facilities", None),
                         "unit_land_value": result.get("unit_land_value", None),
