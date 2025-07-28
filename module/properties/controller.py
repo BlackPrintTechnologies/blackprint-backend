@@ -154,6 +154,7 @@ class UserPropertyController:
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             query = f'''update bp_user_property set request_status = {request_status},  updated_at = now() where fid = {fid} and user_id = {user} '''
+            print("QUERY I AM GETTING %s",query)
             cursor.execute(query)
             connection.commit() 
             resp = Response.success(message='Property requested successfully')
