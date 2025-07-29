@@ -1097,10 +1097,10 @@ class PropertyController:
             logger.error("Error processing property JSON: %s", str(e), exc_info=True)
             raise e
 
-    def get_properties(self, current_user, fid=None, lat=None, lng=None, city='mexico'):
+    def get_properties(self, current_user, fid=None, lat=None, lng=None, city='mexico', show_all_keys=True):
         from utils.streetViewUtils import get_street_view_metadata_cached
         import copy
-        logger.info(f"[get_properties] Called with city={city}, fid={fid}, lat={lat}, lng={lng}")
+        logger.info(f"[get_properties] Called with city={city}, fid={fid}, lat={lat}, lng={lng}, show_all_keys={show_all_keys}")
         connection = None
         cursor = None
         resp = None
@@ -1153,7 +1153,7 @@ class PropertyController:
                 result = future_details.result()
                 if not result:
                     return Response.not_found(message="Property not found")
-                result_jsons = self.get_property_json(result, city=city)
+                result_jsons = self.get_property_json(result, show_all_keys=show_all_keys, city=city)
                 # print("RESULT_JSONS",result_jsons)
                 # Assume only one property for lat/lng
                 prop_lat, prop_lng = None, None

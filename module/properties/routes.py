@@ -7,12 +7,7 @@ from utils.streetViewUtils import get_street_view_image
 import hashlib
 import json
 from utils.app_cache import get_from_cache, set_in_cache
-from module.properties.prefetch import (
-    prefetch_fid_response, 
-    prefetch_userproperty_response,
-    prefetch_demographic_response,
-    prefetch_marketinfo_response
-)
+
 from utils.normalization_utils import normalize_fid, normalize_market_id
 import logging
 logger = logging.getLogger(__name__)
@@ -88,6 +83,7 @@ class Property(Resource):
             fid = filters.get('fid')
             lat = filters.get('lat')
             lng = filters.get('lng')
+            show_all_keys = filters.get('show_all_keys', True)
             norm_fid = normalize_fid(fid)
             norm_lat = str(lat) if lat is not None else None
             norm_lng = str(lng) if lng is not None else None
@@ -97,7 +93,7 @@ class Property(Resource):
             if cached_response:
                 return cached_response
             pc = PropertyController()
-            response = pc.get_properties(current_user, fid, lat, lng, city=city)
+            response = pc.get_properties(current_user, fid, lat, lng, city=city, show_all_keys=show_all_keys)
             
             # Only cache successful responses
             if isinstance(response, dict) and response.get('message', '').lower() == 'success':
