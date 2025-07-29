@@ -27,7 +27,7 @@ def cluster_points(gdf, eps=0.01, min_samples=5):
 @fused.udf
 def udf(bbox: fused.types.TileGDF = None, fid: str = None, radius: int = None, city: str = 'mexico'):
     # Make API call city-aware
-    if city == 'queretaro':
+    if city == 'queretaro' or city == 'el_marques':
         api_url = "http://staging.blackprint.ai/property/layer?config_city=queretaro"
     else:
         api_url = "http://staging.blackprint.ai/property/layer?config_city=mexico"
@@ -51,7 +51,7 @@ def udf(bbox: fused.types.TileGDF = None, fid: str = None, radius: int = None, c
             return None
         
         # Handle different column structures for different cities
-        if city == 'queretaro':
+        if city == 'queretaro' or city == 'el_marques':
             gdf = gpd.GeoDataFrame(
                 [
                     {

@@ -5,7 +5,7 @@ class QueryController :
 
     @staticmethod
     def get_property_query(filter, city='mexico', show_all_keys=True):
-        if city == 'queretaro':
+        if city == 'queretaro' or city == 'el_marques':
             table = 'blackprint_db_prd.data_product.v_qro'
             fid_col = 'id_stg_demographic_socioeconomic_qro as fid'
             # Use QRO columns (from v_qro_column.txt, map as needed)
@@ -261,7 +261,7 @@ class QueryController :
         query = f'SELECT {base_columns}'
         if show_all_keys:
             # Add extra columns for both cities as needed
-            if city == 'queretaro':
+            if city == 'queretaro' or city == 'el_marques':
                 query += ''',
                 -- QRO-specific POI and traffic columns
                 brands_active_life_front,
@@ -479,8 +479,8 @@ class QueryController :
                 motor_vehicle_avg_x_day_of_week_6_500m,
                 at_rest_avg_x_day_of_week_7_500m,
                 pedestrian_avg_x_day_of_week_7_500m,
-                motor_vehicle_avg_x_day_of_week_7_500m
-                '''
+                                 motor_vehicle_avg_x_day_of_week_7_500m
+                 '''
             else:
                 # Restore the full original show_all_keys columns for CDMX
                 query += ''',
@@ -706,7 +706,7 @@ class QueryController :
     
     @staticmethod
     def get_demographics_query(fid, city='mexico'):
-        if city == 'queretaro':
+        if city == 'queretaro' or city == 'el_marques':
             # QRO demographic query - use v_qro table
             query = f'''select 
                 id_stg_demographic_socioeconomic_qro as fid,
@@ -1418,7 +1418,7 @@ where fid = {fid}
     @staticmethod
     def get_market_info_query(spot2, inmuebles24, propiedades, city='mexico'):
         if inmuebles24:
-            if city == 'queretaro':
+            if city == 'queretaro' or city == 'el_marques':
                 # QRO inmuebles24 query - aligned with Mexico City structure
                 query = f'''
                         SELECT
@@ -1481,7 +1481,7 @@ where fid = {fid}
                         FROM blackprint_db_prd.presentation.dim_market_data_inmuebles24
                         WHERE id_market_data_inmuebles24 = {inmuebles24} '''
         elif spot2:
-            if city == 'queretaro':
+            if city == 'queretaro' or city == 'el_marques':
                 # QRO spot2 query - aligned with Mexico City structure
                 query = f""" SELECT
                             "id_market_data_spot2" AS "id_market_data_spot2",
@@ -1542,7 +1542,7 @@ where fid = {fid}
                         blackprint_db_prd.presentation.dim_market_data_spot2
                         WHERE id_market_data_spot2 = {spot2} """       
         elif propiedades:
-            if city == 'queretaro':
+            if city == 'queretaro' or city == 'el_marques':
                 # QRO propiedades - table doesn't exist, return empty result
                 query = f""" 
                         SELECT
