@@ -139,13 +139,13 @@ class PropertyLayer(Resource):
         city = data.get('config_city', 'mexico')
         
         # Serve from appropriate cache based on city
-        if city == 'queretaro':
+        if city == 'queretaro' or city == 'el_marques':
             if _property_layer_cache_qro_json:
                 return FlaskResponse(_property_layer_cache_qro_json, status=200, mimetype='application/json')
             else:
-                logger.error("Queretaro property layer cache is not available - fetching fresh data")
+                logger.error("Queretaro/El Marques property layer cache is not available - fetching fresh data")
                 controller = PropertyLayerController()
-                return controller.get_property_layer(city='queretaro')
+                return controller.get_property_layer(city=city)
         else:
             if _property_layer_cache_mexico_json:
                 return FlaskResponse(_property_layer_cache_mexico_json, status=200, mimetype='application/json')

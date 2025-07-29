@@ -381,7 +381,7 @@ class PropertyController:
             for result in results:
                 traffic = {}  # Always initialize traffic to an empty dict
                 # Handle different column structures for CDMX vs QRO
-                if city == 'queretaro':
+                if city == 'queretaro' or city == 'el_marques':
                     # QRO now uses same structure as CDMX (no demographic fields)
                     property_details = {
                         "fid": result["fid"],
@@ -527,7 +527,7 @@ class PropertyController:
                 property_details["street_images"] = street_images
 
                 # Handle market_info for different cities
-                if city == 'queretaro':
+                if city == 'queretaro' or city == 'el_marques':
                     market_info = {
                         "ids_market_data_spot2" : result.get("ids_market_data_spot2", None),
                         "ids_market_data_inmuebles24" : result.get("ids_market_data_inmuebles24", None),
@@ -599,7 +599,7 @@ class PropertyController:
                     }
                 if show_all_keys:
                     # Handle POI data for different cities
-                    if city == 'queretaro':
+                    if city == 'queretaro' or city == 'el_marques':
                         pois = {
                             #add category here for icon image
                             "category": {
@@ -690,7 +690,7 @@ class PropertyController:
                         }
                 if show_all_keys:
                     # Handle traffic data for different cities
-                    if city == 'queretaro':
+                    if city == 'queretaro' or city == 'el_marques':
                         traffic = {
                             "front": {
                                 "at_rest_avg_x_hour_0_front": result.get("at_rest_avg_x_hour_0_front", None),
@@ -1108,7 +1108,7 @@ class PropertyController:
             if fid:
                 filter_query += f" AND fid = {fid}"
             elif lat and lng:
-                if city == 'queretaro':
+                if city == 'queretaro' or city == 'el_marques':
                     # QRO: Use H3 resolution 12 with neighbors to handle cell boundary issues
                     h3Index = h3.latlng_to_cell(float(lat), float(lng), 12)
                     h3_index_decimal = str(int(h3Index, 16))
@@ -1217,7 +1217,7 @@ class PropertyController:
         # print("DEMOGRAPHIC RESULT",result)
         result = result[0]
         try:
-            if city == 'queretaro':
+            if city == 'queretaro' or city == 'el_marques':
                 # QRO demographic structure - use .get() to handle missing columns
                 demographic = {
                     "general" : {
@@ -1662,7 +1662,7 @@ class PropertyController:
             else:
                 return Response.bad_request(message="Invalid fid type.")
 
-            if config_city == 'queretaro':
+            if config_city == 'queretaro' or config_city == 'el_marques':
                 table_name = 'blackprint_db_prd.presentation.dataset_mobility_data_h3_qro'
                 id_col = 'id_stg_demographic_socioeconomic_qro'
             else:

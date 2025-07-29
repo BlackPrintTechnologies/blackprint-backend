@@ -12,7 +12,7 @@ class PropertyLayerController:
     
     @staticmethod
     def get_property_query(city='mexico'):
-        if city == 'queretaro':
+        if city == 'queretaro' or city == 'el_marques':
             # QRO table with available columns from v_qro_column.txt
             query = f'''
                 select   
@@ -129,7 +129,7 @@ class BrandController:
             id_column = "fid"
             parcel_table = 'blackprint_db_prd.data_product.v_parcel_v3'
             dim_places_table = 'blackprint_db_prd.presentation.dim_places'
-        elif city == "queretaro":
+        elif city == "queretaro" or city == "el_marques":
             id_column = "id_stg_demographic_socioeconomic_qro"
             parcel_table = 'blackprint_db_prd.data_product.v_qro'
             dim_places_table = 'blackprint_db_prd.presentation.dim_places_qro'
@@ -234,7 +234,7 @@ class TrafficController:
     @staticmethod
     def get_traffic_query(catchment, fid, config_city=None):
         """Generates SQL query based on catchment radius and fid."""
-        if config_city == "queretaro":
+        if config_city == "queretaro" or config_city == "el_marques":
             table_name = 'blackprint_db_prd.presentation.dataset_mobility_data_h3_qro'
             fid_column = 'id_stg_demographic_socioeconomic_qro'
         else:
