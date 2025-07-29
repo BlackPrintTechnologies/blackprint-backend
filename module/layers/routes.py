@@ -3,6 +3,7 @@ from flask import request, jsonify, Response as FlaskResponse
 from utils.responseUtils import Response
 from module.layers.controller import BrandController, TrafficController, PropertyLayerController  # Assuming SavedSearchesController is in search_controller.py
 from utils.commonUtil import authenticate
+from utils.city_manager import city_manager
 from logsmanager.logging_config import setup_logging
 import logging
 import time
@@ -139,7 +140,7 @@ class PropertyLayer(Resource):
         city = data.get('config_city', 'mexico')
         
         # Serve from appropriate cache based on city
-        if city == 'queretaro' or city == 'el_marques':
+        if city_manager.is_qro_city(city):
             if _property_layer_cache_qro_json:
                 return FlaskResponse(_property_layer_cache_qro_json, status=200, mimetype='application/json')
             else:

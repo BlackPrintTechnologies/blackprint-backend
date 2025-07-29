@@ -3,6 +3,7 @@ from utils.responseUtils import Response
 from psycopg2.extras import RealDictCursor
 from utils.iconUtils import IconMapper
 from utils.cacheUtlis import cache_response
+from utils.city_manager import city_manager
 import time
 
 class PropertyLayerController:
@@ -12,7 +13,7 @@ class PropertyLayerController:
     
     @staticmethod
     def get_property_query(city='mexico'):
-        if city == 'queretaro' or city == 'el_marques':
+        if city_manager.is_qro_city(city):
             # QRO table with available columns from v_qro_column.txt
             query = f'''
                 select   
@@ -125,14 +126,12 @@ class BrandController:
     
     @staticmethod
     def get_brand_query(catchment, fid, category_1=None, city="mexico" ):
-        if city == "mexico":
-            id_column = "fid"
-            parcel_table = 'blackprint_db_prd.data_product.v_parcel_v3'
-            dim_places_table = 'blackprint_db_prd.presentation.dim_places'
-        elif city == "queretaro" or city == "el_marques":
-            id_column = "id_stg_demographic_socioeconomic_qro"
-            parcel_table = 'blackprint_db_prd.data_product.v_qro'
-            dim_places_table = 'blackprint_db_prd.presentation.dim_places_qro'
+        # Use centralized city configuration
+        normalized_city = city_manager.normalize_city_name(city)
+        city_config = city_manager.get_city_config(normalized_city)
+        id_column = city_manager.get_fid_column(normalized_city)
+        parcel_table = city_manager.get_main_table(normalized_city)
+        dim_places_table = city_config.get('poi_table')
 
         if catchment == '500':
             query = f'''WITH split_values AS (
@@ -234,12 +233,11 @@ class TrafficController:
     @staticmethod
     def get_traffic_query(catchment, fid, config_city=None):
         """Generates SQL query based on catchment radius and fid."""
-        if config_city == "queretaro" or config_city == "el_marques":
-            table_name = 'blackprint_db_prd.presentation.dataset_mobility_data_h3_qro'
-            fid_column = 'id_stg_demographic_socioeconomic_qro'
-        else:
-            table_name = 'blackprint_db_prd.presentation.dataset_mobility_data_h3'
-            fid_column = 'fid'
+        # Use centralized city configuration
+        normalized_city = city_manager.normalize_city_name(config_city)
+        city_config = city_manager.get_city_config(normalized_city)
+        table_name = city_config.get('traffic_table')
+        fid_column = city_manager.get_fid_column(normalized_city)
         query_map = {
             '500': f'''SELECT *
                         FROM {table_name} where {fid_column}={fid} and type='CIRCLE_500_METERS' ''',
