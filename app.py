@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 logger.info("Starting the Flask application...")
 
 # Import your routes
-from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification, UpdateQuestionare
+from module.user.routes import Signup, Signin, ForgotPassword, ConfirmPasswordUpdate, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification, UpdateQuestionare
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
 from module.layers.routes import Brands, Traffic, SearchBrands, PropertyLayer
@@ -49,6 +49,7 @@ from module.properties.routes import Property, PropertyDemographic, StreetViewIm
 api.add_resource(Signup, '/user/signup')
 api.add_resource(Signin, '/user/signin')
 api.add_resource(ForgotPassword, '/user/forgot-password')
+api.add_resource(ConfirmPasswordUpdate, '/user/confirm-password-update')
 api.add_resource(UpdateUser, '/user/updateuser')
 api.add_resource(GetUser, '/user/getuser')
 api.add_resource(SavedSearches, '/savesearch', '/savesearch/<int:search_id>')

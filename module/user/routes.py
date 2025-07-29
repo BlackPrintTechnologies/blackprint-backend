@@ -127,10 +127,39 @@ class ForgotPassword(Resource):
             logger.warning(f"Password reset failed - User not found: {email}")
             return Response.not_found(message='User not found')
         
+        response = users_controller.send_password_reset_email(bp_email=email)
         # Here you would normally send an email with a reset link or token
         logger.info(f"Password reset link sent to email: {email}")
-        return Response.success(message='Password reset link sent')
+        return response
 
+class ConfirmPasswordUpdate(Resource):
+    update_parser = reqparse.RequestParser()
+    update_parser.add_argument('email', type=str, required=True, help='Email is required')
+    update_parser.add_argument('token', type=str, required=True, help='Token is required')
+    update_parser.add_argument('new_password', type=str, required=True, help='New password is required')
+
+    def post(self):
+        logger.info("Received password update request")
+        data = self.update_parser.parse_args()
+        email = data.get('email')
+        token = data.get('token')
+        new_password = data.get('new_password')
+        logger.debug(f"Password update attempt for email: {email}")
+        token_email_id = get_user_id_from_token(token)
+        if not token_email_id or token_email_id != email:
+            logger.error(f"Invalid token or email mismatch for email: {email}")
+            return Response.unauthorized(message='Invalid token or email mismatch')
+        # Validate token and email here (not implemented)
+        # If valid, update the password
+        hashed_password = generate_password_hash(new_password, method='pbkdf2:sha256')
+        response = users_controller.update_user(bp_email=email, bp_password=hashed_password)
+        
+        if response[1] != 200:
+            logger.error(f"Password update failed for email: {email}")
+            return Response.bad_request(message='Failed to update password')
+        
+        logger.info(f"Password updated successfully for email: {email}")
+        return Response.success(message='Password updated successfully')
 
 class GetUser(Resource):
     
