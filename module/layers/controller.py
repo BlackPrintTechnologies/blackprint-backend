@@ -51,6 +51,8 @@ class PropertyLayerController:
                 (is_on_market != 'Off Market')
                 -- For QRO, we'll filter based on available market data
                 AND (ids_market_data_spot2 IS NOT NULL OR ids_market_data_inmuebles24 IS NOT NULL)
+                -- Filter for specific municipalities: El Marqués, Querétaro, and Corregidora
+                AND nom_mun IN ('El Marqués', 'Querétaro', 'Corregidora')
                 '''
         else:
             # Mexico (existing query)
