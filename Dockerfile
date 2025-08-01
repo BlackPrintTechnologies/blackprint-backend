@@ -18,4 +18,4 @@ COPY . .
 EXPOSE 8000
 
 # Run Gunicorn with logging configured
-CMD ["gunicorn", "-w", "3", "-b", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
+CMD ["gunicorn", "-w", "6", "-b", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
