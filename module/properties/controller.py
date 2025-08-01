@@ -1924,7 +1924,7 @@ class PropertyController:
                 # Map search_key_type to stg_municipality columns
                 column_map = {
                     "nb_cleaned": "d_asenta",  # neighborhood/settlement
-                    "zip_code": "d_cp",        # zip code
+                    "zip_code": "d_codigo",        # zip code
                     "municipality_nm": "d_mnpio"  # municipality
                 }
             else:
