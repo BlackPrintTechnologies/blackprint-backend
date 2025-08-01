@@ -1908,16 +1908,50 @@ class PropertyController:
                 self.redshift_connection.disconnect(connection)
             return resp
 
-    def advanced_municipality_search(self, search_key_type=None, search_value=None, municipality_nm=None):
+    def advanced_municipality_search(self, search_key_type=None, search_value=None, municipality_nm=None, config_city='mexico'):
         connection = None
         cursor = None
         try:
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             allowed_keys = {"nb_cleaned", "zip_code", "municipality_nm"}
+            
+            # Determine which table and columns to use based on config_city
+            if config_city == 'queretaro' or config_city == 'el_marques':
+                # Use staging.stg_municipality for QRO/El Marques
+                table_name = 'staging.stg_municipality'
+                id_col = 'id_stg_municipality'
+                # Map search_key_type to stg_municipality columns
+                column_map = {
+                    "nb_cleaned": "d_asenta",  # neighborhood/settlement
+                    "zip_code": "d_cp",        # zip code
+                    "municipality_nm": "d_mnpio"  # municipality
+                }
+            else:
+                # Use data_product.v_municipality for other cities
+                table_name = 'data_product.v_municipality'
+                id_col = 'id_municipality'
+                column_map = {
+                    "nb_cleaned": "nb_cleaned",
+                    "zip_code": "zip_code", 
+                    "municipality_nm": "municipality_nm"
+                }
+            
             # If both municipality_nm and (search_key_type + search_value) are provided, filter within municipality_nm
             if municipality_nm and search_key_type in {"nb_cleaned", "zip_code"} and search_value:
-                query = f"SELECT DISTINCT id_municipality, {search_key_type} FROM data_product.v_municipality WHERE municipality_nm ILIKE %s AND {search_key_type} ILIKE %s limit 50"
+                search_column = column_map.get(search_key_type)
+                municipality_column = column_map.get("municipality_nm")
+                
+                # Use GROUP BY to eliminate duplicates for all cities
+                query = f"""
+                    SELECT {search_column} as {search_key_type}, MIN({id_col}) as id_municipality
+                    FROM {table_name} 
+                    WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s 
+                    GROUP BY {search_column}
+                    ORDER BY {search_column}
+                    LIMIT 50
+                """
+                print("Queryyyyyyyyyyyyyyyy", query)
                 cursor.execute(query, (f"%{municipality_nm}%", f"%{search_value}%"))
                 results = cursor.fetchall()
                 items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
@@ -1927,18 +1961,21 @@ class PropertyController:
                         "municipalities": items,
                         "search_key_type": search_key_type,
                         "search_value": search_value,
-                        "municipality_nm": municipality_nm
+                        "municipality_nm": municipality_nm,
+                        "config_city": config_city
                     },
                     message=message
                 )
-            elif  search_key_type == "municipality_nm" and search_value:
+            elif search_key_type == "municipality_nm" and search_value:
+                municipality_column = column_map.get("municipality_nm")
+                
                 query = f"""
-                    SELECT {search_key_type}, id_municipality
+                    SELECT {municipality_column} as municipality_nm, {id_col} as id_municipality
                     FROM (
-                        SELECT {search_key_type}, id_municipality,
-                            ROW_NUMBER() OVER (PARTITION BY {search_key_type} ORDER BY id_municipality) as row_num
-                        FROM data_product.v_municipality
-                        WHERE {search_key_type} ILIKE %s
+                        SELECT {municipality_column}, {id_col},
+                            ROW_NUMBER() OVER (PARTITION BY {municipality_column} ORDER BY {id_col}) as row_num
+                        FROM {table_name}
+                        WHERE {municipality_column} ILIKE %s
                     ) t
                     WHERE row_num = 1
                     LIMIT 50
@@ -1946,61 +1983,22 @@ class PropertyController:
                 cursor.execute(query, (f"%{search_value}%",))
 
                 results = cursor.fetchall()
-                items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
+                items = [{"id": row["id_municipality"], "name": row["municipality_nm"]} for row in results]
                 message = "Municipality IDs found" if items else "No municipality ID found"
                 return Response.success(
                     data={
                         "municipalities": items,
                         "search_key_type": search_key_type,
                         "search_value": search_value,
-                        "municipality_nm": municipality_nm
+                        "municipality_nm": municipality_nm,
+                        "config_city": config_city
                     },
                     message=message
                 )
-
-            # if municipality_nm:
-            #     query = "SELECT id_municipality, municipality_nm FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s"
-            #     cursor.execute(query, (f"%{municipality_nm}%",))
-            #     results = cursor.fetchall()
-            #     items = [{"id": row["id_municipality"], "name": row["municipality_nm"]} for row in results]
-            #     message = "Municipality IDs found" if items else "No municipality ID found"
-            #     return Response.success(
-            #         data={
-            #             "municipalities": items,
-            #             "search_key_type": "municipality_nm",
-            #             "search_value": municipality_nm
-            #         },
-            #         message=message
-            #     )
-            # if search_key_type and search_value and search_key_type in allowed_keys:
-            #     if search_key_type == "zip_code":
-            #         query = "SELECT DISTINCT id_municipality, zip_code FROM presentation.dim_municipality WHERE zip_code ILIKE %s"
-            #         cursor.execute(query, (f"%{search_value}%",))
-            #         results = cursor.fetchall()
-            #         items = [{"id": row["id_municipality"], "name": row["zip_code"]} for row in results]
-            #     elif search_key_type == "neighborhood":
-            #         query = "SELECT DISTINCT id_municipality, neighborhood FROM presentation.dim_municipality WHERE neighborhood ILIKE %s"
-            #         cursor.execute(query, (f"%{search_value}%",))
-            #         results = cursor.fetchall()
-            #         items = [{"id": row["id_municipality"], "name": row["neighborhood"]} for row in results]
-            #     else:  # municipality_nm
-            #         query = "SELECT DISTINCT id_municipality, municipality_nm FROM presentation.dim_municipality WHERE municipality_nm ILIKE %s"
-            #         cursor.execute(query, (f"%{search_value}%",))
-            #         results = cursor.fetchall()
-            #         items = [{"id": row["id_municipality"], "name": row["municipality_nm"]} for row in results]
-            #     message = "Municipality IDs found" if items else "No municipality ID found"
-            #     return Response.success(
-            #         data={
-            #             "municipalities": items,
-            #             "search_key_type": search_key_type,
-            #             "search_value": search_value
-            #         },
-            #         message=message
-            #     )
             else:
                 return Response.bad_request(message="Invalid or missing search parameters")
         except Exception as e:
-            logger.error("Error in  advanced municipality search: %s", str(e), exc_info=True)
+            logger.error("Error in advanced municipality search: %s", str(e), exc_info=True)
             return Response.internal_server_error(message=str(e))
         finally:
             if cursor:

@@ -299,6 +299,7 @@ class AdvancedMunicipalitySearch(Resource):
     parser.add_argument('search_key_type', type=str, required=True )
     parser.add_argument('search_value', type=str, required=True )
     parser.add_argument('municipality_nm', type=str, required=False)
+    parser.add_argument('config_city', type=str, required=False, default='mexico', help='City configuration')
 
     @authenticate
     def post(self, current_user):
@@ -306,8 +307,9 @@ class AdvancedMunicipalitySearch(Resource):
         search_key_type = data.get('search_key_type')
         search_value = data.get('search_value')
         municipality_nm = data.get('municipality_nm')
+        config_city = data.get('config_city', 'mexico')
         pc = PropertyController()
-        return pc.advanced_municipality_search(search_key_type, search_value, municipality_nm)
+        return pc.advanced_municipality_search(search_key_type, search_value, municipality_nm, config_city)
 
 # At the end of the file, add the resource to the API (example, actual registration may vary)
 # from your main app or blueprint registration, add:
