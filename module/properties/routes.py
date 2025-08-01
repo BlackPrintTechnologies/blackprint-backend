@@ -289,8 +289,9 @@ class PropertyCommercialGrowth(Resource):
 class PropertyFilter(Resource):
     def post(self):
         data = request.get_json(force=True)
+        config_city = data.get('config_city', 'mexico')
         pc = PropertyController()
-        response = pc.filter_properties(data)
+        response = pc.filter_properties(data, config_city)
         return response
 
 class AdvancedMunicipalitySearch(Resource):

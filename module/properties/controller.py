@@ -1807,24 +1807,45 @@ class PropertyController:
         Accepts a dict of filter fields and returns filtered properties.
         Maps UI keys to DB columns for correct filtering.
         """
-        # Mapping from UI keys to DB columns
-        FILTER_COLUMN_MAP = {
-            "availability": "is_on_market",
-            "property_type": ["property_type_spot2", "property_type_inmuebles24", "property_type_propiedades"],
-            "plot_min": "total_surface_area",
-            "plot_max": "total_surface_area",
-            "buy": ["buy_price_spot2",  "buy_price_inmuebles24", "buy_price_propiedades"],
-            "rent": ["rent_price_spot2", "rent_price_inmuebles24", "rent_price_propiedades"],
-            "construction_min": "total_construction_area",
-            "construction_max": "total_construction_area",
-            "geometry": "block_type",
-            "id_municipality": "id_municipality",
-            "city": "city",
-            "municipality": "municipality_nm",
-            "alcaldia": "nom_mun",
-            "colonia": "neighborhood",
-            "zip_code": "zip_code"
-        }
+        # Determine column mapping based on city
+        if city == 'queretaro' or city == 'el_marques':
+            # QRO/El Marques column mapping
+            FILTER_COLUMN_MAP = {
+                "availability": "is_on_market",
+                "geometry": "geometry_type",
+                "id_municipality": "cve_mun",
+                "municipality": "nom_mun",
+                "alcaldia": "nom_mun",
+                "colonia": "nom_loc",
+                # Skip unsupported filters for QRO/El Marques
+                "property_type": None,
+                "plot_min": None,
+                "plot_max": None,
+                "buy": None,
+                "rent": None,
+                "construction_min": None,
+                "construction_max": None,
+                "zip_code": None
+            }
+        else:
+            # Mexico column mapping
+            FILTER_COLUMN_MAP = {
+                "availability": "is_on_market",
+                "property_type": ["property_type_spot2", "property_type_inmuebles24", "property_type_propiedades"],
+                "plot_min": "total_surface_area",
+                "plot_max": "total_surface_area",
+                "buy": ["buy_price_spot2",  "buy_price_inmuebles24", "buy_price_propiedades"],
+                "rent": ["rent_price_spot2", "rent_price_inmuebles24", "rent_price_propiedades"],
+                "construction_min": "total_construction_area",
+                "construction_max": "total_construction_area",
+                "geometry": "block_type",
+                "id_municipality": "id_municipality",
+                "city": "city",
+                "municipality": "municipality_nm",
+                "alcaldia": "nom_mun",
+                "colonia": "neighborhood",
+                "zip_code": "zip_code"
+            }
         connection = None
         cursor = None
         resp = None
@@ -1832,37 +1853,34 @@ class PropertyController:
             logger.info("Filtering properties with filters: %s", filters)
             filter_query = 'WHERE 1=1'
             # Availability (example: is_on_market)
-            if 'availability' in filters and filters['availability']:
+            if 'availability' in filters and filters['availability'] and FILTER_COLUMN_MAP['availability']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['availability']} = '{filters['availability']}'"
-            # Property Type (multi-select)
-            if 'property_type' in filters and filters['property_type']:
+            
+            # Property Type (multi-select) - Only for Mexico
+            if 'property_type' in filters and filters['property_type'] and FILTER_COLUMN_MAP['property_type']:
                 types = filters['property_type']
                 if isinstance(types, list):
                     type_list = ','.join([f"'{t}'" for t in types])
                     cols = FILTER_COLUMN_MAP['property_type']
                     filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
-            # Property Only (multi-column OR)
-            # if 'property_only' in filters and filters['property_only']:
-            #     types = filters['property_only']
-            #     if isinstance(types, list):
-            #         type_list = ','.join([f"'{t}'" for t in types])
-            #         cols = FILTER_COLUMN_MAP['property_only']
-            #         filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
-            else:
-                value = filters['property_type']
-                cols = FILTER_COLUMN_MAP['property_type']
-                filter_query += " AND (" + " OR ".join([f"{col} = '{value}'" for col in cols]) + ")"
-            # Plot Dimensions (range)
-            if 'plot_min' in filters and filters['plot_min'] is not None:
+                else:
+                    value = filters['property_type']
+                    cols = FILTER_COLUMN_MAP['property_type']
+                    filter_query += " AND (" + " OR ".join([f"{col} = '{value}'" for col in cols]) + ")"
+            
+            # Plot Dimensions (range) - Only for Mexico
+            if 'plot_min' in filters and filters['plot_min'] is not None and FILTER_COLUMN_MAP['plot_min']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['plot_min']} >= {filters['plot_min']}"
-            if 'plot_max' in filters and filters['plot_max'] is not None:
+            if 'plot_max' in filters and filters['plot_max'] is not None and FILTER_COLUMN_MAP['plot_max']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['plot_max']} <= {filters['plot_max']}"
-            # Construction Dimensions (range)
-            if 'construction_min' in filters and filters['construction_min'] is not None:
+            
+            # Construction Dimensions (range) - Only for Mexico
+            if 'construction_min' in filters and filters['construction_min'] is not None and FILTER_COLUMN_MAP['construction_min']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_min']} >= {filters['construction_min']}"
-            if 'construction_max' in filters and filters['construction_max'] is not None:
+            if 'construction_max' in filters and filters['construction_max'] is not None and FILTER_COLUMN_MAP['construction_max']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_max']} <= {filters['construction_max']}"
-            # Price (Buy/Rent, range)
+            
+            # Price (Buy/Rent, range) - Only for Mexico
             if 'price_type' in filters and filters['price_type']:
                 price_type = filters['price_type'].lower()
                 # Map to correct DB column
@@ -1874,13 +1892,36 @@ class PropertyController:
                     if 'price_max' in filters and filters['price_max'] is not None:
                         max_conditions = " OR ".join([f"{field} <= {filters['price_max']}" for field in price_fields])
                         filter_query += f" AND ({max_conditions})"
+            
             # Geometry (location on block)
-            if 'geometry' in filters and filters['geometry']:
+            if 'geometry' in filters and filters['geometry'] and FILTER_COLUMN_MAP['geometry']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['geometry']} = '{filters['geometry']}'"
-            # Zoning fields (updated, removed search_within)
-            for key in ["id_municipality"]:
-                if key in filters and filters[key]:
-                    filter_query += f" AND {FILTER_COLUMN_MAP[key]} in ({','.join([str(f) for f in filters[key]])}) "
+            
+            # Municipality fields
+            for key in ["id_municipality", "municipality", "alcaldia", "colonia"]:
+                if key in filters and filters[key] and FILTER_COLUMN_MAP[key]:
+                    if key == "id_municipality":
+                        # Handle id_municipality as list of IDs
+                        if isinstance(filters[key], list):
+                            filter_query += f" AND {FILTER_COLUMN_MAP[key]} in ({','.join([str(f) for f in filters[key]])}) "
+                        else:
+                            filter_query += f" AND {FILTER_COLUMN_MAP[key]} = {filters[key]}"
+                    else:
+                        # Handle other municipality fields - extract name from object if needed
+                        value = filters[key]
+                        if isinstance(value, dict) and 'name' in value:
+                            value = value['name']
+                        elif isinstance(value, list) and len(value) > 0:
+                            # If it's a list of objects, extract names
+                            if isinstance(value[0], dict) and 'name' in value[0]:
+                                value = value[0]['name']
+                            else:
+                                value = str(value[0])
+                        elif not isinstance(value, str):
+                            value = str(value)
+                        
+                        filter_query += f" AND {FILTER_COLUMN_MAP[key]} ILIKE '%{value}%'"
+            
             # TODO: Add more filters as needed (currency, block position, etc.)
 
             print("Filter Query", filter_query)
