@@ -1014,6 +1014,8 @@ class QueryController :
                 p_6a11_colonia,
                 p_6a11_alcaldia,
                 p6a11_noa, -- total education between 6 and 11 years attending school
+                p6a11_noa_colonia,
+                p12a14noa_colonia,
                 p6a11_noaf_colonia,
                 p6a11_noam_colonia,
                 p6a11_noa_alcaldia,
