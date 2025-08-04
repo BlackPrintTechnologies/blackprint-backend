@@ -48,7 +48,7 @@ class PropertyLayerController:
                 NULL as min_housing
                 from blackprint_db_prd.data_product.v_qro
                 WHERE 
-                (is_on_market != 'Off Market')
+                (is_on_market = 'On Market')
                 -- For QRO, we'll filter based on available market data
                 AND (ids_market_data_spot2 IS NOT NULL OR ids_market_data_inmuebles24 IS NOT NULL)
                 -- Filter for specific municipalities: El Marqués, Querétaro, and Corregidora
@@ -85,7 +85,7 @@ class PropertyLayerController:
                 ids_market_data_inmuebles24
                 from blackprint_db_prd.data_product.v_parcel_v3
                 WHERE 
-                (is_on_market != 'Off Market')
+                (is_on_market = 'On Market')
                 AND (
                 property_type_spot2 IN ('Local Comercial')
                 OR property_type_inmuebles24 IN (
