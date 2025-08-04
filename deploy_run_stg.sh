@@ -21,7 +21,7 @@ docker rm $CONTAINER_NAME || { echo "Failed to remove Docker container"; exit 1;
 
 # Run a new Docker container with the updated image
 echo "Running new Docker container..."
-docker run -d -p $PORT_MAPPING --name $CONTAINER_NAME $IMAGE_NAME || { echo "Failed to run Docker container"; exit 1; }
+docker run --restart unless-stopped -d -p $PORT_MAPPING --name $CONTAINER_NAME $IMAGE_NAME || { echo "Failed to run Docker container"; exit 1; }
 
 echo "Update and deployment complete."
 

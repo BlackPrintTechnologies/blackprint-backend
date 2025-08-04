@@ -18,7 +18,7 @@ PLATFORM_URL = config['PLATFORM_URL']
 def get_token(id):
     token = jwt.encode({
             'id': id,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(days=7)
         }, SECRET_KEY, algorithm='HS256')
     return token
 

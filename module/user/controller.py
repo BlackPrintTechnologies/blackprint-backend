@@ -143,8 +143,16 @@ class UsersController:
                 resp = Response.bad_request(message="No fields to update")
 
             query += ', '.join(updates)
-            query += ' WHERE bp_user_id = %s'
-            params.append(id)
+            if id :
+                query += ' WHERE bp_user_id = %s'
+                params.append(id) 
+            elif bp_email:
+                query += ' WHERE bp_email = %s'
+                params.append(bp_email)
+            else:
+                logger.error("User ID is required for update")
+                resp = Response.bad_request(message="User ID is required for update")
+                return resp
             
             logger.debug(f"Executing query: {query} with params: {params}")
             print(query, params)
@@ -260,6 +268,21 @@ class UsersController:
             logger.error(f"Error sending verification email: {str(e)}", exc_info=True)
             return Response.internal_server_error(message=str(e))
 
+    def send_password_reset_email(self, bp_email):
+        try:
+            logger.info(f"Sending password reset email to: {bp_email}")
+            token = get_token(bp_email)
+            url = f'{PLATFORM_URL}/reset-password?email=' + bp_email + '&token=' + token
+            logger.debug(f"Password reset URL: {url}")
+            print("token=====>", url)
+            logger.debug("Sending email via send_email utility")
+            message = send_email(bp_email, 'Password Reset','static/forgot_password_verification.html', {'token': url})
+            logger.info("Password reset email sent successfully")
+            return Response.success(message=message)
+        except Exception as e:
+            logger.error(f"Error sending password reset email: {str(e)}", exc_info=True)
+            return Response.internal_server_error(message=str(e))
+   
 class UserQuestionareController: 
     def __init__(self):
         logger.debug("Initializing UserQuestionareController")

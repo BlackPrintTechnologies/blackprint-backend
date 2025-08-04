@@ -39,16 +39,17 @@ logger = logging.getLogger(__name__)
 logger.info("Starting the Flask application...")
 
 # Import your routes
-from module.user.routes import Signup, Signin, ForgotPassword, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification, UpdateQuestionare
+from module.user.routes import Signup, Signin, ForgotPassword, ConfirmPasswordUpdate, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification, UpdateQuestionare
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
 from module.layers.routes import Brands, Traffic, SearchBrands, PropertyLayer
-from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyMarketInfo, PropertyCommercialGrowth
+from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyMarketInfo, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch
 
 # Define API routes
 api.add_resource(Signup, '/user/signup')
 api.add_resource(Signin, '/user/signin')
 api.add_resource(ForgotPassword, '/user/forgot-password')
+api.add_resource(ConfirmPasswordUpdate, '/user/confirm-password-update')
 api.add_resource(UpdateUser, '/user/updateuser')
 api.add_resource(GetUser, '/user/getuser')
 api.add_resource(SavedSearches, '/savesearch', '/savesearch/<int:search_id>')
@@ -72,6 +73,8 @@ api.add_resource(RequestedProperties, '/property/requested')
 api.add_resource(PropertyTraffic, '/property/traffic')
 api.add_resource(PropertyMarketInfo, '/property/marketinfo')  # Catchment and fid as parameters
 api.add_resource(PropertyCommercialGrowth, '/property/commercial-growth')
+api.add_resource(PropertyFilter, '/property/filter')
+api.add_resource(AdvancedMunicipalitySearch, '/properties/municipality_search/')
 
 @app.after_request
 def after_request(response):
