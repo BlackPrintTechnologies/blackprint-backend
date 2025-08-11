@@ -1231,18 +1231,18 @@ class PropertyController:
                                 },
                         "colonia": {
                                 "neighborhood" : result.get("nom_loc", None),
-                                "predominant_level" : result.get("niv_predom", None),
+                                "predominant_level" : result.get("predominant_level_colonia", None),
                                 "ageb_code" : result.get("cve_ageb", None),
-                                "total_household": result.get("vivtot_colonia", None),
+                                "total_household": result.get("total_houses_colonia", None),
                                 "average_household_size": result.get("prom_ocup_colonia", None),
                                 "average_number_of_rooms": result.get("pro_ocup_c_colonia", None)
                                 },
                         
                         "alcaldia": {
                                 "neighborhood" : result.get('nom_mun', None),
-                                "predominant_level" : result.get("niv_predom", None),
+                                "predominant_level" : result.get("predominant_level_alcaldia", None),
                                 "ageb_code" : result.get("cve_ageb", None),
-                                "total_household": result.get("vivtot_alcaldia", None),
+                                "total_household": result.get("total_houses_alcaldia", None),
                                 "average_household_size": result.get("prom_ocup_alcaldia", None),
                                 "average_number_of_rooms": result.get("pro_ocup_c_alcaldia", None)
                         }
@@ -1258,22 +1258,22 @@ class PropertyController:
                             "ses_e": result.get("pct_viv_e", None)
                         },
                         "colonia": {
-                            "ses_ab": result.get("pct_viv_ab", None),
-                            "ses_c_plus": result.get("pct_viv_cp", None),
-                            "ses_c": result.get("pct_viv_c", None),
-                            "ses_c_minus": result.get("pct_viv_cm", None),
-                            "ses_d": result.get("pct_viv_d", None),
-                            "ses_d_plus": result.get("pct_viv_dp", None),
-                            "ses_e": result.get("pct_viv_e", None)
+                            "ses_ab": result.get("pct_ses_ab_colonia", None),
+                            "ses_c_plus": result.get("pct_ses_c_plus_colonia", None),
+                            "ses_c": result.get("pct_ses_c_colonia", None),
+                            "ses_c_minus": result.get("pct_ses_c_minus_colonia", None),
+                            "ses_d": result.get("pct_ses_d_colonia", None),
+                            "ses_d_plus": result.get("pct_ses_d_plus_colonia", None),
+                            "ses_e": result.get("pct_ses_e_colonia", None)
                         },
                         "alcaldia": {
-                            "ses_ab": result.get("pct_viv_ab", None),
-                            "ses_c_plus": result.get("pct_viv_cp", None),
-                            "ses_c": result.get("pct_viv_c", None),
-                            "ses_c_minus": result.get("pct_viv_cm", None),
-                            "ses_d": result.get("pct_viv_d", None),
-                            "ses_d_plus": result.get("pct_viv_dp", None),
-                            "ses_e": result.get("pct_viv_e", None)
+                            "ses_ab": result.get("pct_ses_ab_alcaldia", None),
+                            "ses_c_plus": result.get("pct_ses_c_plus_alcaldia", None),
+                            "ses_c": result.get("pct_ses_c_alcaldia", None),
+                            "ses_c_minus": result.get("pct_ses_c_minus_alcaldia", None),
+                            "ses_d": result.get("pct_ses_d_alcaldia", None),
+                            "ses_d_plus": result.get("pct_ses_d_plus_alcaldia", None),
+                            "ses_e": result.get("pct_ses_e_alcaldia", None)
                         }
                     },
                     "population": {
