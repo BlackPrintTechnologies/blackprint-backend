@@ -60,10 +60,11 @@ class Property(Resource):
         filter_keys = [
             'availability', 'property_type', 'plot_min', 'plot_max', 'construction_min', 'construction_max',
             'geometry', 'price_type', 'price_min', 'price_max',
-            'city', 'id_municipality'
+            'city', 'id_municipality',
+            # New filters for QRO market data
+            'operation_type', 'dimension_min', 'dimension_max'
         ]
         filters['show_all_keys'] = parser_data.get('show_all_keys', True)
-        print("Filters:", filters)
         if any(key in filters for key in filter_keys):
             # Add filter-based caching
             filter_key_raw = f"user={current_user}|filters={json.dumps(filters, sort_keys=True)}"
@@ -84,28 +85,115 @@ class Property(Resource):
             
             return response
         else:
-            print("No filters provided, using fid, lat, lng")
             fid = filters.get('fid')
             lat = filters.get('lat')
             lng = filters.get('lng')
             norm_fid = normalize_fid(fid)
             norm_lat = str(lat) if lat is not None else None
             norm_lng = str(lng) if lng is not None else None
+            # Create primary cache key
             cache_key_raw = f"user={current_user}|fid={norm_fid}|lat={norm_lat}|lng={norm_lng}|city={city}"
             cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
+            logger.info(f"[CACHE KEY] Primary cache key: {cache_key_raw} -> {cache_key}")
+            
+            # For FID-only requests, check FID cache first for potential lat/lng cached response
+            if fid and not lat and not lng:
+                fid_cache_key_raw = f"user={current_user}|fid={norm_fid}|city={city}"
+                fid_cache_key = hashlib.sha256(fid_cache_key_raw.encode()).hexdigest()
+                logger.info(f"[CACHE KEY] FID cache key: {fid_cache_key_raw} -> {fid_cache_key}")
+                cached_response = get_from_cache('property', fid_cache_key)
+                if cached_response:
+                    logger.info(f"[CACHE HIT] Found cached response for FID {norm_fid}")
+                    return cached_response
+            
+            # Check primary cache key
             cached_response = get_from_cache('property', cache_key)
             if cached_response:
+                logger.info(f"[CACHE HIT] Found cached response for primary key")
                 return cached_response
+                
             pc = PropertyController()
             response = pc.get_properties(current_user, fid, lat, lng, city=city)
             
             # Only cache successful responses
             if isinstance(response, dict) and response.get('message', '').lower() == 'success':
                 set_in_cache('property', cache_key, response)
+                # For lat/lng requests, also cache with FID key for future FID requests
+                if lat and lng and not fid:
+                    try:
+                        response_fid = None
+                        if 'data' in response and isinstance(response['data'], list) and len(response['data']) > 0:
+                            # Check if FID is directly in the first item
+                            first_item = response['data'][0]
+                            if 'fid' in first_item:
+                                response_fid = first_item.get('fid')
+                            elif 'property_details' in first_item and 'fid' in first_item['property_details']:
+                                response_fid = first_item['property_details'].get('fid')
+                        elif 'data' in response and isinstance(response['data'], dict):
+                            # Check if FID is directly in data or in property_details
+                            if 'fid' in response['data']:
+                                response_fid = response['data'].get('fid')
+                            elif 'property_details' in response['data'] and 'fid' in response['data']['property_details']:
+                                response_fid = response['data']['property_details'].get('fid')
+                        if response_fid:
+                            norm_response_fid = normalize_fid(response_fid)
+                            fid_cache_key_raw = f"user={current_user}|fid={norm_response_fid}|city={city}"
+                            fid_cache_key = hashlib.sha256(fid_cache_key_raw.encode()).hexdigest()
+                            logger.info(f"[DUAL CACHE] Creating FID cache key: {fid_cache_key_raw} -> {fid_cache_key}")
+                            set_in_cache('property', fid_cache_key, response)
+                            logger.info(f"[DUAL CACHE] Cached lat/lng response also with FID {norm_response_fid}")
+                    except Exception as e:
+                        logger.error(f"[DUAL CACHE ERROR] Failed to extract FID: {e}")
+                # For FID-only requests, also cache with FID key for future FID requests
+                elif fid and not lat and not lng:
+                    try:
+                        fid_cache_key_raw = f"user={current_user}|fid={norm_fid}|city={city}"
+                        fid_cache_key = hashlib.sha256(fid_cache_key_raw.encode()).hexdigest()
+                        logger.info(f"[FID CACHE] Creating FID cache key: {fid_cache_key_raw} -> {fid_cache_key}")
+                        set_in_cache('property', fid_cache_key, response)
+                        logger.info(f"[FID CACHE] Cached FID response for {norm_fid}")
+                    except Exception as e:
+                        logger.error(f"[FID CACHE ERROR] Failed to cache FID response: {e}")
             elif isinstance(response, tuple) and len(response) == 2:
                 response_data, status_code = response
                 if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
                     set_in_cache('property', cache_key, response)
+                    # For lat/lng requests, also cache with FID key for future FID requests
+                    if lat and lng and not fid:
+                        try:
+                            response_fid = None
+                            if 'data' in response_data and isinstance(response_data['data'], list) and len(response_data['data']) > 0:
+                                # Check if FID is directly in the first item
+                                first_item = response_data['data'][0]
+                                if 'fid' in first_item:
+                                    response_fid = first_item.get('fid')
+                                elif 'property_details' in first_item and 'fid' in first_item['property_details']:
+                                    response_fid = first_item['property_details'].get('fid')
+                            elif 'data' in response_data and isinstance(response_data['data'], dict):
+                                # Check if FID is directly in data or in property_details
+                                if 'fid' in response_data['data']:
+                                    response_fid = response_data['data'].get('fid')
+                                elif 'property_details' in response_data['data'] and 'fid' in response_data['data']['property_details']:
+                                    response_fid = response_data['data']['property_details'].get('fid')
+                            if response_fid:
+                                norm_response_fid = normalize_fid(response_fid)
+                                fid_cache_key_raw = f"user={current_user}|fid={norm_response_fid}|city={city}"
+                                fid_cache_key = hashlib.sha256(fid_cache_key_raw.encode()).hexdigest()
+                                logger.info(f"[DUAL CACHE] Creating FID cache key: {fid_cache_key_raw} -> {fid_cache_key}")
+                                set_in_cache('property', fid_cache_key, response)
+                                logger.info(f"[DUAL CACHE] Cached lat/lng response also with FID {norm_response_fid}")
+                        except Exception as e:
+                            logger.error(f"[DUAL CACHE ERROR] Failed to extract FID: {e}")
+                    # For FID-only requests, also cache with FID key for future FID requests
+                    elif fid and not lat and not lng:
+                        try:
+                            fid_cache_key_raw = f"user={current_user}|fid={norm_fid}|city={city}"
+                            fid_cache_key = hashlib.sha256(fid_cache_key_raw.encode()).hexdigest()
+                            logger.info(f"[FID CACHE] Creating FID cache key: {fid_cache_key_raw} -> {fid_cache_key}")
+                            set_in_cache('property', fid_cache_key, response)
+                            logger.info(f"[FID CACHE] Cached FID response for {norm_fid}")
+                        except Exception as e:
+                            logger.error(f"[FID CACHE ERROR] Failed to cache FID response: {e}")
             
             return response
     
@@ -276,14 +364,41 @@ class PropertyDetailsBundle(Resource):
 class PropertyCommercialGrowth(Resource):
     parser = reqparse.RequestParser()
     parser.add_argument('fid', type=str, required=True, help='fid is required', location='args')
+    parser.add_argument('config_city', type=str, default='mexico', required=False, help='City for property commercial growth data', location='args')
     
     @authenticate
     def get(self,current_user):
         args = self.parser.parse_args()
         fid = args['fid']
+        config_city = args.get('config_city', 'mexico')
         norm_fid = normalize_fid(fid)
+        
+        # Create cache key for commercial growth
+        cache_key_raw = f"user={current_user}|fid={norm_fid}|config_city={config_city}"
+        cache_key = hashlib.sha256(cache_key_raw.encode()).hexdigest()
+        logger.info(f"[COMMERCIAL GROWTH CACHE] Cache key: {cache_key_raw} -> {cache_key}")
+        
+        # Check cache first
+        cached_response = get_from_cache('commercial_growth', cache_key)
+        if cached_response:
+            logger.info(f"[COMMERCIAL GROWTH CACHE] Cache hit for FID {norm_fid}")
+            return cached_response
+        
+        # If not in cache, fetch from database
+        logger.info(f"[COMMERCIAL GROWTH CACHE] Cache miss for FID {norm_fid}, fetching from database")
         pc = PropertyController()
         response = pc.get_property_commercial_growth(norm_fid)
+        
+        # Cache successful responses
+        if isinstance(response, dict) and response.get('message', '').lower() == 'success':
+            set_in_cache('commercial_growth', cache_key, response)
+            logger.info(f"[COMMERCIAL GROWTH CACHE] Cached response for FID {norm_fid}")
+        elif isinstance(response, tuple) and len(response) == 2:
+            response_data, status_code = response
+            if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+                set_in_cache('commercial_growth', cache_key, response)
+                logger.info(f"[COMMERCIAL GROWTH CACHE] Cached response for FID {norm_fid}")
+        
         return response
 
 class PropertyFilter(Resource):
