@@ -65,7 +65,6 @@ class Property(Resource):
             'operation_type', 'dimension_min', 'dimension_max'
         ]
         filters['show_all_keys'] = parser_data.get('show_all_keys', True)
-        print("Filters:", filters)
         if any(key in filters for key in filter_keys):
             # Add filter-based caching
             filter_key_raw = f"user={current_user}|filters={json.dumps(filters, sort_keys=True)}"
@@ -86,7 +85,6 @@ class Property(Resource):
             
             return response
         else:
-            print("No filters provided, using fid, lat, lng")
             fid = filters.get('fid')
             lat = filters.get('lat')
             lng = filters.get('lng')

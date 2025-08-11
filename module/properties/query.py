@@ -8,8 +8,8 @@ class QueryController :
         if city == 'queretaro' or city == 'el_marques':
             table = '''blackprint_db_prd.data_product.v_qro v 
                        LEFT JOIN blackprint_db_prd.presentation.dim_market_data_combined mdc 
-                       ON (v.ids_market_data_spot2 = mdc.id_market_data 
-                           OR v.ids_market_data_inmuebles24 = mdc.id_market_data)'''
+                       ON (CONCAT('spot2', v.ids_market_data_spot2) = mdc.id_market_data 
+                           OR CONCAT('inmuebles24', v.ids_market_data_inmuebles24) = mdc.id_market_data)'''
             fid_col = 'v.id_stg_demographic_socioeconomic_qro as fid'
             # Enhanced QRO columns with market data from dim_market_data_combined
             base_columns = f'''

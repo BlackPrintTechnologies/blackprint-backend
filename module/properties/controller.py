@@ -1853,23 +1853,32 @@ class PropertyController:
         cursor = None
         resp = None
         try:
-            logger.info("Filtering properties with filters: %s", filters)
+            # Log the request payload from frontend
+            logger.info(f"[FILTER REQUEST] City: {city}, Payload: {filters}")
             filter_query = 'WHERE 1=1'
             # Availability (example: is_on_market)
             if 'availability' in filters and filters['availability'] and FILTER_COLUMN_MAP['availability']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['availability']} = '{filters['availability']}'"
             
-            # Property Type (multi-select) - Only for Mexico
+            # Property Type (multi-select) - Updated for both Mexico and QRO
             if 'property_type' in filters and filters['property_type'] and FILTER_COLUMN_MAP['property_type']:
                 types = filters['property_type']
-                if isinstance(types, list):
-                    type_list = ','.join([f"'{t}'" for t in types])
-                    cols = FILTER_COLUMN_MAP['property_type']
-                    filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
+                cols = FILTER_COLUMN_MAP['property_type']
+                
+                if isinstance(cols, list):
+                    # Mexico: multiple columns (list)
+                    if isinstance(types, list):
+                        type_list = ','.join([f"'{t}'" for t in types])
+                        filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
+                    else:
+                        filter_query += " AND (" + " OR ".join([f"{col} = '{types}'" for col in cols]) + ")"
                 else:
-                    value = filters['property_type']
-                    cols = FILTER_COLUMN_MAP['property_type']
-                    filter_query += " AND (" + " OR ".join([f"{col} = '{value}'" for col in cols]) + ")"
+                    # QRO: single column (string)
+                    if isinstance(types, list):
+                        type_list = ','.join([f"'{t}'" for t in types])
+                        filter_query += f" AND {cols} IN ({type_list})"
+                    else:
+                        filter_query += f" AND {cols} = '{types}'"
             
             # Plot Dimensions (range) - Only for Mexico
             if 'plot_min' in filters and filters['plot_min'] is not None and FILTER_COLUMN_MAP['plot_min']:
@@ -1908,15 +1917,17 @@ class PropertyController:
             if 'geometry' in filters and filters['geometry'] and FILTER_COLUMN_MAP['geometry']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['geometry']} = '{filters['geometry']}'"
             
-            # Municipality fields
+            # Municipality fields 
             for key in ["id_municipality", "municipality", "alcaldia", "colonia"]:
                 if key in filters and filters[key] and FILTER_COLUMN_MAP[key]:
                     if key == "id_municipality":
-                        # Handle id_municipality as list of IDs
-                        if isinstance(filters[key], list):
-                            filter_query += f" AND {FILTER_COLUMN_MAP[key]} in ({','.join([str(f) for f in filters[key]])}) "
-                        else:
-                            filter_query += f" AND {FILTER_COLUMN_MAP[key]} = {filters[key]}"
+                        # For QRO, we'll handle id_municipality translation after cursor is created
+                        # For other cities, use direct mapping
+                        if city != 'queretaro' and city != 'el_marques':
+                            if isinstance(filters[key], list):
+                                filter_query += f" AND {FILTER_COLUMN_MAP[key]} in ({','.join([str(f) for f in filters[key]])}) "
+                            else:
+                                filter_query += f" AND {FILTER_COLUMN_MAP[key]} = {filters[key]}"
                     else:
                         # Handle other municipality fields - extract name from object if needed
                         value = filters[key]
@@ -1950,20 +1961,45 @@ class PropertyController:
 
             # TODO: Add more filters as needed (currency, block position, etc.)
 
-            print("Filter Query", filter_query)
-            query = self.qc.get_property_query(filter_query, city=city)
-            logger.info(f"[filter_properties] Executing query for city={city}: {query}")
             # connection = self.db.connect('redshiftdb')
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            print("Query", query)
+            
+            # Handle QRO id_municipality translation after cursor is created
+            if (city == 'queretaro' or city == 'el_marques') and 'id_municipality' in filters and filters['id_municipality']:
+                staging_ids = filters['id_municipality'] if isinstance(filters['id_municipality'], list) else [filters['id_municipality']]
+                logger.info(f"[MUNICIPALITY TRANSLATION] Converting staging IDs {staging_ids} to cve_mun values")
+                
+                # Query to get cve_mun values for the given id_stg_municipality values
+                translation_query = f"""
+                    SELECT DISTINCT v.cve_mun 
+                    FROM blackprint_db_prd.data_product.v_qro v
+                    JOIN staging.stg_municipality sm ON v.nom_mun = sm.d_mnpio
+                    WHERE sm.id_stg_municipality IN ({','.join([str(id) for id in staging_ids])})
+                """
+                
+                cursor.execute(translation_query)
+                cve_mun_results = cursor.fetchall()
+                cve_mun_values = [str(row['cve_mun']) for row in cve_mun_results]
+                
+                if cve_mun_values:
+                    logger.info(f"[MUNICIPALITY TRANSLATION] Mapped staging IDs {staging_ids} to cve_mun values {cve_mun_values}")
+                    filter_query += f" AND v.cve_mun IN ({','.join(cve_mun_values)})"
+                else:
+                    logger.warning(f"[MUNICIPALITY TRANSLATION] No cve_mun mapping found for staging IDs {staging_ids}")
+            
+            query = self.qc.get_property_query(filter_query, city=city)
+            # Log the generated query for debugging
+            logger.info(f"[FILTER QUERY] Generated SQL for city {city}: {query}")
             # query = query + " LIMIT 1"
             cursor.execute(query)
             result = cursor.fetchall()
-            print("Result", result)
             if not result:
+                logger.info(f"[FILTER RESULT] No properties found for city: {city}")
                 return Response.success(data=[], message='No properties found')
             result_jsons = self.get_property_json(result, show_all_keys=filters.get('show_all_keys', True), city=city)
+            # Log the final result count
+            logger.info(f"[FILTER RESULT] Found {len(result_jsons)} properties for city: {city}")
             resp = Response.success(data=result_jsons, message='Success')
         except Exception as e:
             logger.error("Error filtering properties: %s", str(e), exc_info=True)
@@ -2018,7 +2054,6 @@ class PropertyController:
                     ORDER BY {search_column}
                     LIMIT 50
                 """
-                print("Queryyyyyyyyyyyyyyyy", query)
                 cursor.execute(query, (f"%{municipality_nm}%", f"%{search_value}%"))
                 results = cursor.fetchall()
                 items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
