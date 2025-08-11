@@ -1808,20 +1808,24 @@ class PropertyController:
         """
         # Determine column mapping based on city
         if city == 'queretaro' or city == 'el_marques':
-            # QRO/El Marques column mapping
+            # QRO/El Marques column mapping - Enhanced with market data filters
             FILTER_COLUMN_MAP = {
-                "availability": "is_on_market",
-                "geometry": "geometry_type",
-                "id_municipality": "cve_mun",
-                "municipality": "nom_mun",
-                "alcaldia": "nom_mun",
-                "colonia": "nom_loc",
-                # Skip unsupported filters for QRO/El Marques
-                "property_type": None,
+                "availability": "v.is_on_market",
+                "geometry": "v.geometry_type",
+                "id_municipality": "v.cve_mun",
+                "municipality": "v.nom_mun",
+                "alcaldia": "v.nom_mun",
+                "colonia": "v.nom_loc",
+                # Market data filters now supported via dim_market_data_combined
+                "property_type": "mdc.property_type",
+                "operation_type": "mdc.operation_type",
+                "rent": "mdc.rent_price_clean",
+                "buy": "mdc.buy_price_clean",
+                "dimension_min": "mdc.property_dimension_clean",
+                "dimension_max": "mdc.property_dimension_clean",
+                # Still unsupported (no equivalent columns)
                 "plot_min": None,
                 "plot_max": None,
-                "buy": None,
-                "rent": None,
                 "construction_min": None,
                 "construction_max": None,
                 "zip_code": None
@@ -1879,18 +1883,26 @@ class PropertyController:
             if 'construction_max' in filters and filters['construction_max'] is not None and FILTER_COLUMN_MAP['construction_max']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_max']} <= {filters['construction_max']}"
             
-            # Price (Buy/Rent, range) - Only for Mexico
+            # Price (Buy/Rent, range) - Updated for both Mexico and QRO
             if 'price_type' in filters and filters['price_type']:
                 price_type = filters['price_type'].lower()
                 # Map to correct DB column
                 price_fields = FILTER_COLUMN_MAP.get(price_type, [])
                 if price_fields:
-                    if 'price_min' in filters and filters['price_min'] is not None:
-                        min_conditions = " OR ".join([f"{field} >= {filters['price_min']}" for field in price_fields])
-                        filter_query += f" AND ({min_conditions})"
-                    if 'price_max' in filters and filters['price_max'] is not None:
-                        max_conditions = " OR ".join([f"{field} <= {filters['price_max']}" for field in price_fields])
-                        filter_query += f" AND ({max_conditions})"
+                    if isinstance(price_fields, list):
+                        # Mexico: multiple columns (list)
+                        if 'price_min' in filters and filters['price_min'] is not None:
+                            min_conditions = " OR ".join([f"{field} >= {filters['price_min']}" for field in price_fields])
+                            filter_query += f" AND ({min_conditions})"
+                        if 'price_max' in filters and filters['price_max'] is not None:
+                            max_conditions = " OR ".join([f"{field} <= {filters['price_max']}" for field in price_fields])
+                            filter_query += f" AND ({max_conditions})"
+                    else:
+                        # QRO: single column (string)
+                        if 'price_min' in filters and filters['price_min'] is not None:
+                            filter_query += f" AND {price_fields} >= {filters['price_min']}"
+                        if 'price_max' in filters and filters['price_max'] is not None:
+                            filter_query += f" AND {price_fields} <= {filters['price_max']}"
             
             # Geometry (location on block)
             if 'geometry' in filters and filters['geometry'] and FILTER_COLUMN_MAP['geometry']:
@@ -1921,6 +1933,21 @@ class PropertyController:
                         
                         filter_query += f" AND {FILTER_COLUMN_MAP[key]} ILIKE '%{value}%'"
             
+            # Operation Type filter (New for QRO)
+            if 'operation_type' in filters and filters['operation_type'] and FILTER_COLUMN_MAP.get('operation_type'):
+                op_type = filters['operation_type']
+                if isinstance(op_type, list):
+                    op_list = ','.join([f"'{t}'" for t in op_type])
+                    filter_query += f" AND {FILTER_COLUMN_MAP['operation_type']} IN ({op_list})"
+                else:
+                    filter_query += f" AND {FILTER_COLUMN_MAP['operation_type']} = '{op_type}'"
+            
+            # Property Dimension filters (New for QRO)
+            if 'dimension_min' in filters and filters['dimension_min'] is not None and FILTER_COLUMN_MAP.get('dimension_min'):
+                filter_query += f" AND {FILTER_COLUMN_MAP['dimension_min']} >= {filters['dimension_min']}"
+            if 'dimension_max' in filters and filters['dimension_max'] is not None and FILTER_COLUMN_MAP.get('dimension_max'):
+                filter_query += f" AND {FILTER_COLUMN_MAP['dimension_max']} <= {filters['dimension_max']}"
+
             # TODO: Add more filters as needed (currency, block position, etc.)
 
             print("Filter Query", filter_query)
