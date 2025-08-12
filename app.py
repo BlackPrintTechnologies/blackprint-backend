@@ -43,7 +43,8 @@ from module.user.routes import Signup, Signin, ForgotPassword, ConfirmPasswordUp
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
 from module.layers.routes import Brands, Traffic, SearchBrands, PropertyLayer
-from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyMarketInfo, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch
+from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch
+from module.markets.routes import PropertyTypes, MarketInfo
 
 # Define API routes
 api.add_resource(Signup, '/user/signup')
@@ -71,10 +72,14 @@ api.add_resource(UpdateRequestInfo, '/property/requestinfo')
 api.add_resource(StreetViewImage, '/properties/street_view_image') #act as a proxy url to serve the image
 api.add_resource(RequestedProperties, '/property/requested')  
 api.add_resource(PropertyTraffic, '/property/traffic')
-api.add_resource(PropertyMarketInfo, '/property/marketinfo')  # Catchment and fid as parameters
+# PropertyMarketInfo moved to /markets/market-info
 api.add_resource(PropertyCommercialGrowth, '/property/commercial-growth')
 api.add_resource(PropertyFilter, '/property/filter')
 api.add_resource(AdvancedMunicipalitySearch, '/properties/municipality_search/')
+
+# Markets routes
+api.add_resource(MarketInfo, '/property/marketinfo')  # Catchment and fid as parameters
+api.add_resource(PropertyTypes, '/market/propertytypes')
 
 @app.after_request
 def after_request(response):

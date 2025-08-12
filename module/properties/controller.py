@@ -1172,7 +1172,7 @@ class PropertyController:
                                 "pedestrian_avg_x_hour_23_500m": result["pedestrian_avg_x_hour_23_500m"],
                                 "motor_vehicle_avg_x_hour_23_500m": result["motor_vehicle_avg_x_hour_23_500m"]
                             },
-                     "1000":{
+                            "1000":{
                                 "at_rest_avg_x_hour_0_1000m": result.get("at_rest_avg_x_hour_0_1km", None),
                                 "pedestrian_avg_x_hour_0_1000m": result.get("pedestrian_avg_x_hour_0_1km", None),
                                 "motor_vehicle_avg_x_hour_0_1000m": result.get("motor_vehicle_avg_x_hour_0_1km", None),
