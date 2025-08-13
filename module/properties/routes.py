@@ -17,6 +17,64 @@ from utils.normalization_utils import normalize_fid, normalize_market_id
 import logging
 logger = logging.getLogger(__name__)
 
+def create_commercial_growth_structure():
+    """
+    Creates the commercial growth data structure dynamically.
+    This eliminates the need for repetitive hardcoded dictionaries.
+    """
+    # Define the years and their corresponding growth years
+    years_data = {
+        "2010": None,  # No growth calculation for 2010
+        "2015": "2015",
+        "2017": "2017", 
+        "2020": "2020",
+        "2023": "2023"
+    }
+    
+    # Define the geographic levels
+    geo_levels = ["block", "alcaldia", "colonia"]
+    
+    # Define business categories
+    categories = [
+        "EAT_AND_DRINK",
+        "HEALTH_AND_MEDICAL", 
+        "BEAUTY_AND_SPA",
+        "FINANCIAL_SERVICE",
+        "ARTS_AND_ENTERTAINMENT",
+        "ACTIVE_LIFE",
+        "RETAIL",
+        "PETS",
+        "ATTRACTIONS_AND_ACTIVITIES",
+        "EDUCATION",
+        "OTHERS"
+    ]
+    
+    # Create the base structure for each geographic level
+    def create_geo_structure():
+        structure = {}
+        for year, growth_year in years_data.items():
+            structure[f"total_businesses_{year}"] = None
+            if growth_year:
+                structure[f"economic_growth_{growth_year}"] = None
+        return structure
+    
+    # Create the main data structure
+    data = {
+        "commercial_growth": {
+            geo_level: create_geo_structure()
+            for geo_level in geo_levels
+        },
+        "categories": {
+            category: {
+                geo_level: create_geo_structure()
+                for geo_level in geo_levels
+            }
+            for category in categories
+        }
+    }
+    
+    return data
+
 #Route for the Street View image proxy endpoint
 class StreetViewImage(Resource):
     # @authenticate do we realy need to authenticate this 
@@ -352,25 +410,7 @@ class PropertyCommercialGrowth(Resource):
         city_lower = city_name.lower().strip()
         return city_lower in ['queretaro', 'el_marques']
     
-    def get_mexico_validation_error(self, city_name):
-        """
-        Get standardized error response for non-Mexico cities
-        """
-        if not city_name:
-            return Response.bad_request(
-                message="City name is required",
-                data={"supported_cities": ["mexico"]}
-            )
-        
-        return Response.bad_request(
-            message=f"Commercial growth API is not available for city: {city_name}",
-            data={
-                "provided_city": city_name,
-                "supported_cities": ["mexico"],
-                "available_regions": ["Mexico City"],
-                "note": "Commercial growth data is only available for Mexico City"
-            }
-        )
+
     
     @authenticate
     def get(self,current_user):
@@ -383,437 +423,22 @@ class PropertyCommercialGrowth(Resource):
         if self.is_queretaro_city(config_city):
             logger.info(f"Commercial growth API called for Queretaro city: {config_city} - returning null values")
             return Response.success(
-                data={
-                    "commercial_growth": {
-                        "block": {
-                            "total_businesses_2010": None,
-                            "total_businesses_2015": None,
-                            "economic_growth_2015": None,
-                            "total_businesses_2017": None,
-                            "economic_growth_2017": None,
-                            "total_businesses_2020": None,
-                            "economic_growth_2020": None,
-                            "total_businesses_2023": None,
-                            "economic_growth_2023": None
-                        },
-                        "alcaldia": {
-                            "total_businesses_2010": None,
-                            "total_businesses_2015": None,
-                            "economic_growth_2015": None,
-                            "total_businesses_2017": None,
-                            "economic_growth_2017": None,
-                            "total_businesses_2020": None,
-                            "economic_growth_2020": None,
-                            "total_businesses_2023": None,
-                            "economic_growth_2023": None
-                        },
-                        "colonia": {
-                            "total_businesses_2010": None,
-                            "total_businesses_2015": None,
-                            "economic_growth_2015": None,
-                            "total_businesses_2017": None,
-                            "economic_growth_2017": None,
-                            "total_businesses_2020": None,
-                            "economic_growth_2020": None,
-                            "total_businesses_2023": None,
-                            "economic_growth_2023": None
-                        }
-                    },
-                    "categories": {
-                        "EAT_AND_DRINK": {
-                            "block": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "alcaldia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "colonia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            }
-                        },
-                        "HEALTH_AND_MEDICAL": {
-                            "block": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "alcaldia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "colonia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            }
-                        },
-                        "BEAUTY_AND_SPA": {
-                            "block": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "alcaldia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "colonia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            }
-                        },
-                        "FINANCIAL_SERVICE": {
-                            "block": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "alcaldia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "colonia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            }
-                        },
-                        "ARTS_AND_ENTERTAINMENT": {
-                            "block": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "alcaldia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "colonia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            }
-                        },
-                        "ACTIVE_LIFE": {
-                            "block": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "alcaldia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "colonia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            }
-                        },
-                        "RETAIL": {
-                            "block": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "alcaldia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "colonia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            }
-                        },
-                        "PETS": {
-                            "block": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "alcaldia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "colonia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            }
-                        },
-                        "ATTRACTIONS_AND_ACTIVITIES": {
-                            "block": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "alcaldia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "colonia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            }
-                        },
-                        "EDUCATION": {
-                            "block": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "alcaldia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "colonia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            }
-                        },
-                        "OTHERS": {
-                            "block": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "alcaldia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            },
-                            "colonia": {
-                                "total_businesses_2010": None,
-                                "total_businesses_2015": None,
-                                "economic_growth_2015": None,
-                                "total_businesses_2017": None,
-                                "economic_growth_2017": None,
-                                "total_businesses_2020": None,
-                                "economic_growth_2020": None,
-                                "total_businesses_2023": None,
-                                "economic_growth_2023": None
-                            }
-                        }
-                    }
-                },
+                data=create_commercial_growth_structure(),
                 message="Commercial growth data not available for Queretaro city - returning null values"
             )
         
         # Validate that only 'mexico' city is allowed for actual data
         if not self.validate_mexico_city(config_city):
             logger.warning(f"Commercial growth API called with unsupported city: {config_city}")
-            return self.get_mexico_validation_error(config_city)
+            return Response.bad_request(
+                message=f"Commercial growth API is not available for city: {config_city}",
+                data={
+                    "provided_city": config_city,
+                    "supported_cities": ["mexico", "queretaro", "el_marques"],
+                    "available_regions": ["Mexico City", "Queretaro"],
+                    "note": "Commercial growth data is available for Mexico City (with data) and Queretaro (with null values)"
+                }
+            )
         
         # Create cache key for commercial growth
         cache_key_raw = f"user={current_user}|fid={norm_fid}|config_city={config_city}"
