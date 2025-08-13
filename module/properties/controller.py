@@ -1449,22 +1449,22 @@ class PropertyController:
                             "ses_e": result.get("pct_viv_e", None)
                         },
                         "colonia": {
-                            "ses_ab": result.get("pct_ses_ab_colonia", None),
-                            "ses_c_plus": result.get("pct_ses_c_plus_colonia", None),
-                            "ses_c": result.get("pct_ses_c_colonia", None),
-                            "ses_c_minus": result.get("pct_ses_c_minus_colonia", None),
-                            "ses_d": result.get("pct_ses_d_colonia", None),
-                            "ses_d_plus": result.get("pct_ses_d_plus_colonia", None),
-                            "ses_e": result.get("pct_ses_e_colonia", None)
+                            "ses_ab": result.get("ses_ab_colonia", None),
+                            "ses_c_plus": result.get("ses_c_plus_colonia", None),
+                            "ses_c": result.get("ses_c_colonia", None),
+                            "ses_c_minus": result.get("ses_c_minus_colonia", None),
+                            "ses_d": result.get("ses_d_colonia", None),
+                            "ses_d_plus": result.get("ses_d_plus_colonia", None),
+                            "ses_e": result.get("ses_e_colonia", None)
                         },
                         "alcaldia": {
-                            "ses_ab": result.get("pct_ses_ab_alcaldia", None),
-                            "ses_c_plus": result.get("pct_ses_c_plus_alcaldia", None),
-                            "ses_c": result.get("pct_ses_c_alcaldia", None),
-                            "ses_c_minus": result.get("pct_ses_c_minus_alcaldia", None),
-                            "ses_d": result.get("pct_ses_d_alcaldia", None),
-                            "ses_d_plus": result.get("pct_ses_d_plus_alcaldia", None),
-                            "ses_e": result.get("pct_ses_e_alcaldia", None)
+                            "ses_ab": result.get("ses_ab_alcaldia", None),
+                            "ses_c_plus": result.get("ses_c_plus_alcaldia", None),
+                            "ses_c": result.get("ses_c_alcaldia", None),
+                            "ses_c_minus": result.get("ses_c_minus_alcaldia", None),
+                            "ses_d": result.get("ses_d_alcaldia", None),
+                            "ses_d_plus": result.get("ses_d_plus_alcaldia", None),
+                            "ses_e": result.get("ses_e_alcaldia", None)
                         }
                     },
                     "population": {
