@@ -49,7 +49,7 @@ class MarketsQueryController:
                         url,
                         'inmuebles24' as source
                     FROM blackprint_db_prd.presentation.dim_market_data_combined
-                    WHERE id_market_data = 'inmuebles24{inmuebles24_id}'
+                    WHERE source = 'inmuebles24' AND id_market_data = {inmuebles24_id}
                       AND city IN ('Querétaro', 'El Marqués', 'Corregidora')
                 """
             elif spot2_id:
@@ -70,7 +70,7 @@ class MarketsQueryController:
                         url,
                         'spot2' as source
                     FROM blackprint_db_prd.presentation.dim_market_data_combined
-                    WHERE id_market_data = 'spot2{spot2_id}'
+                    WHERE source = 'spot2' AND id_market_data = {spot2_id}
                       AND city IN ('Querétaro', 'El Marqués','Corregidora')
                 """
             else:
@@ -98,7 +98,7 @@ class MarketsQueryController:
                         url,
                         'inmuebles24' as source
                     FROM blackprint_db_prd.presentation.dim_market_data_combined
-                    WHERE id_market_data = 'inmuebles24{inmuebles24_id}'
+                    WHERE source = 'inmuebles24' AND id_market_data = {inmuebles24_id}
                       AND city = 'mexico'
                 """
             elif spot2_id:
@@ -121,7 +121,7 @@ class MarketsQueryController:
                         publication_date,
                         'spot2' as source
                     FROM blackprint_db_prd.presentation.dim_market_data_combined
-                    WHERE id_market_data = 'spot2{spot2_id}'
+                    WHERE source = 'spot2' AND id_market_data = {spot2_id}
                       AND city = 'mexico'
                 """
             elif propiedades_id:
@@ -137,7 +137,7 @@ class MarketsQueryController:
                         property_dimension_clean as total_area_clean,
                         'propiedades' as source
                     FROM blackprint_db_prd.presentation.dim_market_data_combined
-                    WHERE id_market_data = 'propiedades{propiedades_id}'
+                    WHERE source = 'propiedades' AND id_market_data = {propiedades_id}
                       AND city = 'mexico'
                 """
             else:

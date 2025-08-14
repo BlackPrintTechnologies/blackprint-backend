@@ -2175,14 +2175,14 @@ class PropertyController:
                 
                 if cve_mun_values:
                     logger.info(f"[MUNICIPALITY TRANSLATION] Mapped staging IDs {staging_ids} to cve_mun values {cve_mun_values}")
-                    filter_query += f" AND v.cve_mun IN ({','.join(cve_mun_values)})"
+                    # filter_query += f" AND v.cve_mun IN ({','.join(cve_mun_values)})"
                 else:
                     logger.warning(f"[MUNICIPALITY TRANSLATION] No cve_mun mapping found for staging IDs {staging_ids}")
             
             query = self.qc.get_property_query(filter_query, city=city)
             # Log the generated query for debugging
             logger.info(f"[FILTER QUERY] Generated SQL for city {city}: {query}")
-            # query = query + " LIMIT 1"
+            query = query + " LIMIT 10"
             cursor.execute(query)
             result = cursor.fetchall()
             if not result:
