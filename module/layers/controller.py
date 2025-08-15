@@ -67,6 +67,8 @@ class PropertyLayerController:
                 (v.is_on_market = 'On Market')
                 -- Filter for specific municipalities: El Marqués, Querétaro, and Corregidora
                 AND v.nom_mun IN ('El Marqués', 'Querétaro', 'Corregidora')
+                -- Also filter by city in dim_market_data_combined table
+                AND mdc.city IN ('El Marqués', 'Querétaro', 'Corregidora')
                 AND mdc.geometry_coords IS NOT NULL
                 QUALIFY ROW_NUMBER() OVER (
                     PARTITION BY v.id_stg_demographic_socioeconomic_qro
