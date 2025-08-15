@@ -35,7 +35,7 @@ class PropertyLayerController:
                 NULL as street_address,
                 NULL as total_surface_area,
                 NULL as total_construction_area,
-                NULL as property_type_inmuebles24,
+                mdc.property_type as property_type_inmuebles24,
                 NULL as year_built,
                 NULL as special_facilities,
                 NULL as unit_land_value,
