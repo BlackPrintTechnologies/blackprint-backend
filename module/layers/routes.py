@@ -17,25 +17,64 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 def fetch_properties_layer_data_raw(city='mexico'):
+    logger.info(f"fetch_properties_layer_data_raw called for city: {city}")
     controller = PropertyLayerController()
     connection = None
     resp = None
     try:
+        logger.info(f"Connecting to database for city: {city}")
         connection = controller.db.connect()
         cursor = connection.cursor(cursor_factory=RealDictCursor)
+        
+        logger.info(f"Getting property query for city: {city}")
         query = controller.get_property_query(city=city)
+        logger.info(f"Query generated for {city}: {query[:500]}...")  # Log first 500 chars
+        
+        # Log the full query for debugging
+        logger.info(f"Full query for {city}: {query}")
+        
+        logger.info(f"Executing query for city: {city}")
         cursor.execute(query)
+        logger.info(f"Query executed successfully for city: {city}")
+        
         res = cursor.fetchall()
+        logger.info(f"Query returned {len(res)} rows for city: {city}")
+        
+        # Log sample data for debugging
+        if res and len(res) > 0:
+            sample_row = res[0]
+            logger.info(f"Sample row keys for {city}: {list(sample_row.keys())}")
+            logger.info(f"Sample row data for {city}: {dict(sample_row)}")
+            
+            # Check for geometry/centroid issues
+            if 'geometry' in sample_row:
+                logger.info(f"Geometry field type for {city}: {type(sample_row['geometry'])}, value: {sample_row['geometry']}")
+            if 'centroid' in sample_row:
+                logger.info(f"Centroid field type for {city}: {type(sample_row['centroid'])}, value: {sample_row['centroid']}")
+        else:
+            logger.warning(f"No results returned for city: {city}")
+        
         resp = {"message": "Success", "data": {"response": res}}, 200
+        logger.info(f"Success response created for city: {city}")
+        
     except Exception as e:
+        logger.error(f"Error in fetch_properties_layer_data_raw for city {city}: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        
         if connection:
             connection.rollback()
+            logger.info(f"Transaction rolled back for city: {city}")
         resp = {"message": "Internal Server Error", "data": str(e)}, 500
     finally:
         if cursor:
             cursor.close()
+            logger.info(f"Cursor closed for city: {city}")
         if connection:
             controller.db.disconnect(connection)
+            logger.info(f"Database connection closed for city: {city}")
+        logger.info(f"fetch_properties_layer_data_raw completed for city: {city}")
         return resp
 
 # Initialize caches for both cities - only cache successful responses

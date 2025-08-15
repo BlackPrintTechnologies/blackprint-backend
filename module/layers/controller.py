@@ -12,48 +12,93 @@ class PropertyLayerController:
     
     @staticmethod
     def get_property_query(city='mexico'):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Generating property query for city: {city}")
+        
         if city == 'queretaro' or city == 'el_marques':
-            # QRO table with available columns from v_qro_column.txt
-            query = f'''
-                select   
-                id_stg_demographic_socioeconomic_qro as fid,
-                centroid,
-                is_on_market,
-                ids_market_data_spot2,
-                ids_market_data_inmuebles24,
-                geometry_type,
-                bbox,
-                h3_indexes,
-                -- QRO doesn't have these Mexico columns, so we'll use NULL or similar values
-                NULL as street_address,
-                NULL as total_surface_area,
-                NULL as total_construction_area,
-                NULL as property_type_inmuebles24,
-                NULL as year_built,
-                NULL as special_facilities,
-                NULL as unit_land_value,
-                NULL as land_value,
-                NULL as key_vus,
-                niv_predom as predominant_level,
-                tot_vivien as total_houses,
-                NULL as locality_size,
-                NULL as floor_levels,
-                NULL as open_space,
-                NULL as id_land_use,
-                cve_mun as id_municipality,
-                NULL as id_city_blocks,
-                NULL as height,
-                NULL as cos,
-                NULL as cus,
-                NULL as min_housing
-                from blackprint_db_prd.data_product.v_qro
+            # QRO table with geometry from market data table - using the exact working query from DBeaver
+            logger.info("Creating QRO query with geometry conversion")
+            query = '''
+                SELECT 
+                    v.id_stg_demographic_socioeconomic_qro as fid,
+                    -- Use converted market geometry for centroid when available, otherwise use original centroid
+                    CASE 
+                        WHEN mdc.geometry_coords IS NOT NULL THEN 
+                            '{"type":"Point","coordinates":[' || 
+                            CAST(ST_X(ST_Transform(mdc.geometry_coords, 4326)) AS VARCHAR) || ',' ||
+                            CAST(ST_Y(ST_Transform(mdc.geometry_coords, 4326)) AS VARCHAR) || 
+                            ']}'
+                        ELSE v.centroid 
+                    END as centroid,
+                    v.is_on_market,
+                    v.ids_market_data_spot2,
+                    v.ids_market_data_inmuebles24,
+                    v.geometry_type,
+                    v.bbox,
+                    v.h3_indexes,
+                    -- Use market geometry if available, otherwise use centroid
+                    -- Convert UTM geometry to GeoJSON format with longitude/latitude
+                    CASE 
+                        WHEN mdc.geometry_coords IS NOT NULL THEN 
+                            '{"type":"Point","coordinates":[' || 
+                            CAST(ST_X(ST_Transform(mdc.geometry_coords, 4326)) AS VARCHAR) || ',' ||
+                            CAST(ST_Y(ST_Transform(mdc.geometry_coords, 4326)) AS VARCHAR) || 
+                            ']}'
+                         
+                    END as geometry,
+                    -- Market data columns
+                    mdc.latitude,
+                    mdc.longitude,
+                    mdc.property_type,
+                    mdc.operation_type,
+                    mdc.rent_price_clean,
+                    mdc.buy_price_clean,
+                    mdc.property_dimension_clean,
+                    mdc.title,
+                    mdc.url,
+                    -- QRO-specific columns
+                    v.niv_predom as predominant_level,
+                    v.tot_vivien as total_houses,
+                    v.cve_mun as id_municipality,
+                    -- QRO doesn't have these Mexico columns, so we'll use NULL or similar values
+                    NULL as street_address,
+                    COALESCE(mdc.property_dimension_clean, NULL) as total_surface_area,
+                    NULL as total_construction_area,
+                    COALESCE(mdc.property_type, NULL) as property_type_inmuebles24,
+                    NULL as year_built,
+                    NULL as special_facilities,
+                    NULL as unit_land_value,
+                    NULL as land_value,
+                    NULL as key_vus,
+                    v.niv_predom as predominant_level,
+                    v.tot_vivien as total_houses,
+                    NULL as locality_size,
+                    NULL as floor_levels,
+                    NULL as open_space,
+                    NULL as id_land_use,
+                    v.cve_mun as id_municipality,
+                    NULL as id_city_blocks,
+                    NULL as height,
+                    NULL as cos,
+                    NULL as cus,
+                    NULL as min_housing
+                FROM blackprint_db_prd.data_product.v_qro v
+                LEFT JOIN blackprint_db_prd.presentation.dim_market_data_combined mdc 
+                ON (
+                    (mdc.source = 'spot2'
+                     AND v.ids_market_data_spot2 IS NOT NULL AND v.ids_market_data_spot2 <> ''
+                     AND (',' || REPLACE(CAST(v.ids_market_data_spot2 AS VARCHAR), ' ', '') || ',') LIKE '%,' || CAST(mdc.id_market_data AS VARCHAR) || ',%')
+                 OR (mdc.source = 'inmuebles24'
+                     AND v.ids_market_data_inmuebles24 IS NOT NULL AND v.ids_market_data_inmuebles24 <> ''
+                     AND (',' || REPLACE(CAST(v.ids_market_data_inmuebles24 AS VARCHAR), ' ', '') || ',') LIKE '%,' || CAST(mdc.id_market_data AS VARCHAR) || ',%')
+                  )
                 WHERE 
-                (is_on_market = 'On Market')
-                -- For QRO, we'll filter based on available market data
-                AND (ids_market_data_spot2 IS NOT NULL OR ids_market_data_inmuebles24 IS NOT NULL)
-                -- Filter for specific municipalities: El Marqués, Querétaro, and Corregidora
-                AND nom_mun IN ('El Marqués', 'Querétaro', 'Corregidora')
+                (v.is_on_market = 'On Market')
+                AND (v.ids_market_data_spot2 IS NOT NULL OR v.ids_market_data_inmuebles24 IS NOT NULL)
+                AND v.nom_mun IN ('El Marqués', 'Querétaro', 'Corregidora')
                 '''
+            logger.info(f"Generated QRO query with geometry conversion")
         else:
             # Mexico (existing query)
             query = f'''
@@ -95,30 +140,83 @@ class PropertyLayerController:
                 )
         )
                 '''
+            logger.info(f"Generated Mexico query")
+        
+        logger.info(f"Final query length: {len(query)} characters")
         return query
     
     # Remove @cache_response decorator for now - will implement city-aware caching manually
     def get_properties_layer_data(self, city='mexico'):
+        import logging
+        logger = logging.getLogger(__name__)
+        
         connection = None
         resp = None
         try :
-            print(f"get_properties_layer_data for city: {city}")
-            connection = self.db.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            logger.info(f"Starting get_properties_layer_data for city: {city}")
+            
+            # Log the query being executed
             query = self.get_property_query(city=city)
+            logger.info(f"Generated query for city {city}: {query[:500]}...")  # Log first 500 chars
+            
+            connection = self.db.connect()
+            logger.info("Database connection established successfully")
+            
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            logger.info("Cursor created successfully")
+            
+            logger.info("Executing query...")
             cursor.execute(query)
+            logger.info("Query executed successfully")
+            
             connection.commit()
+            logger.info("Transaction committed")
+            
             res = cursor.fetchall()
-            resp =  Response.success(data={"response": res})
+            logger.info(f"Query returned {len(res)} rows")
+            
+            # Log sample data for debugging
+            if res and len(res) > 0:
+                sample_row = res[0]
+                logger.info(f"Sample row keys: {list(sample_row.keys())}")
+                logger.info(f"Sample row data: {dict(sample_row)}")
+                
+                # Check for geometry/centroid issues
+                if 'geometry' in sample_row:
+                    logger.info(f"Geometry field type: {type(sample_row['geometry'])}, value: {sample_row['geometry']}")
+                if 'centroid' in sample_row:
+                    logger.info(f"Centroid field type: {type(sample_row['centroid'])}, value: {sample_row['centroid']}")
+                
+                # Check for any null or problematic values
+                for key, value in sample_row.items():
+                    if value is None:
+                        logger.warning(f"Null value found in field: {key}")
+                    elif isinstance(value, str) and len(value) > 1000:
+                        logger.info(f"Long string value in {key}: {value[:100]}...")
+            else:
+                logger.warning("No results returned from query")
+            
+            resp = Response.success(data={"response": res})
+            logger.info("Response created successfully")
+            
         except Exception as e :
+            logger.error(f"Error in get_properties_layer_data for city {city}: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            
             if connection:
                 connection.rollback()
+                logger.info("Transaction rolled back")
             resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
+                logger.info("Cursor closed")
             if connection:
                 self.db.disconnect(connection)
+                logger.info("Database connection closed")
+            logger.info(f"get_properties_layer_data completed for city: {city}")
             return resp
 
 class BrandController: 
