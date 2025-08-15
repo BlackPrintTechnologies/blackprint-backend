@@ -51,6 +51,7 @@ def fetch_properties_layer_data_raw(city='mexico'):
         if connection:
             logger.info(f"Rolling back transaction for {city}...")
             connection.rollback()
+            logger.info(f"Transaction rolled back for city: {city}")
         resp = {"message": "Internal Server Error", "data": str(e)}, 500
         logger.error(f"Created error response for {city}: {resp}")
         
@@ -58,6 +59,7 @@ def fetch_properties_layer_data_raw(city='mexico'):
         if cursor:
             logger.info(f"Closing cursor for {city}...")
             cursor.close()
+            logger.info(f"Cursor closed for city: {city}")
         if connection:
             logger.info(f"Disconnecting from database for {city}...")
             controller.db.disconnect(connection)

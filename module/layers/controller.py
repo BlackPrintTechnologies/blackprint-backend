@@ -12,6 +12,10 @@ class PropertyLayerController:
     
     @staticmethod
     def get_property_query(city='mexico'):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Generating property query for city: {city}")
+        
         if city == 'queretaro' or city == 'el_marques':
             # QRO layer with market-data geometry (via LEFT JOIN) and safe CSV id matching
             query = f'''
@@ -75,6 +79,7 @@ class PropertyLayerController:
                     ORDER BY CASE WHEN mdc.source = 'inmuebles24' THEN 1 WHEN mdc.source = 'spot2' THEN 2 ELSE 3 END
                 ) = 1
                 '''
+            logger.info(f"Generated QRO query with geometry conversion")
         else:
             # Mexico (existing query)
             query = f'''
@@ -116,30 +121,83 @@ class PropertyLayerController:
                 )
         )
                 '''
+            logger.info(f"Generated Mexico query")
+        
+        logger.info(f"Final query length: {len(query)} characters")
         return query
     
     # Remove @cache_response decorator for now - will implement city-aware caching manually
     def get_properties_layer_data(self, city='mexico'):
+        import logging
+        logger = logging.getLogger(__name__)
+        
         connection = None
         resp = None
         try :
-            print(f"get_properties_layer_data for city: {city}")
-            connection = self.db.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            logger.info(f"Starting get_properties_layer_data for city: {city}")
+            
+            # Log the query being executed
             query = self.get_property_query(city=city)
+            logger.info(f"Generated query for city {city}: {query[:500]}...")  # Log first 500 chars
+            
+            connection = self.db.connect()
+            logger.info("Database connection established successfully")
+            
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            logger.info("Cursor created successfully")
+            
+            logger.info("Executing query...")
             cursor.execute(query)
+            logger.info("Query executed successfully")
+            
             connection.commit()
+            logger.info("Transaction committed")
+            
             res = cursor.fetchall()
-            resp =  Response.success(data={"response": res})
+            logger.info(f"Query returned {len(res)} rows")
+            
+            # Log sample data for debugging
+            if res and len(res) > 0:
+                sample_row = res[0]
+                logger.info(f"Sample row keys: {list(sample_row.keys())}")
+                logger.info(f"Sample row data: {dict(sample_row)}")
+                
+                # Check for geometry/centroid issues
+                if 'geometry' in sample_row:
+                    logger.info(f"Geometry field type: {type(sample_row['geometry'])}, value: {sample_row['geometry']}")
+                if 'centroid' in sample_row:
+                    logger.info(f"Centroid field type: {type(sample_row['centroid'])}, value: {sample_row['centroid']}")
+                
+                # Check for any null or problematic values
+                for key, value in sample_row.items():
+                    if value is None:
+                        logger.warning(f"Null value found in field: {key}")
+                    elif isinstance(value, str) and len(value) > 1000:
+                        logger.info(f"Long string value in {key}: {value[:100]}...")
+            else:
+                logger.warning("No results returned from query")
+            
+            resp = Response.success(data={"response": res})
+            logger.info("Response created successfully")
+            
         except Exception as e :
+            logger.error(f"Error in get_properties_layer_data for city {city}: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            
             if connection:
                 connection.rollback()
+                logger.info("Transaction rolled back")
             resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
+                logger.info("Cursor closed")
             if connection:
                 self.db.disconnect(connection)
+                logger.info("Database connection closed")
+            logger.info(f"get_properties_layer_data completed for city: {city}")
             return resp
 
 class BrandController: 

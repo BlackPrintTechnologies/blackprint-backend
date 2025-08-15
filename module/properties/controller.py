@@ -2083,26 +2083,43 @@ class PropertyController:
             if 'construction_max' in filters and filters['construction_max'] is not None and FILTER_COLUMN_MAP['construction_max']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_max']} <= {filters['construction_max']}"
             
-            # Price (Buy/Rent, range) - Updated for both Mexico and QRO
-            if 'price_type' in filters and filters['price_type']:
-                price_type = filters['price_type'].lower()
-                # Map to correct DB column
-                price_fields = FILTER_COLUMN_MAP.get(price_type, [])
-                if price_fields:
-                    if isinstance(price_fields, list):
-                        # Mexico: multiple columns (list)
-                        if 'price_min' in filters and filters['price_min'] is not None:
-                            min_conditions = " OR ".join([f"{field} >= {filters['price_min']}" for field in price_fields])
-                            filter_query += f" AND ({min_conditions})"
-                        if 'price_max' in filters and filters['price_max'] is not None:
-                            max_conditions = " OR ".join([f"{field} <= {filters['price_max']}" for field in price_fields])
-                            filter_query += f" AND ({max_conditions})"
+            # Operation/price consolidation for QRO (venta/renta variants)
+            if city in ('queretaro','el_marques'):
+                if filters.get('price_type'):
+                    pt = str(filters['price_type']).lower()
+                    if pt == 'rent':
+                        filter_query += " AND lower(mdc.operation_type) = 'renta'"
+                        if filters.get('price_min') is not None:
+                            filter_query += f" AND mdc.rent_price_clean >= {filters['price_min']}"
+                        if filters.get('price_max') is not None:
+                            filter_query += f" AND mdc.rent_price_clean <= {filters['price_max']}"
+                    elif pt == 'buy':
+                        filter_query += " AND lower(mdc.operation_type) = 'venta'"
+                        if filters.get('price_min') is not None:
+                            filter_query += f" AND mdc.buy_price_clean >= {filters['price_min']}"
+                        if filters.get('price_max') is not None:
+                            filter_query += f" AND mdc.buy_price_clean <= {filters['price_max']}"
+                elif filters.get('operation_type'):
+                    # free-form operation_type support ensures Renta/renta, Venta/venta
+                    op = filters['operation_type']
+                    if isinstance(op, list):
+                        mapped = ["'renta'" if str(x).lower()== 'rent' else f"'{str(x).lower()}'" for x in op]
+                        filter_query += f" AND lower(mdc.operation_type) IN ({','.join(mapped)})"
                     else:
-                        # QRO: single column (string)
-                        if 'price_min' in filters and filters['price_min'] is not None:
-                            filter_query += f" AND {price_fields} >= {filters['price_min']}"
-                        if 'price_max' in filters and filters['price_max'] is not None:
-                            filter_query += f" AND {price_fields} <= {filters['price_max']}"
+                        filter_query += f" AND lower(mdc.operation_type) = '{str(op).lower()}'"
+            else:
+                # Mexico branch unchanged
+                if 'price_type' in filters and filters['price_type']:
+                    price_type = filters['price_type'].lower()
+                    price_fields = FILTER_COLUMN_MAP.get(price_type, [])
+                    if price_fields:
+                        if isinstance(price_fields, list):
+                            if 'price_min' in filters and filters['price_min'] is not None:
+                                min_conditions = " OR ".join([f"{field} >= {filters['price_min']}" for field in price_fields])
+                                filter_query += f" AND ({min_conditions})"
+                            if 'price_max' in filters and filters['price_max'] is not None:
+                                max_conditions = " OR ".join([f"{field} <= {filters['price_max']}" for field in price_fields])
+                                filter_query += f" AND ({max_conditions})"
             
             # Geometry (location on block)
             if 'geometry' in filters and filters['geometry'] and FILTER_COLUMN_MAP['geometry']:
@@ -2135,14 +2152,7 @@ class PropertyController:
                         
                         filter_query += f" AND {FILTER_COLUMN_MAP[key]} ILIKE '%{value}%'"
             
-            # Operation Type filter (New for QRO)
-            if 'operation_type' in filters and filters['operation_type'] and FILTER_COLUMN_MAP.get('operation_type'):
-                op_type = filters['operation_type']
-                if isinstance(op_type, list):
-                    op_list = ','.join([f"'{t}'" for t in op_type])
-                    filter_query += f" AND {FILTER_COLUMN_MAP['operation_type']} IN ({op_list})"
-                else:
-                    filter_query += f" AND {FILTER_COLUMN_MAP['operation_type']} = '{op_type}'"
+            # Remove separate operation_type block for QRO to avoid duplication; handled above
             
             # Property Dimension filters (New for QRO)
             if 'dimension_min' in filters and filters['dimension_min'] is not None and FILTER_COLUMN_MAP.get('dimension_min'):
@@ -2180,9 +2190,9 @@ class PropertyController:
                     logger.warning(f"[MUNICIPALITY TRANSLATION] No cve_mun mapping found for staging IDs {staging_ids}")
             
             query = self.qc.get_property_query(filter_query, city=city)
+            query = query + " limit 15"
             # Log the generated query for debugging
             logger.info(f"[FILTER QUERY] Generated SQL for city {city}: {query}")
-            query = query + " LIMIT 10"
             cursor.execute(query)
             result = cursor.fetchall()
             if not result:
