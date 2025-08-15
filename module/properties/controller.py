@@ -2190,6 +2190,7 @@ class PropertyController:
                     logger.warning(f"[MUNICIPALITY TRANSLATION] No cve_mun mapping found for staging IDs {staging_ids}")
             
             query = self.qc.get_property_query(filter_query, city=city)
+            query = query + " limit 15"
             # Log the generated query for debugging
             logger.info(f"[FILTER QUERY] Generated SQL for city {city}: {query}")
             cursor.execute(query)
