@@ -1867,7 +1867,7 @@ class PropertyController:
                     min_motor_vehicle,
                     max_motor_vehicle
                 FROM {table_name}
-                WHERE {id_col} = %s AND type IN ('CIRCLE_500_METERS', 'FRONT_OF_STORE')
+                WHERE {id_col} = %s AND type IN ('CIRCLE_500_METERS', 'FRONT_OF_STORE', 'CIRCLE_1000_METERS')
             """
 
             # Use Redshift connection
@@ -1888,6 +1888,13 @@ class PropertyController:
                     }
                 elif row['type'] == 'FRONT_OF_STORE':
                     response['50m'] = {
+                        'min_pedestrian': row['min_pedestrian'],
+                        'max_pedestrian': row['max_pedestrian'],
+                        'min_motor_vehicle': row['min_motor_vehicle'],
+                        'max_motor_vehicle': row['max_motor_vehicle']
+                    }
+                elif row['type'] == 'CIRCLE_1000_METERS':
+                    response['1000m'] = {
                         'min_pedestrian': row['min_pedestrian'],
                         'max_pedestrian': row['max_pedestrian'],
                         'min_motor_vehicle': row['min_motor_vehicle'],
