@@ -306,8 +306,8 @@ class UserProperty(Resource):
         cache_key = f"user={current_user}|fid={norm_fid}|prop_status={prop_status}|config_city={config_city}"
         
         cached_response = get_from_cache('user_property', cache_key)
-        if cached_response:
-            return cached_response
+        # if cached_response:
+        #     return cached_response
 
         upc = UserPropertyController()
         response = upc.get_user_properties(current_user, norm_fid,  prop_status, config_city=config_city)

@@ -1,7 +1,9 @@
+import json
 import logging
+import traceback
 from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
-from utils.dbUtils import Database, RedshiftDatabase
+from utils.dbUtils import  RedshiftDatabase
 from module.markets.query import MarketsQueryController
 
 logger = logging.getLogger(__name__)
@@ -121,3 +123,125 @@ class MarketsController:
             if connection:
                 self.redshift_connection.disconnect(connection)
             return resp
+
+    def fetch_inmuebles24_images(self, ids_market_data_inmuebles24, city='mexico'):
+        """Fetch images from inmuebles24 table for the given id from Redshift."""
+        connection = None
+        cursor = None
+        images = []
+        try:
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            if city == 'mexico':
+                query = self.query_controller.get_property_market_info_legacy_query(
+                    None, ids_market_data_inmuebles24, None, city
+                )
+            else:
+                query = self.query_controller.get_property_market_info_combined_query(
+                    None, ids_market_data_inmuebles24, None, city
+                )
+            print("query", query)
+            cursor.execute(query)
+            row = cursor.fetchone()
+            if row and row.get('pictures'):
+                # pictures is expected to be a JSON array or comma-separated string
+                try:
+                    # Try to parse as JSON
+                    raw_images = json.loads(row['pictures']) if isinstance(row['pictures'], str) else row['pictures']
+                    if isinstance(raw_images, str):
+                        # If still a string, split by comma
+                        raw_images = [img.strip() for img in raw_images.split(',') if img.strip()]
+                    # Filter out None, empty strings, and "None" strings
+                    images = [img for img in raw_images if img and img.strip() and img.strip().lower() != "none"]
+                except Exception:
+                    # Fallback: split by comma and filter
+                    print(traceback.format_exc())
+                    raw_images = [img.strip() for img in row['pictures'].split(',') if img.strip()]
+                    images = [img for img in raw_images if img and img.strip() and img.strip().lower() != "none"]
+        except Exception as e:
+            logger.error(f"Error fetching inmuebles24 images: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)
+        return images
+
+
+    def fetch_spot2_images(self, ids_market_data_spot2, city='mexico'):
+        """Fetch images from spot2 table for the given id from Redshift."""
+        connection = None
+        cursor = None
+        images = []
+        try:
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            if city == 'mexico':
+                query = self.query_controller.get_property_market_info_legacy_query(
+                    ids_market_data_spot2, None, None, city
+                )
+            else:
+                query = self.query_controller.get_property_market_info_combined_query(
+                    ids_market_data_spot2, None, None, city
+                )
+            cursor.execute(query)
+            row = cursor.fetchone()
+            
+            if row and row.get('pictures') and row.get('pictures') != 'None':
+                # pictures is expected to be a JSON array or comma-separated string
+                try:
+                    # Try to parse as JSON
+                    raw_images = json.loads(row['pictures']) if isinstance(row['pictures'], str) else row['pictures']
+                    if isinstance(raw_images, str):
+                        # If still a string, split by comma
+                        raw_images = [img.strip() for img in raw_images.split(',') if img.strip()]
+                    # Filter out None, empty strings, and "None" strings
+                    images = [img for img in raw_images if img and img.strip() and img.strip().lower() != "none"]
+                except Exception:
+                    # Fallback: split by comma and filter
+                    raw_images = [img.strip() for img in row['pictures'].split(',') if img.strip()]
+                    images = [img for img in raw_images if img and img.strip() and img.strip().lower() != "none"]
+        except Exception as e:
+            logger.error(f"Error fetching spot2 images: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)
+        return images
+
+    def fetch_propiedades_images(self, ids_market_data_propiedades, city='mexico'):
+        """Fetch images from propiedades table for the given id from Redshift."""
+        connection = None
+        cursor = None
+        images = []
+        try:
+            connection = self.redshift_connection.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            if city == 'mexico':
+                query = self.query_controller.get_property_market_info_legacy_query(
+                    None, None, ids_market_data_propiedades, city
+                )
+            else:
+                query = self.query_controller.get_property_market_info_combined_query(
+                    None, None, ids_market_data_propiedades, city
+                )
+            cursor.execute(query)
+            row = cursor.fetchone()
+            if row:
+                # Collect all non-null and non-"None" image URLs
+                for i in range(1, 6):
+                    image_url = row.get(f'image_{i}')
+                    if (image_url and 
+                        isinstance(image_url, str) and 
+                        image_url.strip() and 
+                        image_url.strip().lower() != "none"):
+                        images.append(image_url.strip())
+        except Exception as e:
+            logger.error(f"Error fetching propiedades images: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_connection.disconnect(connection)
+        return images

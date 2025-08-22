@@ -41,9 +41,9 @@ class MarketInfo(Resource):
     Moved from PropertyMarketInfo
     """
     get_parser = reqparse.RequestParser()
-    get_parser.add_argument('spot2_id', type=int, required=False, location='args')
-    get_parser.add_argument('inmuebles24_id', type=int, required=False, location='args')
-    get_parser.add_argument('propiedades_id', type=int, required=False, location='args')
+    get_parser.add_argument('spot2_id', type=str, required=False, location='args')
+    get_parser.add_argument('inmuebles24_id', type=str, required=False, location='args')
+    get_parser.add_argument('propiedades_id', type=str, required=False, location='args')
     get_parser.add_argument('config_city', type=str, default="mexico", required=False, 
                            help='config_city is required', location='args')
     
