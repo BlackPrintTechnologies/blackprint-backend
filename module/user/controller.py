@@ -99,7 +99,7 @@ class UsersController:
                 logger.debug("Database connection closed")
             return resp
 
-    def update_user(self, id, bp_name=None, bp_company=None, bp_industry=None, bp_email=None, bp_password=None, bp_status=None, bp_is_onboarded=None, bp_user_verified=None):
+    def update_user(self, id=None, bp_name=None, bp_company=None, bp_industry=None, bp_email=None, bp_password=None, bp_status=None, bp_is_onboarded=None, bp_user_verified=None):
         connection = None
         cursor = None
         resp = None
@@ -272,7 +272,7 @@ class UsersController:
         try:
             logger.info(f"Sending password reset email to: {bp_email}")
             token = get_token(bp_email)
-            url = f'{PLATFORM_URL}/reset-password?email=' + bp_email + '&token=' + token
+            url = f'{PLATFORM_URL}/reset_password?email=' + bp_email + '&token=' + token
             logger.debug(f"Password reset URL: {url}")
             print("token=====>", url)
             logger.debug("Sending email via send_email utility")
