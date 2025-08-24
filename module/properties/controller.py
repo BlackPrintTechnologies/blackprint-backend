@@ -1924,11 +1924,11 @@ class PropertyController:
                 "buy": "mdc.buy_price_clean",
                 "dimension_min": "mdc.property_dimension_clean",
                 "dimension_max": "mdc.property_dimension_clean",
-                # Still unsupported (no equivalent columns)
-                "plot_min": None,
-                "plot_max": None,
-                "construction_min": None,
-                "construction_max": None,
+                # Construction and plot dimensions using market data
+                "plot_min": "mdc.property_dimension_clean",
+                "plot_max": "mdc.property_dimension_clean",
+                "construction_min": "mdc.property_dimension_clean",
+                "construction_max": "mdc.property_dimension_clean",
                 "zip_code": None,
                 #improvements in filter 
                 "id_stg_demographic_socioeconomic_qro": "v.id_stg_demographic_socioeconomic_qro",
@@ -1983,13 +1983,13 @@ class PropertyController:
                     else:
                         filter_query += f" AND {cols} = '{types}'"
             
-            # Plot Dimensions (range) - Only for Mexico
+            # Plot Dimensions (range) - For both Mexico and QRO
             if 'plot_min' in filters and filters['plot_min'] is not None and FILTER_COLUMN_MAP['plot_min']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['plot_min']} >= {filters['plot_min']}"
             if 'plot_max' in filters and filters['plot_max'] is not None and FILTER_COLUMN_MAP['plot_max']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['plot_max']} <= {filters['plot_max']}"
             
-            # Construction Dimensions (range) - Only for Mexico
+            # Construction Dimensions (range) - For both Mexico and QRO
             if 'construction_min' in filters and filters['construction_min'] is not None and FILTER_COLUMN_MAP['construction_min']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_min']} >= {filters['construction_min']}"
             if 'construction_max' in filters and filters['construction_max'] is not None and FILTER_COLUMN_MAP['construction_max']:
