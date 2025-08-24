@@ -1929,7 +1929,9 @@ class PropertyController:
                 "plot_max": None,
                 "construction_min": None,
                 "construction_max": None,
-                "zip_code": None
+                "zip_code": None,
+                #improvements in filter 
+                "id_stg_demographic_socioeconomic_qro": "id_stg_demographic_socioeconomic_qro",
             }
         else:
             # Mexico column mapping
@@ -1992,7 +1994,8 @@ class PropertyController:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_min']} >= {filters['construction_min']}"
             if 'construction_max' in filters and filters['construction_max'] is not None and FILTER_COLUMN_MAP['construction_max']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_max']} <= {filters['construction_max']}"
-            
+            print(f"filter_query: {filter_query}")
+            breakpoint()
             # Operation/price consolidation for QRO (venta/renta variants)
             if city in ('queretaro','el_marques'):
                 if filters.get('price_type'):
@@ -2070,8 +2073,7 @@ class PropertyController:
             if 'dimension_max' in filters and filters['dimension_max'] is not None and FILTER_COLUMN_MAP.get('dimension_max'):
                 filter_query += f" AND {FILTER_COLUMN_MAP['dimension_max']} <= {filters['dimension_max']}"
 
-            # TODO: Add more filters as needed (currency, block position, etc.)
-
+            
             # connection = self.db.connect('redshiftdb')
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -2133,13 +2135,13 @@ class PropertyController:
             # Determine which table and columns to use based on config_city
             if config_city == 'queretaro' or config_city == 'el_marques':
                 # Use staging.stg_municipality for QRO/El Marques
-                table_name = 'staging.stg_municipality'
-                id_col = 'id_stg_municipality'
+                table_name = 'presentation.dim_municipality_qro'
+                id_col = 'id_stg_demographic_socioeconomic_qro'
                 # Map search_key_type to stg_municipality columns
                 column_map = {
-                    "nb_cleaned": "d_asenta",  # neighborhood/settlement
-                    "zip_code": "d_codigo",        # zip code
-                    "municipality_nm": "d_mnpio"  # municipality
+                    "nb_cleaned": "city",  # neighborhood/settlement
+                    "zip_code": "zip_code",        # zip code
+                    "municipality_nm": "municipality"  # municipality
                 }
             else:
                 # Use data_product.v_municipality for other cities
