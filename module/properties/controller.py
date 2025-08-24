@@ -1929,6 +1929,7 @@ class PropertyController:
                 "plot_max": "mdc.property_dimension_clean",
                 "construction_min": "mdc.property_dimension_clean",
                 "construction_max": "mdc.property_dimension_clean",
+                # zip_code handled separately for QRO/El Marques
                 "zip_code": None,
                 #improvements in filter 
                 "id_stg_demographic_socioeconomic_qro": "v.id_stg_demographic_socioeconomic_qro",
@@ -2081,17 +2082,53 @@ class PropertyController:
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            # Handle QRO id_municipality filtering using staging IDs directly
+            # Handle QRO staging ID filtering (combining id_municipality and zipCode)
+            all_staging_ids = set()
+            
+            # Handle id_municipality filtering using staging IDs directly
             if (city == 'queretaro' or city == 'el_marques') and 'id_municipality' in filters and filters['id_municipality']:
                 staging_ids = filters['id_municipality'] if isinstance(filters['id_municipality'], list) else [filters['id_municipality']]
                 logger.info(f"[MUNICIPALITY FILTER] Using staging IDs {staging_ids} directly for id_stg_demographic_socioeconomic_qro filtering")
-                
-                # Use staging IDs directly to filter v_qro table
-                if isinstance(staging_ids, list):
-                    staging_ids_str = ','.join([str(id) for id in staging_ids])
-                    filter_query += f" AND v.id_stg_demographic_socioeconomic_qro IN ({staging_ids_str})"
+                all_staging_ids.update([str(id) for id in staging_ids])
+            
+            # Handle zip code filtering to get all associated staging IDs
+            if (city == 'queretaro' or city == 'el_marques') and 'zipCode' in filters and filters['zipCode']:
+                zip_codes = []
+                if isinstance(filters['zipCode'], list):
+                    for zip_item in filters['zipCode']:
+                        if isinstance(zip_item, dict) and 'name' in zip_item:
+                            zip_codes.append(zip_item['name'])
+                        elif isinstance(zip_item, str):
+                            zip_codes.append(zip_item)
                 else:
-                    filter_query += f" AND v.id_stg_demographic_socioeconomic_qro = {staging_ids}"
+                    zip_codes = [str(filters['zipCode'])]
+                
+                if zip_codes:
+                    logger.info(f"[ZIP CODE FILTER] Converting zip codes {zip_codes} to staging IDs")
+                    
+                    # Query to get all id_stg_demographic_socioeconomic_qro values for the given zip codes
+                    zip_codes_str = ','.join([f"'{zip_code}'" for zip_code in zip_codes])
+                    zip_translation_query = f"""
+                        SELECT DISTINCT id_stg_demographic_socioeconomic_qro 
+                        FROM blackprint_db_prd.presentation.dim_municipality_qro
+                        WHERE zip_code IN ({zip_codes_str})
+                    """
+                    
+                    cursor.execute(zip_translation_query)
+                    zip_staging_results = cursor.fetchall()
+                    zip_staging_ids = [str(row['id_stg_demographic_socioeconomic_qro']) for row in zip_staging_results]
+                    
+                    if zip_staging_ids:
+                        logger.info(f"[ZIP CODE FILTER] Mapped zip codes {zip_codes} to staging IDs {zip_staging_ids}")
+                        all_staging_ids.update(zip_staging_ids)
+                    else:
+                        logger.warning(f"[ZIP CODE FILTER] No staging IDs found for zip codes {zip_codes}")
+            
+            # Apply the combined staging ID filter
+            if all_staging_ids:
+                staging_ids_str = ','.join(all_staging_ids)
+                filter_query += f" AND v.id_stg_demographic_socioeconomic_qro IN ({staging_ids_str})"
+                logger.info(f"[COMBINED FILTER] Applied combined staging ID filter: {staging_ids_str}")
             
             query = self.qc.get_property_query(filter_query, city=city)
             query = query + " limit 15"
