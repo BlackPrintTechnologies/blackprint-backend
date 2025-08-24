@@ -2140,9 +2140,29 @@ class PropertyController:
                 logger.info(f"[FILTER RESULT] No properties found for city: {city}")
                 return Response.success(data=[], message='No properties found')
             result_jsons = self.get_property_json(result, show_all_keys=filters.get('show_all_keys', True), city=city)
+            
+            # Remove duplicate properties from response data
+            seen_fids = set()
+            deduplicated_results = []
+            for property_data in result_jsons:
+                if 'property_details' in property_data and 'fid' in property_data['property_details']:
+                    fid = property_data['property_details']['fid']
+                    if fid not in seen_fids:
+                        seen_fids.add(fid)
+                        deduplicated_results.append(property_data)
+                else:
+                    # If no fid found, include the property to avoid data loss
+                    deduplicated_results.append(property_data)
+            
+            # Log the deduplication results
+            original_count = len(result_jsons)
+            final_count = len(deduplicated_results)
+            if original_count != final_count:
+                logger.info(f"[DEDUPLICATION] Removed {original_count - final_count} duplicate properties. Original: {original_count}, Final: {final_count}")
+            
             # Log the final result count
-            logger.info(f"[FILTER RESULT] Found {len(result_jsons)} properties for city: {city}")
-            resp = Response.success(data=result_jsons, message='Success')
+            logger.info(f"[FILTER RESULT] Found {final_count} properties for city: {city}")
+            resp = Response.success(data=deduplicated_results, message='Success')
         except Exception as e:
             logger.error("Error filtering properties: %s", str(e), exc_info=True)
             resp = Response.internal_server_error(message=str(e))
