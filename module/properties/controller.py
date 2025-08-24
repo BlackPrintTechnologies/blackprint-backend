@@ -1913,7 +1913,7 @@ class PropertyController:
             FILTER_COLUMN_MAP = {
                 "availability": "v.is_on_market",
                 "geometry": "v.geometry_type",
-                "id_municipality": "v.cve_mun",
+                # id_municipality handled separately for QRO/El Marques
                 "municipality": "v.nom_mun",
                 "alcaldia": "v.nom_mun",
                 "colonia": "v.nom_loc",
@@ -1931,7 +1931,7 @@ class PropertyController:
                 "construction_max": None,
                 "zip_code": None,
                 #improvements in filter 
-                "id_stg_demographic_socioeconomic_qro": "id_stg_demographic_socioeconomic_qro",
+                "id_stg_demographic_socioeconomic_qro": "v.id_stg_demographic_socioeconomic_qro",
             }
         else:
             # Mexico column mapping
@@ -1995,7 +1995,6 @@ class PropertyController:
             if 'construction_max' in filters and filters['construction_max'] is not None and FILTER_COLUMN_MAP['construction_max']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_max']} <= {filters['construction_max']}"
             print(f"filter_query: {filter_query}")
-            breakpoint()
             # Operation/price consolidation for QRO (venta/renta variants)
             if city in ('queretaro','el_marques'):
                 if filters.get('price_type'):
@@ -2039,31 +2038,35 @@ class PropertyController:
                 filter_query += f" AND {FILTER_COLUMN_MAP['geometry']} = '{filters['geometry']}'"
             
             # Municipality fields 
-            for key in ["id_municipality", "municipality", "alcaldia", "colonia"]:
+            for key in ["municipality", "alcaldia", "colonia"]:
                 if key in filters and filters[key] and FILTER_COLUMN_MAP[key]:
-                    if key == "id_municipality":
-                        # For QRO, we'll handle id_municipality translation after cursor is created
-                        # For other cities, use direct mapping
-                        if city != 'queretaro' and city != 'el_marques':
-                            if isinstance(filters[key], list):
-                                filter_query += f" AND {FILTER_COLUMN_MAP[key]} in ({','.join([str(f) for f in filters[key]])}) "
-                            else:
-                                filter_query += f" AND {FILTER_COLUMN_MAP[key]} = {filters[key]}"
+                    # Handle municipality fields - extract name from object if needed
+                    value = filters[key]
+                    if isinstance(value, dict) and 'name' in value:
+                        value = value['name']
+                    elif isinstance(value, list) and len(value) > 0:
+                        # If it's a list of objects, extract names
+                        if isinstance(value[0], dict) and 'name' in value[0]:
+                            value = value[0]['name']
+                        else:
+                            value = str(value[0])
+                    elif not isinstance(value, str):
+                        value = str(value)
+                    
+                    filter_query += f" AND {FILTER_COLUMN_MAP[key]} ILIKE '%{value}%'"
+            
+            # Handle id_municipality separately for different cities
+            if 'id_municipality' in filters and filters['id_municipality']:
+                if city == 'queretaro' or city == 'el_marques':
+                    # For QRO/El Marques, id_municipality is handled after cursor creation
+                    # (see the special handling block below)
+                    pass
+                else:
+                    # For other cities, use direct mapping
+                    if isinstance(filters['id_municipality'], list):
+                        filter_query += f" AND {FILTER_COLUMN_MAP['id_municipality']} in ({','.join([str(f) for f in filters['id_municipality']])}) "
                     else:
-                        # Handle other municipality fields - extract name from object if needed
-                        value = filters[key]
-                        if isinstance(value, dict) and 'name' in value:
-                            value = value['name']
-                        elif isinstance(value, list) and len(value) > 0:
-                            # If it's a list of objects, extract names
-                            if isinstance(value[0], dict) and 'name' in value[0]:
-                                value = value[0]['name']
-                            else:
-                                value = str(value[0])
-                        elif not isinstance(value, str):
-                            value = str(value)
-                        
-                        filter_query += f" AND {FILTER_COLUMN_MAP[key]} ILIKE '%{value}%'"
+                        filter_query += f" AND {FILTER_COLUMN_MAP['id_municipality']} = {filters['id_municipality']}"
             
             # Remove separate operation_type block for QRO to avoid duplication; handled above
             
@@ -2078,28 +2081,17 @@ class PropertyController:
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            # Handle QRO id_municipality translation after cursor is created
+            # Handle QRO id_municipality filtering using staging IDs directly
             if (city == 'queretaro' or city == 'el_marques') and 'id_municipality' in filters and filters['id_municipality']:
                 staging_ids = filters['id_municipality'] if isinstance(filters['id_municipality'], list) else [filters['id_municipality']]
-                logger.info(f"[MUNICIPALITY TRANSLATION] Converting staging IDs {staging_ids} to cve_mun values")
+                logger.info(f"[MUNICIPALITY FILTER] Using staging IDs {staging_ids} directly for id_stg_demographic_socioeconomic_qro filtering")
                 
-                # Query to get cve_mun values for the given id_stg_municipality values
-                translation_query = f"""
-                    SELECT DISTINCT v.cve_mun 
-                    FROM blackprint_db_prd.data_product.v_qro v
-                    JOIN staging.stg_municipality sm ON v.nom_mun = sm.d_mnpio
-                    WHERE sm.id_stg_municipality IN ({','.join([str(id) for id in staging_ids])})
-                """
-                
-                cursor.execute(translation_query)
-                cve_mun_results = cursor.fetchall()
-                cve_mun_values = [str(row['cve_mun']) for row in cve_mun_results]
-                
-                if cve_mun_values:
-                    logger.info(f"[MUNICIPALITY TRANSLATION] Mapped staging IDs {staging_ids} to cve_mun values {cve_mun_values}")
-                    # filter_query += f" AND v.cve_mun IN ({','.join(cve_mun_values)})"
+                # Use staging IDs directly to filter v_qro table
+                if isinstance(staging_ids, list):
+                    staging_ids_str = ','.join([str(id) for id in staging_ids])
+                    filter_query += f" AND v.id_stg_demographic_socioeconomic_qro IN ({staging_ids_str})"
                 else:
-                    logger.warning(f"[MUNICIPALITY TRANSLATION] No cve_mun mapping found for staging IDs {staging_ids}")
+                    filter_query += f" AND v.id_stg_demographic_socioeconomic_qro = {staging_ids}"
             
             query = self.qc.get_property_query(filter_query, city=city)
             query = query + " limit 15"
@@ -2158,15 +2150,20 @@ class PropertyController:
                 search_column = column_map.get(search_key_type)
                 municipality_column = column_map.get("municipality_nm")
                 
+                #use old query
+                query = f""" SELECT DISTINCT {id_col} as id_municipality, {search_column} as {search_key_type}
+                        FROM {table_name}
+                        WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s limit 50"""
+                
                 # Use GROUP BY to eliminate duplicates for all cities
-                query = f"""
-                    SELECT {search_column} as {search_key_type}, MIN({id_col}) as id_municipality
-                    FROM {table_name} 
-                    WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s 
-                    GROUP BY {search_column}
-                    ORDER BY {search_column}
-                    LIMIT 50
-                """
+                # query = f"""
+                #     SELECT {search_column} as {search_key_type}, MIN({id_col}) as id_municipality
+                #     FROM {table_name} 
+                #     WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s 
+                #     GROUP BY {search_column}
+                #     ORDER BY {search_column}
+                #     LIMIT 50
+                # """
                 cursor.execute(query, (f"%{municipality_nm}%", f"%{search_value}%"))
                 results = cursor.fetchall()
                 items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
