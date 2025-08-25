@@ -1913,7 +1913,7 @@ class PropertyController:
             FILTER_COLUMN_MAP = {
                 "availability": "v.is_on_market",
                 "geometry": "v.geometry_type",
-                "id_municipality": "v.cve_mun",
+                # id_municipality handled separately for QRO/El Marques
                 "municipality": "v.nom_mun",
                 "alcaldia": "v.nom_mun",
                 "colonia": "v.nom_loc",
@@ -1924,12 +1924,15 @@ class PropertyController:
                 "buy": "mdc.buy_price_clean",
                 "dimension_min": "mdc.property_dimension_clean",
                 "dimension_max": "mdc.property_dimension_clean",
-                # Still unsupported (no equivalent columns)
-                "plot_min": None,
-                "plot_max": None,
-                "construction_min": None,
-                "construction_max": None,
-                "zip_code": None
+                # Construction and plot dimensions using market data
+                "plot_min": "mdc.property_dimension_clean",
+                "plot_max": "mdc.property_dimension_clean",
+                "construction_min": "mdc.property_dimension_clean",
+                "construction_max": "mdc.property_dimension_clean",
+                # zip_code handled separately for QRO/El Marques
+                "zip_code": None,
+                #improvements in filter 
+                "id_stg_demographic_socioeconomic_qro": "v.id_stg_demographic_socioeconomic_qro",
             }
         else:
             # Mexico column mapping
@@ -1981,18 +1984,18 @@ class PropertyController:
                     else:
                         filter_query += f" AND {cols} = '{types}'"
             
-            # Plot Dimensions (range) - Only for Mexico
+            # Plot Dimensions (range) - For both Mexico and QRO
             if 'plot_min' in filters and filters['plot_min'] is not None and FILTER_COLUMN_MAP['plot_min']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['plot_min']} >= {filters['plot_min']}"
             if 'plot_max' in filters and filters['plot_max'] is not None and FILTER_COLUMN_MAP['plot_max']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['plot_max']} <= {filters['plot_max']}"
             
-            # Construction Dimensions (range) - Only for Mexico
+            # Construction Dimensions (range) - For both Mexico and QRO
             if 'construction_min' in filters and filters['construction_min'] is not None and FILTER_COLUMN_MAP['construction_min']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_min']} >= {filters['construction_min']}"
             if 'construction_max' in filters and filters['construction_max'] is not None and FILTER_COLUMN_MAP['construction_max']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_max']} <= {filters['construction_max']}"
-            
+            print(f"filter_query: {filter_query}")
             # Operation/price consolidation for QRO (venta/renta variants)
             if city in ('queretaro','el_marques'):
                 if filters.get('price_type'):
@@ -2036,31 +2039,35 @@ class PropertyController:
                 filter_query += f" AND {FILTER_COLUMN_MAP['geometry']} = '{filters['geometry']}'"
             
             # Municipality fields 
-            for key in ["id_municipality", "municipality", "alcaldia", "colonia"]:
+            for key in ["municipality", "alcaldia", "colonia"]:
                 if key in filters and filters[key] and FILTER_COLUMN_MAP[key]:
-                    if key == "id_municipality":
-                        # For QRO, we'll handle id_municipality translation after cursor is created
-                        # For other cities, use direct mapping
-                        if city != 'queretaro' and city != 'el_marques':
-                            if isinstance(filters[key], list):
-                                filter_query += f" AND {FILTER_COLUMN_MAP[key]} in ({','.join([str(f) for f in filters[key]])}) "
-                            else:
-                                filter_query += f" AND {FILTER_COLUMN_MAP[key]} = {filters[key]}"
+                    # Handle municipality fields - extract name from object if needed
+                    value = filters[key]
+                    if isinstance(value, dict) and 'name' in value:
+                        value = value['name']
+                    elif isinstance(value, list) and len(value) > 0:
+                        # If it's a list of objects, extract names
+                        if isinstance(value[0], dict) and 'name' in value[0]:
+                            value = value[0]['name']
+                        else:
+                            value = str(value[0])
+                    elif not isinstance(value, str):
+                        value = str(value)
+                    
+                    filter_query += f" AND {FILTER_COLUMN_MAP[key]} ILIKE '%{value}%'"
+            
+            # Handle id_municipality separately for different cities
+            if 'id_municipality' in filters and filters['id_municipality']:
+                if city == 'queretaro' or city == 'el_marques':
+                    # For QRO/El Marques, id_municipality is handled after cursor creation
+                    # (see the special handling block below)
+                    pass
+                else:
+                    # For other cities, use direct mapping
+                    if isinstance(filters['id_municipality'], list):
+                        filter_query += f" AND {FILTER_COLUMN_MAP['id_municipality']} in ({','.join([str(f) for f in filters['id_municipality']])}) "
                     else:
-                        # Handle other municipality fields - extract name from object if needed
-                        value = filters[key]
-                        if isinstance(value, dict) and 'name' in value:
-                            value = value['name']
-                        elif isinstance(value, list) and len(value) > 0:
-                            # If it's a list of objects, extract names
-                            if isinstance(value[0], dict) and 'name' in value[0]:
-                                value = value[0]['name']
-                            else:
-                                value = str(value[0])
-                        elif not isinstance(value, str):
-                            value = str(value)
-                        
-                        filter_query += f" AND {FILTER_COLUMN_MAP[key]} ILIKE '%{value}%'"
+                        filter_query += f" AND {FILTER_COLUMN_MAP['id_municipality']} = {filters['id_municipality']}"
             
             # Remove separate operation_type block for QRO to avoid duplication; handled above
             
@@ -2070,34 +2077,58 @@ class PropertyController:
             if 'dimension_max' in filters and filters['dimension_max'] is not None and FILTER_COLUMN_MAP.get('dimension_max'):
                 filter_query += f" AND {FILTER_COLUMN_MAP['dimension_max']} <= {filters['dimension_max']}"
 
-            # TODO: Add more filters as needed (currency, block position, etc.)
-
+            
             # connection = self.db.connect('redshiftdb')
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            # Handle QRO id_municipality translation after cursor is created
+            # Handle QRO staging ID filtering (combining id_municipality and zipCode)
+            all_staging_ids = set()
+            
+            # Handle id_municipality filtering using staging IDs directly
             if (city == 'queretaro' or city == 'el_marques') and 'id_municipality' in filters and filters['id_municipality']:
                 staging_ids = filters['id_municipality'] if isinstance(filters['id_municipality'], list) else [filters['id_municipality']]
-                logger.info(f"[MUNICIPALITY TRANSLATION] Converting staging IDs {staging_ids} to cve_mun values")
-                
-                # Query to get cve_mun values for the given id_stg_municipality values
-                translation_query = f"""
-                    SELECT DISTINCT v.cve_mun 
-                    FROM blackprint_db_prd.data_product.v_qro v
-                    JOIN staging.stg_municipality sm ON v.nom_mun = sm.d_mnpio
-                    WHERE sm.id_stg_municipality IN ({','.join([str(id) for id in staging_ids])})
-                """
-                
-                cursor.execute(translation_query)
-                cve_mun_results = cursor.fetchall()
-                cve_mun_values = [str(row['cve_mun']) for row in cve_mun_results]
-                
-                if cve_mun_values:
-                    logger.info(f"[MUNICIPALITY TRANSLATION] Mapped staging IDs {staging_ids} to cve_mun values {cve_mun_values}")
-                    # filter_query += f" AND v.cve_mun IN ({','.join(cve_mun_values)})"
+                logger.info(f"[MUNICIPALITY FILTER] Using staging IDs {staging_ids} directly for id_stg_demographic_socioeconomic_qro filtering")
+                all_staging_ids.update([str(id) for id in staging_ids])
+            
+            # Handle zip code filtering to get all associated staging IDs
+            if (city == 'queretaro' or city == 'el_marques') and 'zipCode' in filters and filters['zipCode']:
+                zip_codes = []
+                if isinstance(filters['zipCode'], list):
+                    for zip_item in filters['zipCode']:
+                        if isinstance(zip_item, dict) and 'name' in zip_item:
+                            zip_codes.append(zip_item['name'])
+                        elif isinstance(zip_item, str):
+                            zip_codes.append(zip_item)
                 else:
-                    logger.warning(f"[MUNICIPALITY TRANSLATION] No cve_mun mapping found for staging IDs {staging_ids}")
+                    zip_codes = [str(filters['zipCode'])]
+                
+                if zip_codes:
+                    logger.info(f"[ZIP CODE FILTER] Converting zip codes {zip_codes} to staging IDs")
+                    
+                    # Query to get all id_stg_demographic_socioeconomic_qro values for the given zip codes
+                    zip_codes_str = ','.join([f"'{zip_code}'" for zip_code in zip_codes])
+                    zip_translation_query = f"""
+                        SELECT DISTINCT id_stg_demographic_socioeconomic_qro 
+                        FROM blackprint_db_prd.presentation.dim_municipality_qro
+                        WHERE zip_code IN ({zip_codes_str})
+                    """
+                    
+                    cursor.execute(zip_translation_query)
+                    zip_staging_results = cursor.fetchall()
+                    zip_staging_ids = [str(row['id_stg_demographic_socioeconomic_qro']) for row in zip_staging_results]
+                    
+                    if zip_staging_ids:
+                        logger.info(f"[ZIP CODE FILTER] Mapped zip codes {zip_codes} to staging IDs {zip_staging_ids}")
+                        all_staging_ids.update(zip_staging_ids)
+                    else:
+                        logger.warning(f"[ZIP CODE FILTER] No staging IDs found for zip codes {zip_codes}")
+            
+            # Apply the combined staging ID filter
+            if all_staging_ids:
+                staging_ids_str = ','.join(all_staging_ids)
+                filter_query += f" AND v.id_stg_demographic_socioeconomic_qro IN ({staging_ids_str})"
+                logger.info(f"[COMBINED FILTER] Applied combined staging ID filter: {staging_ids_str}")
             
             query = self.qc.get_property_query(filter_query, city=city)
             query = query + " limit 15"
@@ -2109,9 +2140,29 @@ class PropertyController:
                 logger.info(f"[FILTER RESULT] No properties found for city: {city}")
                 return Response.success(data=[], message='No properties found')
             result_jsons = self.get_property_json(result, show_all_keys=filters.get('show_all_keys', True), city=city)
+            
+            # Remove duplicate properties from response data
+            seen_fids = set()
+            deduplicated_results = []
+            for property_data in result_jsons:
+                if 'property_details' in property_data and 'fid' in property_data['property_details']:
+                    fid = property_data['property_details']['fid']
+                    if fid not in seen_fids:
+                        seen_fids.add(fid)
+                        deduplicated_results.append(property_data)
+                else:
+                    # If no fid found, include the property to avoid data loss
+                    deduplicated_results.append(property_data)
+            
+            # Log the deduplication results
+            original_count = len(result_jsons)
+            final_count = len(deduplicated_results)
+            if original_count != final_count:
+                logger.info(f"[DEDUPLICATION] Removed from property {original_count - final_count} duplicate properties. Original: {original_count}, Final: {final_count}")
+            
             # Log the final result count
-            logger.info(f"[FILTER RESULT] Found {len(result_jsons)} properties for city: {city}")
-            resp = Response.success(data=result_jsons, message='Success')
+            logger.info(f"[FILTER RESULT] Found {final_count} properties for city: {city}")
+            resp = Response.success(data=deduplicated_results, message='Success')
         except Exception as e:
             logger.error("Error filtering properties: %s", str(e), exc_info=True)
             resp = Response.internal_server_error(message=str(e))
@@ -2133,13 +2184,13 @@ class PropertyController:
             # Determine which table and columns to use based on config_city
             if config_city == 'queretaro' or config_city == 'el_marques':
                 # Use staging.stg_municipality for QRO/El Marques
-                table_name = 'staging.stg_municipality'
-                id_col = 'id_stg_municipality'
+                table_name = 'presentation.dim_municipality_qro'
+                id_col = 'id_stg_demographic_socioeconomic_qro'
                 # Map search_key_type to stg_municipality columns
                 column_map = {
-                    "nb_cleaned": "d_asenta",  # neighborhood/settlement
-                    "zip_code": "d_codigo",        # zip code
-                    "municipality_nm": "d_mnpio"  # municipality
+                    "nb_cleaned": "city",  # neighborhood/settlement
+                    "zip_code": "zip_code",        # zip code
+                    "municipality_nm": "municipality"  # municipality
                 }
             else:
                 # Use data_product.v_municipality for other cities
@@ -2156,15 +2207,20 @@ class PropertyController:
                 search_column = column_map.get(search_key_type)
                 municipality_column = column_map.get("municipality_nm")
                 
+                #use old query
+                query = f""" SELECT DISTINCT {id_col} as id_municipality, {search_column} as {search_key_type}
+                        FROM {table_name}
+                        WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s limit 50"""
+                
                 # Use GROUP BY to eliminate duplicates for all cities
-                query = f"""
-                    SELECT {search_column} as {search_key_type}, MIN({id_col}) as id_municipality
-                    FROM {table_name} 
-                    WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s 
-                    GROUP BY {search_column}
-                    ORDER BY {search_column}
-                    LIMIT 50
-                """
+                # query = f"""
+                #     SELECT {search_column} as {search_key_type}, MIN({id_col}) as id_municipality
+                #     FROM {table_name} 
+                #     WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s 
+                #     GROUP BY {search_column}
+                #     ORDER BY {search_column}
+                #     LIMIT 50
+                # """
                 cursor.execute(query, (f"%{municipality_nm}%", f"%{search_value}%"))
                 results = cursor.fetchall()
                 items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
