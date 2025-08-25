@@ -1,3 +1,4 @@
+from module.markets.controller import MarketsController
 from utils.dbUtils import Database, RedshiftDatabase
 # from utils.connectionPoolDbUtils import postgres_pool ,redshift_pool
 from psycopg2.extras import RealDictCursor
@@ -35,6 +36,7 @@ class UserPropertyController:
         self.db = Database()
         self.redshift_connection = RedshiftDatabase()
         self.user_property_status = ['view', 'shortlisted', 'not_interested', 'finalized']
+        
 
     def get_additional_property_details(self, properties, config_city=None):
         connection = None
@@ -274,107 +276,8 @@ class PropertyController:
         self.qc = QueryController()
         self.db = Database()
         self.redshift_connection = RedshiftDatabase()
+        self.markets_controller = MarketsController()
 
-    def _fetch_inmuebles24_images(self, ids_market_data_inmuebles24):
-        """Fetch images from inmuebles24 table for the given id from Redshift."""
-        connection = None
-        cursor = None
-        images = []
-        try:
-            connection = self.redshift_connection.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = '''SELECT pictures FROM presentation.dim_market_data_inmuebles24 WHERE id_market_data_inmuebles24 = %s LIMIT 1'''
-            cursor.execute(query, (ids_market_data_inmuebles24,))
-            row = cursor.fetchone()
-            if row and row.get('pictures'):
-                # pictures is expected to be a JSON array or comma-separated string
-                try:
-                    # Try to parse as JSON
-                    raw_images = json.loads(row['pictures']) if isinstance(row['pictures'], str) else row['pictures']
-                    if isinstance(raw_images, str):
-                        # If still a string, split by comma
-                        raw_images = [img.strip() for img in raw_images.split(',') if img.strip()]
-                    # Filter out None, empty strings, and "None" strings
-                    images = [img for img in raw_images if img and img.strip() and img.strip().lower() != "none"]
-                except Exception:
-                    # Fallback: split by comma and filter
-                    raw_images = [img.strip() for img in row['pictures'].split(',') if img.strip()]
-                    images = [img for img in raw_images if img and img.strip() and img.strip().lower() != "none"]
-        except Exception as e:
-            logger.error(f"Error fetching inmuebles24 images: {e}")
-        finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                self.redshift_connection.disconnect(connection)
-        return images
-
-    def _fetch_spot2_images(self, ids_market_data_spot2):
-        """Fetch images from spot2 table for the given id from Redshift."""
-        connection = None
-        cursor = None
-        images = []
-        try:
-            connection = self.redshift_connection.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = '''SELECT pictures FROM presentation.dim_market_data_spot2 WHERE id_market_data_spot2 = %s LIMIT 1'''
-            cursor.execute(query, (ids_market_data_spot2,))
-            row = cursor.fetchone()
-            
-            if row and row.get('pictures') and row.get('pictures') != 'None':
-                # pictures is expected to be a JSON array or comma-separated string
-                try:
-                    # Try to parse as JSON
-                    raw_images = json.loads(row['pictures']) if isinstance(row['pictures'], str) else row['pictures']
-                    if isinstance(raw_images, str):
-                        # If still a string, split by comma
-                        raw_images = [img.strip() for img in raw_images.split(',') if img.strip()]
-                    # Filter out None, empty strings, and "None" strings
-                    images = [img for img in raw_images if img and img.strip() and img.strip().lower() != "none"]
-                except Exception:
-                    # Fallback: split by comma and filter
-                    raw_images = [img.strip() for img in row['pictures'].split(',') if img.strip()]
-                    images = [img for img in raw_images if img and img.strip() and img.strip().lower() != "none"]
-        except Exception as e:
-            logger.error(f"Error fetching spot2 images: {e}")
-        finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                self.redshift_connection.disconnect(connection)
-        return images
-
-    def _fetch_propiedades_images(self, ids_market_data_propiedades):
-        """Fetch images from propiedades table for the given id from Redshift."""
-        connection = None
-        cursor = None
-        images = []
-        try:
-            connection = self.redshift_connection.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = '''SELECT image_1, image_2, image_3, image_4, image_5 
-                      FROM presentation.dim_market_data_propiedades 
-                      WHERE id_market_data_propiedades = %s 
-                      LIMIT 1'''
-            cursor.execute(query, (ids_market_data_propiedades,))
-            row = cursor.fetchone()
-            if row:
-                # Collect all non-null and non-"None" image URLs
-                for i in range(1, 6):
-                    image_url = row.get(f'image_{i}')
-                    if (image_url and 
-                        isinstance(image_url, str) and 
-                        image_url.strip() and 
-                        image_url.strip().lower() != "none"):
-                        images.append(image_url.strip())
-        except Exception as e:
-            logger.error(f"Error fetching propiedades images: {e}")
-        finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                self.redshift_connection.disconnect(connection)
-        return images
 
     def get_property_json(self, results, show_all_keys=True, city='mexico'):
         resp = []
@@ -480,8 +383,8 @@ class PropertyController:
 
                 # Now use the valid IDs in the if-elif ladder
                 if valid_inmuebles24_id:
-                    images = self._fetch_inmuebles24_images(valid_inmuebles24_id)
-                    print("INMUEBLES24 IMAGES", images)
+                    images = self.markets_controller.fetch_inmuebles24_images(valid_inmuebles24_id, city)
+                    print("INMUEBLES24 IMAGES", images, valid_inmuebles24_id)
                     if has_valid_images(images):
                         # Resize images to 600x300 and filter out None values
                         valid_images = [img for img in images if img and img.strip() and img.strip().lower() != "none"]
@@ -492,7 +395,7 @@ class PropertyController:
 
                 # If no inmuebles24 images, try spot2
                 if not street_images and valid_spot2_id:
-                    spot2_images = self._fetch_spot2_images(valid_spot2_id)
+                    spot2_images = self.markets_controller.fetch_spot2_images(valid_spot2_id, city)
                     print("SPOT2 IMAGES", spot2_images)
                     if has_valid_images(spot2_images):
                         valid_images = [img for img in spot2_images if img and img.strip() and img.strip().lower() != "none"]
@@ -500,7 +403,7 @@ class PropertyController:
 
                 # If no spot2 images, try propiedades
                 if not street_images and valid_propiedades_id:
-                    propiedades_images = self._fetch_propiedades_images(valid_propiedades_id)
+                    propiedades_images = self.markets_controller.fetch_propiedades_images(valid_propiedades_id, city)
                     print("PROPIEDADES IMAGES", propiedades_images)
                     if has_valid_images(propiedades_images):
                         valid_images = [img for img in propiedades_images if img and img.strip() and img.strip().lower() != "none"]
@@ -883,7 +786,103 @@ class PropertyController:
                                 "at_rest_avg_x_day_of_week_7_500m": result.get("at_rest_avg_x_day_of_week_7_500m", None),
                                 "pedestrian_avg_x_day_of_week_7_500m": result.get("pedestrian_avg_x_day_of_week_7_500m", None),
                                 "motor_vehicle_avg_x_day_of_week_7_500m": result.get("motor_vehicle_avg_x_day_of_week_7_500m", None)
+                            },
+                           "1000":{
+                                "at_rest_avg_x_hour_0_1000m": result.get("at_rest_avg_x_hour_0_1km", None),
+                                "pedestrian_avg_x_hour_0_1000m": result.get("pedestrian_avg_x_hour_0_1km", None),
+                                "motor_vehicle_avg_x_hour_0_1000m": result.get("motor_vehicle_avg_x_hour_0_1km", None),
+                                "at_rest_avg_x_hour_1_1000m": result.get("at_rest_avg_x_hour_1_1km", None),
+                                "pedestrian_avg_x_hour_1_1000m": result.get("pedestrian_avg_x_hour_1_1km", None),
+                                "motor_vehicle_avg_x_hour_1_1000m": result.get("motor_vehicle_avg_x_hour_1_1km", None),
+                                "at_rest_avg_x_hour_2_1000m": result.get("at_rest_avg_x_hour_2_1km", None),   
+                                "pedestrian_avg_x_hour_2_1000m": result.get("pedestrian_avg_x_hour_2_1km", None),
+                                "motor_vehicle_avg_x_hour_2_1000m": result.get("motor_vehicle_avg_x_hour_2_1km", None),
+                                "at_rest_avg_x_hour_3_1000m": result.get("at_rest_avg_x_hour_3_1km", None),
+                                "pedestrian_avg_x_hour_3_1000m": result.get("pedestrian_avg_x_hour_3_1km", None),
+                                "motor_vehicle_avg_x_hour_3_1000m": result.get("motor_vehicle_avg_x_hour_3_1km", None),
+                                "at_rest_avg_x_hour_4_1000m": result.get("at_rest_avg_x_hour_4_1km", None),
+                                "pedestrian_avg_x_hour_4_1000m": result.get("pedestrian_avg_x_hour_4_1km", None),
+                                "motor_vehicle_avg_x_hour_4_1000m": result.get("motor_vehicle_avg_x_hour_4_1km", None),
+                                "at_rest_avg_x_hour_5_1000m": result.get("at_rest_avg_x_hour_5_1km", None),
+                                "pedestrian_avg_x_hour_5_1000m": result.get("pedestrian_avg_x_hour_5_1km", None),
+                                "motor_vehicle_avg_x_hour_5_1000m": result.get("motor_vehicle_avg_x_hour_5_1km", None),
+                                "at_rest_avg_x_hour_6_1000m": result.get("at_rest_avg_x_hour_6_1km", None),
+                                "pedestrian_avg_x_hour_6_1000m": result.get("pedestrian_avg_x_hour_6_1km", None),
+                                "motor_vehicle_avg_x_hour_6_1000m": result.get("motor_vehicle_avg_x_hour_6_1km", None),
+                                "at_rest_avg_x_hour_7_1000m": result.get("at_rest_avg_x_hour_7_1km", None),
+                                "pedestrian_avg_x_hour_7_1000m": result.get("pedestrian_avg_x_hour_7_1km", None),
+                                "motor_vehicle_avg_x_hour_7_1000m": result.get("motor_vehicle_avg_x_hour_7_1km", None),
+                                "at_rest_avg_x_hour_8_1000m": result.get("at_rest_avg_x_hour_8_1km", None),
+                                "pedestrian_avg_x_hour_8_1000m": result.get("pedestrian_avg_x_hour_8_1km", None),
+                                "motor_vehicle_avg_x_hour_8_1000m": result.get("motor_vehicle_avg_x_hour_8_1km", None),
+                                "at_rest_avg_x_hour_9_1000m": result.get("at_rest_avg_x_hour_9_1km", None),
+                                "pedestrian_avg_x_hour_9_1000m": result.get("pedestrian_avg_x_hour_9_1km", None),
+                                "motor_vehicle_avg_x_hour_9_1000m": result.get("motor_vehicle_avg_x_hour_9_1km", None),
+                                "at_rest_avg_x_hour_10_1000m": result.get("at_rest_avg_x_hour_10_1km", None),
+                                "pedestrian_avg_x_hour_10_1000m": result.get("pedestrian_avg_x_hour_10_1km", None),
+                                "motor_vehicle_avg_x_hour_10_1000m": result.get("motor_vehicle_avg_x_hour_10_1km", None),
+                                "at_rest_avg_x_hour_11_1000m": result.get("at_rest_avg_x_hour_11_1km", None),
+                                "pedestrian_avg_x_hour_11_1000m": result.get("pedestrian_avg_x_hour_11_1km", None),
+                                "motor_vehicle_avg_x_hour_11_1000m": result.get("motor_vehicle_avg_x_hour_11_1km", None),
+                                "at_rest_avg_x_hour_12_1000m": result.get("at_rest_avg_x_hour_12_1km", None),
+                                "pedestrian_avg_x_hour_12_1000m": result.get("pedestrian_avg_x_hour_12_1km", None),
+                                "motor_vehicle_avg_x_hour_12_1000m": result.get("motor_vehicle_avg_x_hour_12_1km", None),
+                                "at_rest_avg_x_hour_13_1000m": result.get("at_rest_avg_x_hour_13_1km", None),
+                                "pedestrian_avg_x_hour_13_1000m": result.get("pedestrian_avg_x_hour_13_1km", None),
+                                "motor_vehicle_avg_x_hour_13_1000m": result.get("motor_vehicle_avg_x_hour_13_1km", None),
+                                "at_rest_avg_x_hour_14_1000m": result.get("at_rest_avg_x_hour_14_1km", None),
+                                "pedestrian_avg_x_hour_14_1000m": result.get("pedestrian_avg_x_hour_14_1km", None),
+                                "motor_vehicle_avg_x_hour_14_1000m": result.get("motor_vehicle_avg_x_hour_14_1km", None),
+                                "at_rest_avg_x_hour_15_1000m": result.get("at_rest_avg_x_hour_15_1km", None),
+                                "pedestrian_avg_x_hour_15_1000m": result.get("pedestrian_avg_x_hour_15_1km", None),
+                                "motor_vehicle_avg_x_hour_15_1000m": result.get("motor_vehicle_avg_x_hour_15_1km", None),
+                                "at_rest_avg_x_hour_16_1000m": result.get("at_rest_avg_x_hour_16_1km", None),
+                                "pedestrian_avg_x_hour_16_1000m": result.get("pedestrian_avg_x_hour_16_1km", None),
+                                "motor_vehicle_avg_x_hour_16_1000m": result.get("motor_vehicle_avg_x_hour_16_1km", None),
+                                "at_rest_avg_x_hour_17_1000m": result.get("at_rest_avg_x_hour_17_1km", None),
+                                "pedestrian_avg_x_hour_17_1000m": result.get("pedestrian_avg_x_hour_17_1km", None),
+                                "motor_vehicle_avg_x_hour_17_1000m": result.get("motor_vehicle_avg_x_hour_17_1km", None),
+                                "at_rest_avg_x_hour_18_1000m": result.get("at_rest_avg_x_hour_18_1km", None),
+                                "pedestrian_avg_x_hour_18_1000m": result.get("pedestrian_avg_x_hour_18_1km", None),
+                                "motor_vehicle_avg_x_hour_18_1000m": result.get("motor_vehicle_avg_x_hour_18_1km", None),
+                                "at_rest_avg_x_hour_19_1000m": result.get("at_rest_avg_x_hour_19_1km", None),
+                                "pedestrian_avg_x_hour_19_1000m": result.get("pedestrian_avg_x_hour_19_1km", None),
+                                "motor_vehicle_avg_x_hour_19_1000m": result.get("motor_vehicle_avg_x_hour_19_1km", None),
+                                "at_rest_avg_x_hour_20_1000m": result.get("at_rest_avg_x_hour_20_1km", None),
+                                "pedestrian_avg_x_hour_20_1000m": result.get("pedestrian_avg_x_hour_20_1km", None),
+                                "motor_vehicle_avg_x_hour_20_1000m": result.get("motor_vehicle_avg_x_hour_20_1km", None),
+                                "at_rest_avg_x_hour_21_1000m": result.get("at_rest_avg_x_hour_21_1km", None),
+                                "pedestrian_avg_x_hour_21_1000m": result.get("pedestrian_avg_x_hour_21_1km", None),
+                                "motor_vehicle_avg_x_hour_21_1000m": result.get("motor_vehicle_avg_x_hour_21_1km", None),
+                                "at_rest_avg_x_hour_22_1000m": result.get("at_rest_avg_x_hour_22_1km", None),
+                                "pedestrian_avg_x_hour_22_1000m": result.get("pedestrian_avg_x_hour_22_1km", None),
+                                "motor_vehicle_avg_x_hour_22_1000m": result.get("motor_vehicle_avg_x_hour_22_1km", None),
+                                "at_rest_avg_x_hour_23_1000m": result.get("at_rest_avg_x_hour_23_1km", None),
+                                "pedestrian_avg_x_hour_23_1000m": result.get("pedestrian_avg_x_hour_23_1km", None),
+                                "motor_vehicle_avg_x_hour_23_1000m": result.get("motor_vehicle_avg_x_hour_23_1km", None),
+                                "at_rest_avg_x_day_of_week_1_1000m": result.get("at_rest_avg_x_day_of_week_1_1km", None),
+                                "pedestrian_avg_x_day_of_week_1_1000m": result.get("pedestrian_avg_x_day_of_week_1_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_1_1000m": result.get("motor_vehicle_avg_x_day_of_week_1_1km", None),
+                                "at_rest_avg_x_day_of_week_2_1000m": result.get("at_rest_avg_x_day_of_week_2_1km", None),
+                                "pedestrian_avg_x_day_of_week_2_1000m": result.get("pedestrian_avg_x_day_of_week_2_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_2_1000m": result.get("motor_vehicle_avg_x_day_of_week_2_1km", None),
+                                "at_rest_avg_x_day_of_week_3_1000m": result.get("at_rest_avg_x_day_of_week_3_1km", None),
+                                "pedestrian_avg_x_day_of_week_3_1000m": result.get("pedestrian_avg_x_day_of_week_3_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_3_1000m": result.get("motor_vehicle_avg_x_day_of_week_3_1km", None),
+                                "at_rest_avg_x_day_of_week_4_1000m": result.get("at_rest_avg_x_day_of_week_4_1km", None),
+                                "pedestrian_avg_x_day_of_week_4_1000m": result.get("pedestrian_avg_x_day_of_week_4_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_4_1000m": result.get("motor_vehicle_avg_x_day_of_week_4_1km", None),
+                                "at_rest_avg_x_day_of_week_5_1000m": result.get("at_rest_avg_x_day_of_week_5_1km", None),
+                                "pedestrian_avg_x_day_of_week_5_1000m": result.get("pedestrian_avg_x_day_of_week_5_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_5_1000m": result.get("motor_vehicle_avg_x_day_of_week_5_1km", None),
+                                "at_rest_avg_x_day_of_week_6_1000m": result.get("at_rest_avg_x_day_of_week_6_1km", None),
+                                "pedestrian_avg_x_day_of_week_6_1000m": result.get("pedestrian_avg_x_day_of_week_6_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_6_1000m": result.get("motor_vehicle_avg_x_day_of_week_6_1km", None),
+                                "at_rest_avg_x_day_of_week_7_1000m": result.get("at_rest_avg_x_day_of_week_7_1km", None),
+                                "pedestrian_avg_x_day_of_week_7_1000m": result.get("pedestrian_avg_x_day_of_week_7_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_7_1000m": result.get("motor_vehicle_avg_x_day_of_week_7_1km", None)
                             }
+
                         }
                     else:
                         # CDMX structure (original complete traffic data) - use direct access like original
@@ -1077,6 +1076,101 @@ class PropertyController:
                                 "at_rest_avg_x_hour_23_500m": result["at_rest_avg_x_hour_23_500m"],
                                 "pedestrian_avg_x_hour_23_500m": result["pedestrian_avg_x_hour_23_500m"],
                                 "motor_vehicle_avg_x_hour_23_500m": result["motor_vehicle_avg_x_hour_23_500m"]
+                            },
+                            "1000":{
+                                "at_rest_avg_x_hour_0_1000m": result.get("at_rest_avg_x_hour_0_1km", None),
+                                "pedestrian_avg_x_hour_0_1000m": result.get("pedestrian_avg_x_hour_0_1km", None),
+                                "motor_vehicle_avg_x_hour_0_1000m": result.get("motor_vehicle_avg_x_hour_0_1km", None),
+                                "at_rest_avg_x_hour_1_1000m": result.get("at_rest_avg_x_hour_1_1km", None),
+                                "pedestrian_avg_x_hour_1_1000m": result.get("pedestrian_avg_x_hour_1_1km", None),
+                                "motor_vehicle_avg_x_hour_1_1000m": result.get("motor_vehicle_avg_x_hour_1_1km", None),
+                                "at_rest_avg_x_hour_2_1000m": result.get("at_rest_avg_x_hour_2_1km", None),   
+                                "pedestrian_avg_x_hour_2_1000m": result.get("pedestrian_avg_x_hour_2_1km", None),
+                                "motor_vehicle_avg_x_hour_2_1000m": result.get("motor_vehicle_avg_x_hour_2_1km", None),
+                                "at_rest_avg_x_hour_3_1000m": result.get("at_rest_avg_x_hour_3_1km", None),
+                                "pedestrian_avg_x_hour_3_1000m": result.get("pedestrian_avg_x_hour_3_1km", None),
+                                "motor_vehicle_avg_x_hour_3_1000m": result.get("motor_vehicle_avg_x_hour_3_1km", None),
+                                "at_rest_avg_x_hour_4_1000m": result.get("at_rest_avg_x_hour_4_1km", None),
+                                "pedestrian_avg_x_hour_4_1000m": result.get("pedestrian_avg_x_hour_4_1km", None),
+                                "motor_vehicle_avg_x_hour_4_1000m": result.get("motor_vehicle_avg_x_hour_4_1km", None),
+                                "at_rest_avg_x_hour_5_1000m": result.get("at_rest_avg_x_hour_5_1km", None),
+                                "pedestrian_avg_x_hour_5_1000m": result.get("pedestrian_avg_x_hour_5_1km", None),
+                                "motor_vehicle_avg_x_hour_5_1000m": result.get("motor_vehicle_avg_x_hour_5_1km", None),
+                                "at_rest_avg_x_hour_6_1000m": result.get("at_rest_avg_x_hour_6_1km", None),
+                                "pedestrian_avg_x_hour_6_1000m": result.get("pedestrian_avg_x_hour_6_1km", None),
+                                "motor_vehicle_avg_x_hour_6_1000m": result.get("motor_vehicle_avg_x_hour_6_1km", None),
+                                "at_rest_avg_x_hour_7_1000m": result.get("at_rest_avg_x_hour_7_1km", None),
+                                "pedestrian_avg_x_hour_7_1000m": result.get("pedestrian_avg_x_hour_7_1km", None),
+                                "motor_vehicle_avg_x_hour_7_1000m": result.get("motor_vehicle_avg_x_hour_7_1km", None),
+                                "at_rest_avg_x_hour_8_1000m": result.get("at_rest_avg_x_hour_8_1km", None),
+                                "pedestrian_avg_x_hour_8_1000m": result.get("pedestrian_avg_x_hour_8_1km", None),
+                                "motor_vehicle_avg_x_hour_8_1000m": result.get("motor_vehicle_avg_x_hour_8_1km", None),
+                                "at_rest_avg_x_hour_9_1000m": result.get("at_rest_avg_x_hour_9_1km", None),
+                                "pedestrian_avg_x_hour_9_1000m": result.get("pedestrian_avg_x_hour_9_1km", None),
+                                "motor_vehicle_avg_x_hour_9_1000m": result.get("motor_vehicle_avg_x_hour_9_1km", None),
+                                "at_rest_avg_x_hour_10_1000m": result.get("at_rest_avg_x_hour_10_1km", None),
+                                "pedestrian_avg_x_hour_10_1000m": result.get("pedestrian_avg_x_hour_10_1km", None),
+                                "motor_vehicle_avg_x_hour_10_1000m": result.get("motor_vehicle_avg_x_hour_10_1km", None),
+                                "at_rest_avg_x_hour_11_1000m": result.get("at_rest_avg_x_hour_11_1km", None),
+                                "pedestrian_avg_x_hour_11_1000m": result.get("pedestrian_avg_x_hour_11_1km", None),
+                                "motor_vehicle_avg_x_hour_11_1000m": result.get("motor_vehicle_avg_x_hour_11_1km", None),
+                                "at_rest_avg_x_hour_12_1000m": result.get("at_rest_avg_x_hour_12_1km", None),
+                                "pedestrian_avg_x_hour_12_1000m": result.get("pedestrian_avg_x_hour_12_1km", None),
+                                "motor_vehicle_avg_x_hour_12_1000m": result.get("motor_vehicle_avg_x_hour_12_1km", None),
+                                "at_rest_avg_x_hour_13_1000m": result.get("at_rest_avg_x_hour_13_1km", None),
+                                "pedestrian_avg_x_hour_13_1000m": result.get("pedestrian_avg_x_hour_13_1km", None),
+                                "motor_vehicle_avg_x_hour_13_1000m": result.get("motor_vehicle_avg_x_hour_13_1km", None),
+                                "at_rest_avg_x_hour_14_1000m": result.get("at_rest_avg_x_hour_14_1km", None),
+                                "pedestrian_avg_x_hour_14_1000m": result.get("pedestrian_avg_x_hour_14_1km", None),
+                                "motor_vehicle_avg_x_hour_14_1000m": result.get("motor_vehicle_avg_x_hour_14_1km", None),
+                                "at_rest_avg_x_hour_15_1000m": result.get("at_rest_avg_x_hour_15_1km", None),
+                                "pedestrian_avg_x_hour_15_1000m": result.get("pedestrian_avg_x_hour_15_1km", None),
+                                "motor_vehicle_avg_x_hour_15_1000m": result.get("motor_vehicle_avg_x_hour_15_1km", None),
+                                "at_rest_avg_x_hour_16_1000m": result.get("at_rest_avg_x_hour_16_1km", None),
+                                "pedestrian_avg_x_hour_16_1000m": result.get("pedestrian_avg_x_hour_16_1km", None),
+                                "motor_vehicle_avg_x_hour_16_1000m": result.get("motor_vehicle_avg_x_hour_16_1km", None),
+                                "at_rest_avg_x_hour_17_1000m": result.get("at_rest_avg_x_hour_17_1km", None),
+                                "pedestrian_avg_x_hour_17_1000m": result.get("pedestrian_avg_x_hour_17_1km", None),
+                                "motor_vehicle_avg_x_hour_17_1000m": result.get("motor_vehicle_avg_x_hour_17_1km", None),
+                                "at_rest_avg_x_hour_18_1000m": result.get("at_rest_avg_x_hour_18_1km", None),
+                                "pedestrian_avg_x_hour_18_1000m": result.get("pedestrian_avg_x_hour_18_1km", None),
+                                "motor_vehicle_avg_x_hour_18_1000m": result.get("motor_vehicle_avg_x_hour_18_1km", None),
+                                "at_rest_avg_x_hour_19_1000m": result.get("at_rest_avg_x_hour_19_1km", None),
+                                "pedestrian_avg_x_hour_19_1000m": result.get("pedestrian_avg_x_hour_19_1km", None),
+                                "motor_vehicle_avg_x_hour_19_1000m": result.get("motor_vehicle_avg_x_hour_19_1km", None),
+                                "at_rest_avg_x_hour_20_1000m": result.get("at_rest_avg_x_hour_20_1km", None),
+                                "pedestrian_avg_x_hour_20_1000m": result.get("pedestrian_avg_x_hour_20_1km", None),
+                                "motor_vehicle_avg_x_hour_20_1000m": result.get("motor_vehicle_avg_x_hour_20_1km", None),
+                                "at_rest_avg_x_hour_21_1000m": result.get("at_rest_avg_x_hour_21_1km", None),
+                                "pedestrian_avg_x_hour_21_1000m": result.get("pedestrian_avg_x_hour_21_1km", None),
+                                "motor_vehicle_avg_x_hour_21_1000m": result.get("motor_vehicle_avg_x_hour_21_1km", None),
+                                "at_rest_avg_x_hour_22_1000m": result.get("at_rest_avg_x_hour_22_1km", None),
+                                "pedestrian_avg_x_hour_22_1000m": result.get("pedestrian_avg_x_hour_22_1km", None),
+                                "motor_vehicle_avg_x_hour_22_1000m": result.get("motor_vehicle_avg_x_hour_22_1km", None),
+                                "at_rest_avg_x_hour_23_1000m": result.get("at_rest_avg_x_hour_23_1km", None),
+                                "pedestrian_avg_x_hour_23_1000m": result.get("pedestrian_avg_x_hour_23_1km", None),
+                                "motor_vehicle_avg_x_hour_23_1000m": result.get("motor_vehicle_avg_x_hour_23_1km", None),
+                                "at_rest_avg_x_day_of_week_1_1000m": result.get("at_rest_avg_x_day_of_week_1_1km", None),
+                                "pedestrian_avg_x_day_of_week_1_1000m": result.get("pedestrian_avg_x_day_of_week_1_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_1_1000m": result.get("motor_vehicle_avg_x_day_of_week_1_1km", None),
+                                "at_rest_avg_x_day_of_week_2_1000m": result.get("at_rest_avg_x_day_of_week_2_1km", None),
+                                "pedestrian_avg_x_day_of_week_2_1000m": result.get("pedestrian_avg_x_day_of_week_2_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_2_1000m": result.get("motor_vehicle_avg_x_day_of_week_2_1km", None),
+                                "at_rest_avg_x_day_of_week_3_1000m": result.get("at_rest_avg_x_day_of_week_3_1km", None),
+                                "pedestrian_avg_x_day_of_week_3_1000m": result.get("pedestrian_avg_x_day_of_week_3_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_3_1000m": result.get("motor_vehicle_avg_x_day_of_week_3_1km", None),
+                                "at_rest_avg_x_day_of_week_4_1000m": result.get("at_rest_avg_x_day_of_week_4_1km", None),
+                                "pedestrian_avg_x_day_of_week_4_1000m": result.get("pedestrian_avg_x_day_of_week_4_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_4_1000m": result.get("motor_vehicle_avg_x_day_of_week_4_1km", None),
+                                "at_rest_avg_x_day_of_week_5_1000m": result.get("at_rest_avg_x_day_of_week_5_1km", None),
+                                "pedestrian_avg_x_day_of_week_5_1000m": result.get("pedestrian_avg_x_day_of_week_5_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_5_1000m": result.get("motor_vehicle_avg_x_day_of_week_5_1km", None),
+                                "at_rest_avg_x_day_of_week_6_1000m": result.get("at_rest_avg_x_day_of_week_6_1km", None),
+                                "pedestrian_avg_x_day_of_week_6_1000m": result.get("pedestrian_avg_x_day_of_week_6_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_6_1000m": result.get("motor_vehicle_avg_x_day_of_week_6_1km", None),
+                                "at_rest_avg_x_day_of_week_7_1000m": result.get("at_rest_avg_x_day_of_week_7_1km", None),
+                                "pedestrian_avg_x_day_of_week_7_1000m": result.get("pedestrian_avg_x_day_of_week_7_1km", None),
+                                "motor_vehicle_avg_x_day_of_week_7_1000m": result.get("motor_vehicle_avg_x_day_of_week_7_1km", None)
                             }
                         }
                 if show_all_keys:
@@ -1132,7 +1226,7 @@ class PropertyController:
                 return Response.bad_request(message="Invalid request")
 
             query = self.qc.get_property_query(filter_query, city=city)
-            logger.info(f"[get_properties] Executing query for city={city}: {query}")
+            logger.info(f"[get_properties] Executing query for city={city}: ")
 
             def fetch_property_details():
                 # connection = self.db.connect('redshiftdb')
@@ -1233,18 +1327,18 @@ class PropertyController:
                                 },
                         "colonia": {
                                 "neighborhood" : result.get("nom_loc", None),
-                                "predominant_level" : result.get("niv_predom", None),
+                                "predominant_level" : result.get("predominant_level_colonia", None),
                                 "ageb_code" : result.get("cve_ageb", None),
-                                "total_household": result.get("vivtot_colonia", None),
+                                "total_household": result.get("total_houses_colonia", None),
                                 "average_household_size": result.get("prom_ocup_colonia", None),
                                 "average_number_of_rooms": result.get("pro_ocup_c_colonia", None)
                                 },
                         
                         "alcaldia": {
                                 "neighborhood" : result.get('nom_mun', None),
-                                "predominant_level" : result.get("niv_predom", None),
+                                "predominant_level" : result.get("predominant_level_alcaldia", None),
                                 "ageb_code" : result.get("cve_ageb", None),
-                                "total_household": result.get("vivtot_alcaldia", None),
+                                "total_household": result.get("total_houses_alcaldia", None),
                                 "average_household_size": result.get("prom_ocup_alcaldia", None),
                                 "average_number_of_rooms": result.get("pro_ocup_c_alcaldia", None)
                         }
@@ -1260,22 +1354,22 @@ class PropertyController:
                             "ses_e": result.get("pct_viv_e", None)
                         },
                         "colonia": {
-                            "ses_ab": result.get("pct_viv_ab", None),
-                            "ses_c_plus": result.get("pct_viv_cp", None),
-                            "ses_c": result.get("pct_viv_c", None),
-                            "ses_c_minus": result.get("pct_viv_cm", None),
-                            "ses_d": result.get("pct_viv_d", None),
-                            "ses_d_plus": result.get("pct_viv_dp", None),
-                            "ses_e": result.get("pct_viv_e", None)
+                            "ses_ab": result.get("ses_ab_colonia", None),
+                            "ses_c_plus": result.get("ses_c_plus_colonia", None),
+                            "ses_c": result.get("ses_c_colonia", None),
+                            "ses_c_minus": result.get("ses_c_minus_colonia", None),
+                            "ses_d": result.get("ses_d_colonia", None),
+                            "ses_d_plus": result.get("ses_d_plus_colonia", None),
+                            "ses_e": result.get("ses_e_colonia", None)
                         },
                         "alcaldia": {
-                            "ses_ab": result.get("pct_viv_ab", None),
-                            "ses_c_plus": result.get("pct_viv_cp", None),
-                            "ses_c": result.get("pct_viv_c", None),
-                            "ses_c_minus": result.get("pct_viv_cm", None),
-                            "ses_d": result.get("pct_viv_d", None),
-                            "ses_d_plus": result.get("pct_viv_dp", None),
-                            "ses_e": result.get("pct_viv_e", None)
+                            "ses_ab": result.get("ses_ab_alcaldia", None),
+                            "ses_c_plus": result.get("ses_c_plus_alcaldia", None),
+                            "ses_c": result.get("ses_c_alcaldia", None),
+                            "ses_c_minus": result.get("ses_c_minus_alcaldia", None),
+                            "ses_d": result.get("ses_d_alcaldia", None),
+                            "ses_d_plus": result.get("ses_d_plus_alcaldia", None),
+                            "ses_e": result.get("ses_e_alcaldia", None)
                         }
                     },
                     "population": {
@@ -1678,7 +1772,7 @@ class PropertyController:
                     min_motor_vehicle,
                     max_motor_vehicle
                 FROM {table_name}
-                WHERE {id_col} = %s AND type IN ('CIRCLE_500_METERS', 'FRONT_OF_STORE')
+                WHERE {id_col} = %s AND type IN ('CIRCLE_500_METERS', 'FRONT_OF_STORE', 'CIRCLE_1000_METERS')
             """
 
             # Use Redshift connection
@@ -1699,6 +1793,13 @@ class PropertyController:
                     }
                 elif row['type'] == 'FRONT_OF_STORE':
                     response['50m'] = {
+                        'min_pedestrian': row['min_pedestrian'],
+                        'max_pedestrian': row['max_pedestrian'],
+                        'min_motor_vehicle': row['min_motor_vehicle'],
+                        'max_motor_vehicle': row['max_motor_vehicle']
+                    }
+                elif row['type'] == 'CIRCLE_1000_METERS':
+                    response['1000m'] = {
                         'min_pedestrian': row['min_pedestrian'],
                         'max_pedestrian': row['max_pedestrian'],
                         'min_motor_vehicle': row['min_motor_vehicle'],
@@ -1810,23 +1911,30 @@ class PropertyController:
         """
         # Determine column mapping based on city
         if city == 'queretaro' or city == 'el_marques':
-            # QRO/El Marques column mapping
+            # QRO/El Marques column mapping - Enhanced with market data filters
             FILTER_COLUMN_MAP = {
-                "availability": "is_on_market",
-                "geometry": "geometry_type",
-                "id_municipality": "cve_mun",
-                "municipality": "nom_mun",
-                "alcaldia": "nom_mun",
-                "colonia": "nom_loc",
-                # Skip unsupported filters for QRO/El Marques
-                "property_type": None,
-                "plot_min": None,
-                "plot_max": None,
-                "buy": None,
-                "rent": None,
-                "construction_min": None,
-                "construction_max": None,
-                "zip_code": None
+                "availability": "v.is_on_market",
+                "geometry": "v.geometry_type",
+                # id_municipality handled separately for QRO/El Marques
+                "municipality": "v.nom_mun",
+                "alcaldia": "v.nom_mun",
+                "colonia": "v.nom_loc",
+                # Market data filters now supported via dim_market_data_combined
+                "property_type": "mdc.property_type",
+                "operation_type": "mdc.operation_type",
+                "rent": "mdc.rent_price_clean",
+                "buy": "mdc.buy_price_clean",
+                "dimension_min": "mdc.property_dimension_clean",
+                "dimension_max": "mdc.property_dimension_clean",
+                # Construction and plot dimensions using market data
+                "plot_min": "mdc.property_dimension_clean",
+                "plot_max": "mdc.property_dimension_clean",
+                "construction_min": "mdc.property_dimension_clean",
+                "construction_max": "mdc.property_dimension_clean",
+                # zip_code handled separately for QRO/El Marques
+                "zip_code": None,
+                #improvements in filter 
+                "id_stg_demographic_socioeconomic_qro": "v.id_stg_demographic_socioeconomic_qro",
             }
         else:
             # Mexico column mapping
@@ -1851,95 +1959,212 @@ class PropertyController:
         cursor = None
         resp = None
         try:
-            logger.info("Filtering properties with filters: %s", filters)
+            # Log the request payload from frontend
+            logger.info(f"[FILTER REQUEST] City: {city}, Payload: {filters}")
             filter_query = 'WHERE 1=1'
             # Availability (example: is_on_market)
             if 'availability' in filters and filters['availability'] and FILTER_COLUMN_MAP['availability']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['availability']} = '{filters['availability']}'"
             
-            # Property Type (multi-select) - Only for Mexico
+            # Property Type (multi-select) - Updated for both Mexico and QRO
             if 'property_type' in filters and filters['property_type'] and FILTER_COLUMN_MAP['property_type']:
                 types = filters['property_type']
-                if isinstance(types, list):
-                    type_list = ','.join([f"'{t}'" for t in types])
-                    cols = FILTER_COLUMN_MAP['property_type']
-                    filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
+                cols = FILTER_COLUMN_MAP['property_type']
+                
+                if isinstance(cols, list):
+                    # Mexico: multiple columns (list)
+                    if isinstance(types, list):
+                        type_list = ','.join([f"'{t}'" for t in types])
+                        filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
+                    else:
+                        filter_query += " AND (" + " OR ".join([f"{col} = '{types}'" for col in cols]) + ")"
                 else:
-                    value = filters['property_type']
-                    cols = FILTER_COLUMN_MAP['property_type']
-                    filter_query += " AND (" + " OR ".join([f"{col} = '{value}'" for col in cols]) + ")"
+                    # QRO: single column (string)
+                    if isinstance(types, list):
+                        type_list = ','.join([f"'{t}'" for t in types])
+                        filter_query += f" AND {cols} IN ({type_list})"
+                    else:
+                        filter_query += f" AND {cols} = '{types}'"
             
-            # Plot Dimensions (range) - Only for Mexico
+            # Plot Dimensions (range) - For both Mexico and QRO
             if 'plot_min' in filters and filters['plot_min'] is not None and FILTER_COLUMN_MAP['plot_min']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['plot_min']} >= {filters['plot_min']}"
             if 'plot_max' in filters and filters['plot_max'] is not None and FILTER_COLUMN_MAP['plot_max']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['plot_max']} <= {filters['plot_max']}"
             
-            # Construction Dimensions (range) - Only for Mexico
+            # Construction Dimensions (range) - For both Mexico and QRO
             if 'construction_min' in filters and filters['construction_min'] is not None and FILTER_COLUMN_MAP['construction_min']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_min']} >= {filters['construction_min']}"
             if 'construction_max' in filters and filters['construction_max'] is not None and FILTER_COLUMN_MAP['construction_max']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['construction_max']} <= {filters['construction_max']}"
-            
-            # Price (Buy/Rent, range) - Only for Mexico
-            if 'price_type' in filters and filters['price_type']:
-                price_type = filters['price_type'].lower()
-                # Map to correct DB column
-                price_fields = FILTER_COLUMN_MAP.get(price_type, [])
-                if price_fields:
-                    if 'price_min' in filters and filters['price_min'] is not None:
-                        min_conditions = " OR ".join([f"{field} >= {filters['price_min']}" for field in price_fields])
-                        filter_query += f" AND ({min_conditions})"
-                    if 'price_max' in filters and filters['price_max'] is not None:
-                        max_conditions = " OR ".join([f"{field} <= {filters['price_max']}" for field in price_fields])
-                        filter_query += f" AND ({max_conditions})"
+            print(f"filter_query: {filter_query}")
+            # Operation/price consolidation for QRO (venta/renta variants)
+            if city in ('queretaro','el_marques'):
+                if filters.get('price_type'):
+                    pt = str(filters['price_type']).lower()
+                    if pt == 'rent':
+                        filter_query += " AND lower(mdc.operation_type) = 'renta'"
+                        if filters.get('price_min') is not None:
+                            filter_query += f" AND mdc.rent_price_clean >= {filters['price_min']}"
+                        if filters.get('price_max') is not None:
+                            filter_query += f" AND mdc.rent_price_clean <= {filters['price_max']}"
+                    elif pt == 'buy':
+                        filter_query += " AND lower(mdc.operation_type) = 'venta'"
+                        if filters.get('price_min') is not None:
+                            filter_query += f" AND mdc.buy_price_clean >= {filters['price_min']}"
+                        if filters.get('price_max') is not None:
+                            filter_query += f" AND mdc.buy_price_clean <= {filters['price_max']}"
+                elif filters.get('operation_type'):
+                    # free-form operation_type support ensures Renta/renta, Venta/venta
+                    op = filters['operation_type']
+                    if isinstance(op, list):
+                        mapped = ["'renta'" if str(x).lower()== 'rent' else f"'{str(x).lower()}'" for x in op]
+                        filter_query += f" AND lower(mdc.operation_type) IN ({','.join(mapped)})"
+                    else:
+                        filter_query += f" AND lower(mdc.operation_type) = '{str(op).lower()}'"
+            else:
+                # Mexico branch unchanged
+                if 'price_type' in filters and filters['price_type']:
+                    price_type = filters['price_type'].lower()
+                    price_fields = FILTER_COLUMN_MAP.get(price_type, [])
+                    if price_fields:
+                        if isinstance(price_fields, list):
+                            if 'price_min' in filters and filters['price_min'] is not None:
+                                min_conditions = " OR ".join([f"{field} >= {filters['price_min']}" for field in price_fields])
+                                filter_query += f" AND ({min_conditions})"
+                            if 'price_max' in filters and filters['price_max'] is not None:
+                                max_conditions = " OR ".join([f"{field} <= {filters['price_max']}" for field in price_fields])
+                                filter_query += f" AND ({max_conditions})"
             
             # Geometry (location on block)
             if 'geometry' in filters and filters['geometry'] and FILTER_COLUMN_MAP['geometry']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['geometry']} = '{filters['geometry']}'"
             
-            # Municipality fields
-            for key in ["id_municipality", "municipality", "alcaldia", "colonia"]:
+            # Municipality fields 
+            for key in ["municipality", "alcaldia", "colonia"]:
                 if key in filters and filters[key] and FILTER_COLUMN_MAP[key]:
-                    if key == "id_municipality":
-                        # Handle id_municipality as list of IDs
-                        if isinstance(filters[key], list):
-                            filter_query += f" AND {FILTER_COLUMN_MAP[key]} in ({','.join([str(f) for f in filters[key]])}) "
+                    # Handle municipality fields - extract name from object if needed
+                    value = filters[key]
+                    if isinstance(value, dict) and 'name' in value:
+                        value = value['name']
+                    elif isinstance(value, list) and len(value) > 0:
+                        # If it's a list of objects, extract names
+                        if isinstance(value[0], dict) and 'name' in value[0]:
+                            value = value[0]['name']
                         else:
-                            filter_query += f" AND {FILTER_COLUMN_MAP[key]} = {filters[key]}"
-                    else:
-                        # Handle other municipality fields - extract name from object if needed
-                        value = filters[key]
-                        if isinstance(value, dict) and 'name' in value:
-                            value = value['name']
-                        elif isinstance(value, list) and len(value) > 0:
-                            # If it's a list of objects, extract names
-                            if isinstance(value[0], dict) and 'name' in value[0]:
-                                value = value[0]['name']
-                            else:
-                                value = str(value[0])
-                        elif not isinstance(value, str):
-                            value = str(value)
-                        
-                        filter_query += f" AND {FILTER_COLUMN_MAP[key]} ILIKE '%{value}%'"
+                            value = str(value[0])
+                    elif not isinstance(value, str):
+                        value = str(value)
+                    
+                    filter_query += f" AND {FILTER_COLUMN_MAP[key]} ILIKE '%{value}%'"
             
-            # TODO: Add more filters as needed (currency, block position, etc.)
+            # Handle id_municipality separately for different cities
+            if 'id_municipality' in filters and filters['id_municipality']:
+                if city == 'queretaro' or city == 'el_marques':
+                    # For QRO/El Marques, id_municipality is handled after cursor creation
+                    # (see the special handling block below)
+                    pass
+                else:
+                    # For other cities, use direct mapping
+                    if isinstance(filters['id_municipality'], list):
+                        filter_query += f" AND {FILTER_COLUMN_MAP['id_municipality']} in ({','.join([str(f) for f in filters['id_municipality']])}) "
+                    else:
+                        filter_query += f" AND {FILTER_COLUMN_MAP['id_municipality']} = {filters['id_municipality']}"
+            
+            # Remove separate operation_type block for QRO to avoid duplication; handled above
+            
+            # Property Dimension filters (New for QRO)
+            if 'dimension_min' in filters and filters['dimension_min'] is not None and FILTER_COLUMN_MAP.get('dimension_min'):
+                filter_query += f" AND {FILTER_COLUMN_MAP['dimension_min']} >= {filters['dimension_min']}"
+            if 'dimension_max' in filters and filters['dimension_max'] is not None and FILTER_COLUMN_MAP.get('dimension_max'):
+                filter_query += f" AND {FILTER_COLUMN_MAP['dimension_max']} <= {filters['dimension_max']}"
 
-            print("Filter Query", filter_query)
-            query = self.qc.get_property_query(filter_query, city=city)
-            logger.info(f"[filter_properties] Executing query for city={city}: {query}")
+            
             # connection = self.db.connect('redshiftdb')
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            print("Query", query)
-            # query = query + " LIMIT 1"
+            
+            # Handle QRO staging ID filtering (combining id_municipality and zipCode)
+            all_staging_ids = set()
+            
+            # Handle id_municipality filtering using staging IDs directly
+            if (city == 'queretaro' or city == 'el_marques') and 'id_municipality' in filters and filters['id_municipality']:
+                staging_ids = filters['id_municipality'] if isinstance(filters['id_municipality'], list) else [filters['id_municipality']]
+                logger.info(f"[MUNICIPALITY FILTER] Using staging IDs {staging_ids} directly for id_stg_demographic_socioeconomic_qro filtering")
+                all_staging_ids.update([str(id) for id in staging_ids])
+            
+            # Handle zip code filtering to get all associated staging IDs
+            if (city == 'queretaro' or city == 'el_marques') and 'zipCode' in filters and filters['zipCode']:
+                zip_codes = []
+                if isinstance(filters['zipCode'], list):
+                    for zip_item in filters['zipCode']:
+                        if isinstance(zip_item, dict) and 'name' in zip_item:
+                            zip_codes.append(zip_item['name'])
+                        elif isinstance(zip_item, str):
+                            zip_codes.append(zip_item)
+                else:
+                    zip_codes = [str(filters['zipCode'])]
+                
+                if zip_codes:
+                    logger.info(f"[ZIP CODE FILTER] Converting zip codes {zip_codes} to staging IDs")
+                    
+                    # Query to get all id_stg_demographic_socioeconomic_qro values for the given zip codes
+                    zip_codes_str = ','.join([f"'{zip_code}'" for zip_code in zip_codes])
+                    zip_translation_query = f"""
+                        SELECT DISTINCT id_stg_demographic_socioeconomic_qro 
+                        FROM blackprint_db_prd.presentation.dim_municipality_qro
+                        WHERE zip_code IN ({zip_codes_str})
+                    """
+                    
+                    cursor.execute(zip_translation_query)
+                    zip_staging_results = cursor.fetchall()
+                    zip_staging_ids = [str(row['id_stg_demographic_socioeconomic_qro']) for row in zip_staging_results]
+                    
+                    if zip_staging_ids:
+                        logger.info(f"[ZIP CODE FILTER] Mapped zip codes {zip_codes} to staging IDs {zip_staging_ids}")
+                        all_staging_ids.update(zip_staging_ids)
+                    else:
+                        logger.warning(f"[ZIP CODE FILTER] No staging IDs found for zip codes {zip_codes}")
+            
+            # Apply the combined staging ID filter
+            if all_staging_ids:
+                staging_ids_str = ','.join(all_staging_ids)
+                filter_query += f" AND v.id_stg_demographic_socioeconomic_qro IN ({staging_ids_str})"
+                logger.info(f"[COMBINED FILTER] Applied combined staging ID filter: {staging_ids_str}")
+            
+            query = self.qc.get_property_query(filter_query, city=city)
+            query = query + " limit 15"
+            # Log the generated query for debugging
+            logger.info(f"[FILTER QUERY] Generated SQL for city {city}: {query}")
             cursor.execute(query)
             result = cursor.fetchall()
-            print("Result", result)
             if not result:
+                logger.info(f"[FILTER RESULT] No properties found for city: {city}")
                 return Response.success(data=[], message='No properties found')
             result_jsons = self.get_property_json(result, show_all_keys=filters.get('show_all_keys', True), city=city)
-            resp = Response.success(data=result_jsons, message='Success')
+            
+            # Remove duplicate properties from response data
+            seen_fids = set()
+            deduplicated_results = []
+            for property_data in result_jsons:
+                if 'property_details' in property_data and 'fid' in property_data['property_details']:
+                    fid = property_data['property_details']['fid']
+                    if fid not in seen_fids:
+                        seen_fids.add(fid)
+                        deduplicated_results.append(property_data)
+                else:
+                    # If no fid found, include the property to avoid data loss
+                    deduplicated_results.append(property_data)
+            
+            # Log the deduplication results
+            original_count = len(result_jsons)
+            final_count = len(deduplicated_results)
+            if original_count != final_count:
+                logger.info(f"[DEDUPLICATION] Removed {original_count - final_count} duplicate properties. Original: {original_count}, Final: {final_count}")
+            
+            # Log the final result count
+            logger.info(f"[FILTER RESULT] Found {final_count} properties for city: {city}")
+            resp = Response.success(data=deduplicated_results, message='Success')
         except Exception as e:
             logger.error("Error filtering properties: %s", str(e), exc_info=True)
             resp = Response.internal_server_error(message=str(e))
@@ -1961,13 +2186,13 @@ class PropertyController:
             # Determine which table and columns to use based on config_city
             if config_city == 'queretaro' or config_city == 'el_marques':
                 # Use staging.stg_municipality for QRO/El Marques
-                table_name = 'staging.stg_municipality'
-                id_col = 'id_stg_municipality'
+                table_name = 'presentation.dim_municipality_qro'
+                id_col = 'id_stg_demographic_socioeconomic_qro'
                 # Map search_key_type to stg_municipality columns
                 column_map = {
-                    "nb_cleaned": "d_asenta",  # neighborhood/settlement
-                    "zip_code": "d_codigo",        # zip code
-                    "municipality_nm": "d_mnpio"  # municipality
+                    "nb_cleaned": "city",  # neighborhood/settlement
+                    "zip_code": "zip_code",        # zip code
+                    "municipality_nm": "municipality"  # municipality
                 }
             else:
                 # Use data_product.v_municipality for other cities
@@ -1984,16 +2209,20 @@ class PropertyController:
                 search_column = column_map.get(search_key_type)
                 municipality_column = column_map.get("municipality_nm")
                 
+                #use old query
+                query = f""" SELECT DISTINCT {id_col} as id_municipality, {search_column} as {search_key_type}
+                        FROM {table_name}
+                        WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s limit 50"""
+                
                 # Use GROUP BY to eliminate duplicates for all cities
-                query = f"""
-                    SELECT {search_column} as {search_key_type}, MIN({id_col}) as id_municipality
-                    FROM {table_name} 
-                    WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s 
-                    GROUP BY {search_column}
-                    ORDER BY {search_column}
-                    LIMIT 50
-                """
-                print("Queryyyyyyyyyyyyyyyy", query)
+                # query = f"""
+                #     SELECT {search_column} as {search_key_type}, MIN({id_col}) as id_municipality
+                #     FROM {table_name} 
+                #     WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s 
+                #     GROUP BY {search_column}
+                #     ORDER BY {search_column}
+                #     LIMIT 50
+                # """
                 cursor.execute(query, (f"%{municipality_nm}%", f"%{search_value}%"))
                 results = cursor.fetchall()
                 items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
