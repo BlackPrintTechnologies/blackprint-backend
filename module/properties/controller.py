@@ -2207,20 +2207,20 @@ class PropertyController:
                 search_column = column_map.get(search_key_type)
                 municipality_column = column_map.get("municipality_nm")
                 
-                #use old query
-                query = f""" SELECT DISTINCT {id_col} as id_municipality, {search_column} as {search_key_type}
-                        FROM {table_name}
-                        WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s limit 50"""
+                # use old query
+                # query = f""" SELECT DISTINCT {id_col} as id_municipality, {search_column} as {search_key_type}
+                #         FROM {table_name}
+                #         WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s limit 50"""
                 
                 # Use GROUP BY to eliminate duplicates for all cities
-                # query = f"""
-                #     SELECT {search_column} as {search_key_type}, MIN({id_col}) as id_municipality
-                #     FROM {table_name} 
-                #     WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s 
-                #     GROUP BY {search_column}
-                #     ORDER BY {search_column}
-                #     LIMIT 50
-                # """
+                query = f"""
+                    SELECT {search_column} as {search_key_type}, MIN({id_col}) as id_municipality
+                    FROM {table_name} 
+                    WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s 
+                    GROUP BY {search_column}
+                    ORDER BY {search_column}
+                    LIMIT 50
+                """
                 cursor.execute(query, (f"%{municipality_nm}%", f"%{search_value}%"))
                 results = cursor.fetchall()
                 items = [{"id": row["id_municipality"], "name": row[search_key_type]} for row in results]
