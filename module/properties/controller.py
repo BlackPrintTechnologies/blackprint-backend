@@ -2158,7 +2158,7 @@ class PropertyController:
             original_count = len(result_jsons)
             final_count = len(deduplicated_results)
             if original_count != final_count:
-                logger.info(f"[DEDUPLICATION] Removed {original_count - final_count} duplicate properties. Original: {original_count}, Final: {final_count}")
+                logger.info(f"[DEDUPLICATION] Removed from property {original_count - final_count} duplicate properties. Original: {original_count}, Final: {final_count}")
             
             # Log the final result count
             logger.info(f"[FILTER RESULT] Found {final_count} properties for city: {city}")
