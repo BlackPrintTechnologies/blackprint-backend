@@ -13,12 +13,28 @@ class MarketsQueryController:
         Get query for all distinct property types from market data tables
         Uses combined table approach for better performance
         """
-        query = """
-            SELECT DISTINCT property_type 
-            FROM presentation.dim_market_data_combined
-            where  property_type IS NOT NULL 
-            ORDER BY property_type
-        """
+        if city.lower() == 'mexico':
+            query = """
+                SELECT DISTINCT property_type 
+                FROM presentation.dim_market_data_inmuebles24
+                WHERE property_type IS NOT NULL 
+                UNION
+                SELECT DISTINCT property_type 
+                FROM presentation.dim_market_data_spot2
+                WHERE property_type IS NOT NULL 
+                UNION
+                SELECT DISTINCT property_type 
+                FROM presentation.dim_market_data_propiedades
+                WHERE property_type IS NOT NULL 
+                ORDER BY property_type
+            """
+        elif city.lower() == 'queretaro':
+            query = """
+                SELECT DISTINCT property_type 
+                FROM presentation.dim_market_data_combined
+                WHERE property_type IS NOT NULL 
+                ORDER BY property_type
+            """
 
         
         return query
