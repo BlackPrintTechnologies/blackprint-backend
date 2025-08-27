@@ -58,7 +58,7 @@ class UserPropertyController:
             # Get full property details from Redshift using existing query controller
             redshift_connection = self.redshift_connection.connect()
             redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-            property_query = self.qc.get_property_query(fid_filter, city=config_city)
+            property_query = self.qc.get_property_query(fid_filter, city=config_city, include_market_join=False)
             logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
             redshift_cursor.execute(property_query)
             property_results = redshift_cursor.fetchall()
@@ -1200,7 +1200,11 @@ class PropertyController:
             logger.info("Fetching properties for user=%s, fid=%s, lat=%s, lng=%s", current_user, fid, lat, lng)
             filter_query = 'WHERE 1=1'
             if fid:
-                filter_query += f" AND fid = {fid}"
+                if city == 'queretaro' or city == 'el_marques':
+                    # QRO uses the staging demographic id column on v_qro aliased as v
+                    filter_query += f" AND v.id_stg_demographic_socioeconomic_qro = {fid}"
+                else:
+                    filter_query += f" AND fid = {fid}"
             elif lat and lng:
                 if city == 'queretaro' or city == 'el_marques':
                     # QRO: Use H3 resolution 12 with neighbors to handle cell boundary issues
@@ -1223,7 +1227,7 @@ class PropertyController:
                 logger.warning("Invalid request: Missing fid or lat/lng")
                 return Response.bad_request(message="Invalid request")
 
-            query = self.qc.get_property_query(filter_query, city=city)
+            query = self.qc.get_property_query(filter_query, city=city, include_market_join=False)
             logger.info(f"[get_properties] Executing query for city={city}: ")
 
             def fetch_property_details():
@@ -2167,7 +2171,7 @@ class PropertyController:
                 filter_query += f" AND v.id_stg_demographic_socioeconomic_qro IN ({staging_ids_str})"
                 logger.info(f"[COMBINED FILTER] Applied combined staging ID filter: {staging_ids_str}")
             
-            query = self.qc.get_property_query(filter_query, city=city)
+            query = self.qc.get_property_query(filter_query, city=city, include_market_join=(city == 'queretaro' or city == 'el_marques'))
             query = query + " limit 15"
             # Log the generated query for debugging
             logger.info(f"[FILTER QUERY] Generated SQL for city {city}: {query}")
