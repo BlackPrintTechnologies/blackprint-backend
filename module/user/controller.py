@@ -288,7 +288,7 @@ class UserQuestionareController:
         logger.debug("Initializing UserQuestionareController")
         self.db = Database()
 
-    def create_questionare(self, bp_user_id, bp_brand_name, bp_user_type, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands, bp_full_name, bp_company_role, bp_phone_number=None):
+    def create_questionare(self, bp_user_id, bp_brand_name, bp_user_type, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands, bp_full_name, bp_company_role, bp_phone_number=None, language_preference=None):
         connection = None
         cursor = None
         resp = None
@@ -299,14 +299,14 @@ class UserQuestionareController:
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
             query = '''
-                INSERT INTO bp_users_questionare (bp_user_id, bp_brand_name, bp_user_type, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands, bp_full_name, bp_company_role, bp_phone_number)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO bp_users_questionare (bp_user_id, bp_brand_name, bp_user_type, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands, bp_full_name, bp_company_role, bp_phone_number, language_preference)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING bp_user_questionare_id
             '''
-            logger.debug(f"Executing query: {query} with params: ({bp_user_id}, {bp_brand_name}, {bp_user_type}, {bp_category}, {bp_product}, {bp_market_segment}, {bp_target_audience}, {bp_competitor_brands}, {bp_complementary_brands}, {bp_full_name}, {bp_company_role}, {bp_phone_number})")
+            logger.debug(f"Executing query: {query} with params: ({bp_user_id}, {bp_brand_name}, {bp_user_type}, {bp_category}, {bp_product}, {bp_market_segment}, {bp_target_audience}, {bp_competitor_brands}, {bp_complementary_brands}, {bp_full_name}, {bp_company_role}, {bp_phone_number}, {language_preference})")
             print("query=====>", query)
             
-            cursor.execute(query, (bp_user_id, bp_brand_name, bp_user_type, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands, bp_full_name, bp_company_role, bp_phone_number))
+            cursor.execute(query, (bp_user_id, bp_brand_name, bp_user_type, bp_category, bp_product, bp_market_segment, bp_target_audience, bp_competitor_brands, bp_complementary_brands, bp_full_name, bp_company_role, bp_phone_number, language_preference))
             connection.commit()
             questionare_id = cursor.fetchone()['bp_user_questionare_id']
             logger.info(f"Questionnaire created successfully with ID: {questionare_id}")
@@ -330,7 +330,7 @@ class UserQuestionareController:
                 logger.debug("Database connection closed")
             return resp
 
-    def update_questionare(self, id=None, bp_user_id=None, bp_brand_name=None, bp_user_type=None, bp_category=None, bp_product=None, bp_market_segment=None, bp_target_audience=None, bp_competitor_brands=None, bp_complementary_brands=None, bp_full_name = None, bp_company_role = None,  bp_phone_number = None):
+    def update_questionare(self, id=None, bp_user_id=None, bp_brand_name=None, bp_user_type=None, bp_category=None, bp_product=None, bp_market_segment=None, bp_target_audience=None, bp_competitor_brands=None, bp_complementary_brands=None, bp_full_name = None, bp_company_role = None,  bp_phone_number = None, language_preference = None):
         connection = None
         cursor = None
         resp = None
@@ -380,6 +380,9 @@ class UserQuestionareController:
             if bp_phone_number is not None:
                 updates.append('bp_phone_number = %s')
                 params.append(bp_phone_number)
+            if language_preference is not None:
+                updates.append('language_preference = %s')
+                params.append(language_preference)
 
             if not updates:
                 logger.warning("No fields provided for update")
