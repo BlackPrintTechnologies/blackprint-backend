@@ -245,6 +245,7 @@ class UserQuestionare(Resource):
     user_questionare_parser.add_argument('bp_company_role', type=str, required=True, help='Company role is required')
     user_questionare_parser.add_argument('bp_full_name', type=str, required=True, help='Full name is required')
     user_questionare_parser.add_argument('bp_phone_number', type=str, required=False, help='Phone number is optional')
+    user_questionare_parser.add_argument('language_preference', type=str, required=False, help='Language preference is optional')
 
     update_parser = reqparse.RequestParser()
     update_parser.add_argument('bp_user_questionare_id', type=int, required=False)
@@ -259,6 +260,7 @@ class UserQuestionare(Resource):
     update_parser.add_argument('bp_company_role', type=str, required=True, help='Company role is required')
     update_parser.add_argument('bp_full_name', type=str, required=True, help='Full name is required')
     update_parser.add_argument('bp_phone_number', type=str, required=False, help='Phone number is optional')
+    update_parser.add_argument('language_preference', type=str, required=False, help='Language preference is optional')
 
     @authenticate
     def post(self, current_user):
@@ -278,7 +280,8 @@ class UserQuestionare(Resource):
             bp_complementary_brands=data['bp_complementary_brands'],
             bp_full_name= data['bp_full_name'],
             bp_company_role=data['bp_company_role'],
-            bp_phone_number=data.get('bp_phone_number', None)  # Optional field
+            bp_phone_number=data.get('bp_phone_number', None),  # Optional field
+            language_preference=data.get('language_preference', None)  # Optional field
         )
         return response
 
@@ -300,7 +303,8 @@ class UserQuestionare(Resource):
             bp_complementary_brands=data.get('bp_complementary_brands'),
             bp_full_name=data.get('bp_full_name'),
             bp_company_role=data.get('bp_company_role'),
-            bp_phone_number=data.get('bp_phone_number', None)  # Optional field
+            bp_phone_number=data.get('bp_phone_number', None),  # Optional field
+            language_preference=data.get('language_preference', None)  # Optional field
         )
         return response
 
