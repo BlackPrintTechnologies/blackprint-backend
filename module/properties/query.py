@@ -4,10 +4,12 @@ class QueryController :
         pass
 
     @staticmethod
-    def get_property_query(filter, city='mexico', show_all_keys=True):
+    def get_property_query(filter, city='mexico', show_all_keys=True, include_market_join=False):
         if city == 'queretaro' or city == 'el_marques':
-            table = '''blackprint_db_prd.data_product.v_qro v 
-                       LEFT JOIN blackprint_db_prd.presentation.dim_market_data_combined mdc 
+            table = 'blackprint_db_prd.data_product.v_qro v'
+            if include_market_join:
+                table += ''' 
+                       INNER JOIN blackprint_db_prd.presentation.dim_market_data_combined mdc 
                        ON (
                             (mdc.source = 'spot2'
                              AND v.ids_market_data_spot2 IS NOT NULL AND v.ids_market_data_spot2 <> ''
@@ -25,23 +27,6 @@ class QueryController :
                 v.centroid,
                 v.is_on_market,
                 v.h3_indexes,
-                -- Market data columns from dim_market_data_combined
-                mdc.id_market_data,
-                mdc.title,
-                mdc.rent_price_clean,
-                mdc.rent_price_per_m2,
-                mdc.buy_price_clean,
-                mdc.buy_price_per_m2,
-                mdc.publication_date,
-                mdc.property_dimension_clean,
-                mdc.latitude,
-                mdc.longitude,
-                mdc.pictures,
-                mdc.property_type,
-                mdc.operation_type,
-                mdc.city as market_city,
-                mdc.url,
-                mdc.geometry_coords,
                 -- QRO-specific columns that map to CDMX columns
                 v.cvegep,
                 v.cve_ent,
@@ -322,6 +307,25 @@ class QueryController :
                 brands_active_life_200m, brands_arts_and_entertainment_200m, brands_attractions_and_activities_200m, brands_automotive_200m, brands_eat_and_drink_200m, brands_education_200m, brands_financial_service_200m, brands_health_and_medical_200m, brands_pets_200m, brands_public_service_and_government_200m, brands_retail_200m,
                 accommodation_250m, active_life_250m, arts_and_entertainment_250m, attractions_and_activities_250m, automotive_250m, beauty_and_spa_250m, business_to_business_250m, eat_and_drink_250m, education_250m, financial_service_250m, health_and_medical_250m, home_service_250m, mass_media_250m, pets_250m, private_establishments_and_corporates_250m, professional_services_250m, public_service_and_government_250m, real_estate_250m, religious_organization_250m, retail_250m, structure_and_geography_250m, travel_250m, ids_pois_250m,
                 brands_active_life_250m, brands_arts_and_entertainment_250m, brands_attractions_and_activities_250m, brands_automotive_250m, brands_eat_and_drink_250m, brands_education_250m, brands_financial_service_250m, brands_health_and_medical_250m, brands_pets_250m, brands_public_service_and_government_250m, brands_retail_250m
+                '''
+            if include_market_join:
+                base_columns += '''
+                ,mdc.id_market_data,
+                mdc.title,
+                mdc.rent_price_clean,
+                mdc.rent_price_per_m2,
+                mdc.buy_price_clean,
+                mdc.buy_price_per_m2,
+                mdc.publication_date,
+                mdc.property_dimension_clean,
+                mdc.latitude,
+                mdc.longitude,
+                mdc.pictures,
+                mdc.property_type,
+                mdc.operation_type,
+                mdc.city as market_city,
+                mdc.url,
+                mdc.geometry_coords
                 '''
         else:
             table = 'blackprint_db_prd.data_product.v_parcel_v3'

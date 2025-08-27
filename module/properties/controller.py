@@ -58,7 +58,7 @@ class UserPropertyController:
             # Get full property details from Redshift using existing query controller
             redshift_connection = self.redshift_connection.connect()
             redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-            property_query = self.qc.get_property_query(fid_filter, city=config_city)
+            property_query = self.qc.get_property_query(fid_filter, city=config_city, include_market_join=False)
             logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
             redshift_cursor.execute(property_query)
             property_results = redshift_cursor.fetchall()
@@ -1200,7 +1200,11 @@ class PropertyController:
             logger.info("Fetching properties for user=%s, fid=%s, lat=%s, lng=%s", current_user, fid, lat, lng)
             filter_query = 'WHERE 1=1'
             if fid:
-                filter_query += f" AND fid = {fid}"
+                if city == 'queretaro' or city == 'el_marques':
+                    # QRO uses the staging demographic id column on v_qro aliased as v
+                    filter_query += f" AND v.id_stg_demographic_socioeconomic_qro = {fid}"
+                else:
+                    filter_query += f" AND fid = {fid}"
             elif lat and lng:
                 if city == 'queretaro' or city == 'el_marques':
                     # QRO: Use H3 resolution 12 with neighbors to handle cell boundary issues
@@ -1223,7 +1227,7 @@ class PropertyController:
                 logger.warning("Invalid request: Missing fid or lat/lng")
                 return Response.bad_request(message="Invalid request")
 
-            query = self.qc.get_property_query(filter_query, city=city)
+            query = self.qc.get_property_query(filter_query, city=city, include_market_join=False)
             logger.info(f"[get_properties] Executing query for city={city}: ")
 
             def fetch_property_details():
@@ -1960,6 +1964,12 @@ class PropertyController:
             # Log the request payload from frontend
             logger.info(f"[FILTER REQUEST] City: {city}, Payload: {filters}")
             filter_query = 'WHERE 1=1'
+            
+            # Add default is_on_market filter for Mexico City
+            if city == 'mexico':
+                filter_query += " AND is_on_market = 'On Market'"
+                logger.info("[DEFAULT FILTER] Added is_on_market = 'On Market' for Mexico City")
+            
             # Availability (example: is_on_market)
             if 'availability' in filters and filters['availability'] and FILTER_COLUMN_MAP['availability']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['availability']} = '{filters['availability']}'"
@@ -1969,20 +1979,30 @@ class PropertyController:
                 types = filters['property_type']
                 cols = FILTER_COLUMN_MAP['property_type']
                 
+                logger.info(f"[PROPERTY TYPE FILTER] Types: {types}, Columns: {cols}")
+                
                 if isinstance(cols, list):
                     # Mexico: multiple columns (list)
                     if isinstance(types, list):
                         type_list = ','.join([f"'{t}'" for t in types])
-                        filter_query += " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
+                        property_type_condition = " AND (" + " OR ".join([f"{col} IN ({type_list})" for col in cols]) + ")"
+                        filter_query += property_type_condition
+                        logger.info(f"[PROPERTY TYPE FILTER] Added condition: {property_type_condition}")
                     else:
-                        filter_query += " AND (" + " OR ".join([f"{col} = '{types}'" for col in cols]) + ")"
+                        property_type_condition = " AND (" + " OR ".join([f"{col} = '{types}'" for col in cols]) + ")"
+                        filter_query += property_type_condition
+                        logger.info(f"[PROPERTY TYPE FILTER] Added condition: {property_type_condition}")
                 else:
                     # QRO: single column (string)
                     if isinstance(types, list):
                         type_list = ','.join([f"'{t}'" for t in types])
-                        filter_query += f" AND {cols} IN ({type_list})"
+                        property_type_condition = f" AND {cols} IN ({type_list})"
+                        filter_query += property_type_condition
+                        logger.info(f"[PROPERTY TYPE FILTER] Added condition: {property_type_condition}")
                     else:
-                        filter_query += f" AND {cols} = '{types}'"
+                        property_type_condition = f" AND {cols} = '{types}'"
+                        filter_query += property_type_condition
+                        logger.info(f"[PROPERTY TYPE FILTER] Added condition: {property_type_condition}")
             
             # Plot Dimensions (range) - For both Mexico and QRO
             if 'plot_min' in filters and filters['plot_min'] is not None and FILTER_COLUMN_MAP['plot_min']:
@@ -2038,7 +2058,7 @@ class PropertyController:
             if 'geometry' in filters and filters['geometry'] and FILTER_COLUMN_MAP['geometry']:
                 filter_query += f" AND {FILTER_COLUMN_MAP['geometry']} = '{filters['geometry']}'"
             
-            # Municipality fields 
+            # Municipality fields - Handle by name for Mexico City
             for key in ["municipality", "alcaldia", "colonia"]:
                 if key in filters and filters[key] and FILTER_COLUMN_MAP[key]:
                     # Handle municipality fields - extract name from object if needed
@@ -2054,20 +2074,24 @@ class PropertyController:
                     elif not isinstance(value, str):
                         value = str(value)
                     
-                    filter_query += f" AND {FILTER_COLUMN_MAP[key]} ILIKE '%{value}%'"
+                    # Use exact matching for colonia, municipality, and zipcode to avoid partial matches
+                    # Use partial matching for other location fields
+                    if key in ["colonia", "municipality"]:
+                        location_condition = f" AND {FILTER_COLUMN_MAP[key]} ILIKE '{value}'"
+                    else:
+                        location_condition = f" AND {FILTER_COLUMN_MAP[key]} ILIKE '%{value}%'"
+                    filter_query += location_condition
+                    logger.info(f"[LOCATION FILTER] {key}: {value} -> {location_condition}")
             
-            # Handle id_municipality separately for different cities
+            # Handle id_municipality - Only for QRO/El Marques, skip for Mexico City
             if 'id_municipality' in filters and filters['id_municipality']:
                 if city == 'queretaro' or city == 'el_marques':
                     # For QRO/El Marques, id_municipality is handled after cursor creation
                     # (see the special handling block below)
                     pass
                 else:
-                    # For other cities, use direct mapping
-                    if isinstance(filters['id_municipality'], list):
-                        filter_query += f" AND {FILTER_COLUMN_MAP['id_municipality']} in ({','.join([str(f) for f in filters['id_municipality']])}) "
-                    else:
-                        filter_query += f" AND {FILTER_COLUMN_MAP['id_municipality']} = {filters['id_municipality']}"
+                    # For Mexico City, skip id_municipality filtering to avoid duplicate municipality filtering
+                    logger.info("[ID MUNICIPALITY FILTER] Skipping id_municipality filter for Mexico City to avoid duplicates")
             
             # Remove separate operation_type block for QRO to avoid duplication; handled above
             
@@ -2124,13 +2148,30 @@ class PropertyController:
                     else:
                         logger.warning(f"[ZIP CODE FILTER] No staging IDs found for zip codes {zip_codes}")
             
+            # Handle zip code filtering for Mexico City - filter by zip_code column directly
+            if city == 'mexico' and 'zipCode' in filters and filters['zipCode']:
+                zip_codes = []
+                if isinstance(filters['zipCode'], list):
+                    for zip_item in filters['zipCode']:
+                        if isinstance(zip_item, dict) and 'name' in zip_item:
+                            zip_codes.append(zip_item['name'])
+                        elif isinstance(zip_item, str):
+                            zip_codes.append(zip_item)
+                else:
+                    zip_codes = [str(filters['zipCode'])]
+                
+                if zip_codes:
+                    logger.info(f"[ZIP CODE FILTER MEXICO] Filtering by zip codes: {zip_codes}")
+                    zip_conditions = " OR ".join([f"zip_code ILIKE '{zip_code}'" for zip_code in zip_codes])
+                    filter_query += f" AND ({zip_conditions})"
+            
             # Apply the combined staging ID filter
             if all_staging_ids:
                 staging_ids_str = ','.join(all_staging_ids)
                 filter_query += f" AND v.id_stg_demographic_socioeconomic_qro IN ({staging_ids_str})"
                 logger.info(f"[COMBINED FILTER] Applied combined staging ID filter: {staging_ids_str}")
             
-            query = self.qc.get_property_query(filter_query, city=city)
+            query = self.qc.get_property_query(filter_query, city=city, include_market_join=(city == 'queretaro' or city == 'el_marques'))
             query = query + " limit 15"
             # Log the generated query for debugging
             logger.info(f"[FILTER QUERY] Generated SQL for city {city}: {query}")
