@@ -2248,7 +2248,7 @@ class PropertyController:
                 search_column = column_map.get(search_key_type)
                 municipality_column = column_map.get("municipality_nm")
                 
-                #use old query
+                # use old query
                 # query = f""" SELECT DISTINCT {id_col} as id_municipality, {search_column} as {search_key_type}
                 #         FROM {table_name}
                 #         WHERE {municipality_column} ILIKE %s AND {search_column} ILIKE %s limit 50"""
