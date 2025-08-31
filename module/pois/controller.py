@@ -21,7 +21,7 @@ class POIsController:
         cursor = None
         resp = None
         try:
-            connection = self.db.connect()
+            connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
             query = self.qc.get_pois_by_coordinates_query(lat, lng, radius, config_city)
