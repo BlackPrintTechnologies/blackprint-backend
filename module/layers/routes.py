@@ -137,7 +137,7 @@ class Brands(Resource):
         radius = data.get('radius')
         category = data.get('category')
         brand_names = data.get('brand_names')
-        logger.debug(f"Parsed input: fid={fid}, radius={radius} ,category={category}, brand_names={brand_names}")
+        logger.debug(f"Parsed input: fid={fid}, radius={radius} ,category={category}, brand_name={brand_names}")
 
         response = brand_controller.get_brands(radius, fid, category, brand_names, city=data.get('config_city'))
         logger.info(f"Successfully retrieved brands for fid={fid}, radius={radius}")
