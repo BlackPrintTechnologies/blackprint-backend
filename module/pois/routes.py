@@ -16,7 +16,7 @@ class Brands(Resource):
     post_parser.add_argument('city', type=str, default='mexico', required=False, location='json')
     
     # @authenticate
-    def post(self, current_user):
+    def post(self):
         """POST /pois/brands - Get brands within specified catchment radius."""
         try:
             args = self.post_parser.parse_args()
@@ -26,8 +26,8 @@ class Brands(Resource):
             brand_names = args.get('brand_names')
             city = args.get('city', 'mexico')
             
-            logger.info("User %s requesting brands for fid=%s, radius=%s, city=%s", 
-                       current_user, fid, radius, city)
+            logger.info("Requesting brands for fid=%s, radius=%s, city=%s", 
+                        fid, radius, city)
             
             poi_controller = POIsController()
             response = poi_controller.get_brands(radius, fid, category, brand_names, city)
