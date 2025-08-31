@@ -15,7 +15,7 @@ class Brands(Resource):
     post_parser.add_argument('brand_names', type=str, required=False, location='json')
     post_parser.add_argument('city', type=str, default='mexico', required=False, location='json')
     
-    @authenticate
+    # @authenticate
     def post(self, current_user):
         """POST /pois/brands - Get brands within specified catchment radius."""
         try:
