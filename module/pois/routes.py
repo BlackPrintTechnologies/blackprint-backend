@@ -12,6 +12,8 @@ class Brands(Resource):
     post_parser.add_argument('radius', type=str, default='1000', required=False, location='json')
     post_parser.add_argument('fid', type=str, required=True, help='FID is required', location='json')
     post_parser.add_argument('category', type=str, required=False, location='json')
+    post_parser.add_argument('subcategories', type=str, required=False, location='json')
+    post_parser.add_argument('subsubcategories', type=str, required=False, location='json')
     post_parser.add_argument('brand_names', type=str, required=False, location='json')
     post_parser.add_argument('config_city', type=str, default='mexico', required=False, location='json')
     
@@ -30,7 +32,7 @@ class Brands(Resource):
                         fid, radius, config_city)
             
             poi_controller = POIsController()
-            response = poi_controller.get_brands(radius, fid, category, brand_names, config_city)
+            response = poi_controller.get_brands(radius, fid, category, args.get('subcategories'), args.get('subsubcategories'), brand_names, config_city)
             
             return response
             

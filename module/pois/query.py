@@ -22,7 +22,7 @@ class POIsQueryController:
         return query
 
     @staticmethod
-    def get_brand_query(catchment, fid, category_1=None, brand_names=None, city="mexico"):
+    def get_brand_query(catchment, fid, category_1=None, subcategories=None, subsubcategories=None, brand_names=None, city="mexico"):
         """Generate brand query based on catchment radius and city."""
         if city == "mexico":
             id_column = "fid"
@@ -63,7 +63,14 @@ class POIsQueryController:
             query = f'''SELECT brand, names_pri, geometry_wkt, category_1 FROM {dim_places_table}
                         WHERE 1 = 1 '''
             if category_1:
-                query += f' AND category_1 = "{category_1}"'
+                category_1_list = "', '".join([name.strip() for name in category_1.split(',')])
+                query += f" AND category_1 in ('{category_1_list}')"
+            if subcategories:
+                subcategories_list = "', '".join([name.strip() for name in subcategories.split(',')])
+                query += f" AND category_2 in ('{subcategories_list}')"
+            if subsubcategories:
+                subsubcategories_list = "', '".join([name.strip() for name in subsubcategories.split(',')])
+                query += f" AND category_3 in ('{subsubcategories_list}')"
             if brand_names:  
                 brand_list = "', '".join([name.strip() for name in brand_names.split(',')])
                 query += f" AND names_pri in ('{brand_list}') "
