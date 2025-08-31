@@ -39,7 +39,7 @@ class POIsQueryController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_500m FROM {parcel_table} WHERE {id_column} = {fid}), ',')
                         )
-                        SELECT brand, names_pri, geometry_wkt, category_1, category_2, category_3 FROM {dim_places_table}
+                        SELECT brand, names_pri, geometry_wkt, category_1 FROM {dim_places_table}
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
 
         elif catchment == '1000':
@@ -48,7 +48,7 @@ class POIsQueryController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_1km FROM {parcel_table} WHERE {id_column} = {fid}), ',')
                         )
-                        SELECT brand, names_pri, geometry_wkt, category_1, category_2, category_3 FROM {dim_places_table}
+                        SELECT brand, names_pri, geometry_wkt, category_1 FROM {dim_places_table}
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
 
         elif catchment == '50':
@@ -57,10 +57,10 @@ class POIsQueryController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_front FROM {parcel_table} WHERE {id_column} = {fid}), ',')
                         )
-                        SELECT brand, names_pri, geometry_wkt, category_1, category_2, category_3 FROM {dim_places_table}
+                        SELECT brand, names_pri, geometry_wkt, category_1 FROM {dim_places_table}
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
         else:
-            query = f'''SELECT brand, names_pri, geometry_wkt, category_1, category_2, category_3 FROM {dim_places_table}
+            query = f'''SELECT brand, names_pri, geometry_wkt, category_1 FROM {dim_places_table}
                         WHERE 1 = 1 '''
             if category_1:
                 query += f' AND category_1 = "{category_1}"'
