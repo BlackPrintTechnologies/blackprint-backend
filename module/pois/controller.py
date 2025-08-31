@@ -13,7 +13,7 @@ class POIsController:
     def __init__(self):
         self.qc = POIsQueryController()
         self.db = Database()
-        self.redshift_connection = RedshiftDatabase()
+        self.redshift_db = RedshiftDatabase()
 
     def get_pois(self, lat, lng, radius, config_city=None):
         """Get POIs within specified radius from lat/lng coordinates."""
@@ -43,7 +43,7 @@ class POIsController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect(connection)
+                self.redshift_db.disconnect(connection)
             return resp
 
     def get_brands(self, radius, fid, category=None, brand_names=None, city="mexico"):
@@ -52,7 +52,7 @@ class POIsController:
         cursor = None
         resp = None
         try:
-            connection = self.db.connect()
+            connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
             query = self.qc.get_brand_query(radius, fid, category_1=category, brand_names=brand_names, city=city)
@@ -84,7 +84,7 @@ class POIsController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect(connection)
+                self.redshift_db.disconnect(connection)
             return resp
 
     def search_brands(self, brand_name, city="mexico"):
@@ -93,7 +93,7 @@ class POIsController:
         cursor = None
         resp = None
         try:
-            connection = self.db.connect()
+            connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
             query = self.qc.get_brand_search_query(brand_name, city)
@@ -115,7 +115,7 @@ class POIsController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect(connection)
+                self.redshift_db.disconnect(connection)
             return resp
 
     def get_pois_hierarchy(self, config_city=None):
@@ -124,7 +124,7 @@ class POIsController:
         cursor = None
         resp = None
         try:
-            connection = self.db.connect()
+            connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
             query = self.qc.get_pois_hierarchy_query(config_city)
@@ -149,7 +149,7 @@ class POIsController:
             if cursor:
                 cursor.close()
             if connection:
-                self.db.disconnect(connection)
+                self.redshift_db.disconnect(connection)
             return resp
 
     def _build_hierarchy_from_results(self, results):
