@@ -13,7 +13,7 @@ class Brands(Resource):
     post_parser.add_argument('fid', type=str, required=True, help='FID is required', location='json')
     post_parser.add_argument('category', type=str, required=False, location='json')
     post_parser.add_argument('brand_names', type=str, required=False, location='json')
-    post_parser.add_argument('city', type=str, default='mexico', required=False, location='json')
+    post_parser.add_argument('config_city', type=str, default='mexico', required=False, location='json')
     
     # @authenticate
     def post(self):
@@ -24,13 +24,13 @@ class Brands(Resource):
             fid = args.get('fid')
             category = args.get('category')
             brand_names = args.get('brand_names')
-            city = args.get('city', 'mexico')
+            config_city = args.get('config_city', 'mexico')
             
-            logger.info("Requesting brands for fid=%s, radius=%s, city=%s", 
-                        fid, radius, city)
+            logger.info("Requesting brands for fid=%s, radius=%s, config_city=%s", 
+                        fid, radius, config_city)
             
             poi_controller = POIsController()
-            response = poi_controller.get_brands(radius, fid, category, brand_names, city)
+            response = poi_controller.get_brands(radius, fid, category, brand_names, config_city)
             
             return response
             
@@ -43,7 +43,7 @@ class BrandSearch(Resource):
     
     get_parser = reqparse.RequestParser()
     get_parser.add_argument('brand_name', type=str, required=True, help='Brand name is required', location='args')
-    get_parser.add_argument('city', type=str, default='mexico', required=False, location='args')
+    get_parser.add_argument('config_city', type=str, default='mexico', required=False, location='args')
     
     @authenticate
     def get(self, current_user):
@@ -51,13 +51,13 @@ class BrandSearch(Resource):
         try:
             args = self.get_parser.parse_args()
             brand_name = args.get('brand_name')
-            city = args.get('city', 'mexico')
+            config_city = args.get('config_city', 'mexico')
             
-            logger.info("User %s searching brands for name=%s, city=%s", 
-                       current_user, brand_name, city)
+            logger.info("User %s searching brands for name=%s, config_city=%s", 
+                       current_user, brand_name, config_city)
             
             poi_controller = POIsController()
-            response = poi_controller.search_brands(brand_name, city)
+            response = poi_controller.search_brands(brand_name, config_city)
             
             return response
             
@@ -69,20 +69,20 @@ class POIHierarchy(Resource):
     """Resource to get POI category hierarchy."""
     
     get_parser = reqparse.RequestParser()
-    get_parser.add_argument('city', type=str, default='mexico', required=False, location='args')
+    get_parser.add_argument('config_city', type=str, default='mexico', required=False, location='args')
     
     @authenticate
     def get(self, current_user):
         """GET /pois/hierarchy - Get POI category hierarchy."""
         try:
             args = self.get_parser.parse_args()
-            city = args.get('city', 'mexico')
+            config_city = args.get('config_city', 'mexico')
             
-            logger.info("User %s requesting POI hierarchy for city=%s", 
-                       current_user, city)
+            logger.info("User %s requesting POI hierarchy for config_city=%s", 
+                       current_user, config_city)
             
             poi_controller = POIsController()
-            response = poi_controller.get_pois_hierarchy(city)
+            response = poi_controller.get_pois_hierarchy(config_city)
             
             return response
             
@@ -97,7 +97,7 @@ class POIsByCoordinates(Resource):
     post_parser.add_argument('lat', type=float, required=True, help='Latitude is required', location='json')
     post_parser.add_argument('lng', type=float, required=True, help='Longitude is required', location='json')
     post_parser.add_argument('radius', type=int, default=1000, required=False, location='json')
-    post_parser.add_argument('city', type=str, default='mexico', required=False, location='json')
+    post_parser.add_argument('config_city', type=str, default='mexico', required=False, location='json')
     
     @authenticate
     def post(self, current_user):
@@ -107,13 +107,13 @@ class POIsByCoordinates(Resource):
             lat = args.get('lat')
             lng = args.get('lng')
             radius = args.get('radius', 1000)
-            city = args.get('city', 'mexico')
+            config_city = args.get('config_city', 'mexico')
             
-            logger.info("User %s requesting POIs for lat=%s, lng=%s, radius=%s, city=%s", 
-                       current_user, lat, lng, radius, city)
+            logger.info("User %s requesting POIs for lat=%s, lng=%s, radius=%s, config_city=%s", 
+                       current_user, lat, lng, radius, config_city)
             
             poi_controller = POIsController()
-            response = poi_controller.get_pois(lat, lng, radius, city)
+            response = poi_controller.get_pois(lat, lng, radius, config_city)
             
             return response
             
