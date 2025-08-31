@@ -205,7 +205,7 @@ class BrandController:
         self.db = RedshiftDatabase()
     
     @staticmethod
-    def get_brand_query(catchment, fid, category_1=None, city="mexico" ):
+    def get_brand_query(catchment, fid, category_1=None, brand_name=None, city="mexico" ):
         if city == "mexico":
             id_column = "fid"
             parcel_table = 'blackprint_db_prd.data_product.v_parcel_v3'
@@ -243,19 +243,22 @@ class BrandController:
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
         else :
             query = f'''SELECT brand, names_pri,  geometry_wkt, category_1 FROM {dim_places_table}
-                        WHERE  category_1 = '{category_1}' ;'''
-
+                        WHERE 1 = 1 ;'''
+            if category_1:
+                query += f' AND category_1 = "{category_1}"'
+            if brand_name:
+                query += f" AND names_pri =  '%{brand_name}%' "
         return query
     
     # @cache_response(prefix='brands',expiration=3600)
-    def get_brands(self, radius, fid, category=None, city="mexico"): 
+    def get_brands(self, radius, fid, category=None, brand_name=None, city="mexico"): 
         connection = None
         cursor = None
         resp = None
         try :
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = self.get_brand_query(radius, fid, category_1=category, city=city)
+            query = self.get_brand_query(radius, fid, category_1=category, brand_name=brand_name, city=city)
             print("query=====>", query)
             cursor.execute(query)
             connection.commit()

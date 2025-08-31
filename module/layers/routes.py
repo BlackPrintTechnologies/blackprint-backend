@@ -127,6 +127,7 @@ class Brands(Resource):
     create_parser.add_argument('fid', type=str, required=False, help='User ID is required')
     create_parser.add_argument('category', type=str, required=False, help='Category is required')
     create_parser.add_argument('config_city', type=str, required=False, default='mexico', help='City is required')
+    create_parser.add_argument('brand_name', type=str, required=False, help='Brand name is required')
 
     def post(self):
         logger.info("Received request to fetch brands.")
@@ -135,9 +136,10 @@ class Brands(Resource):
         fid = data.get('fid')
         radius = data.get('radius')
         category = data.get('category')
-        logger.debug(f"Parsed input: fid={fid}, radius={radius} ,category={category}")
+        brand_name = data.get('brand_name')
+        logger.debug(f"Parsed input: fid={fid}, radius={radius} ,category={category}, brand_name={brand_name}")
 
-        response = brand_controller.get_brands(radius, fid, category, city=data.get('config_city'))
+        response = brand_controller.get_brands(radius, fid, category, brand_name, city=data.get('config_city'))
         logger.info(f"Successfully retrieved brands for fid={fid}, radius={radius}")
         
         return response
