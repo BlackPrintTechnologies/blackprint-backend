@@ -243,7 +243,7 @@ class BrandController:
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
         else :
             query = f'''SELECT brand, names_pri,  geometry_wkt, category_1 FROM {dim_places_table}
-                        WHERE 1 = 1 ;'''
+                        WHERE 1 = 1 '''
             if category_1:
                 query += f' AND category_1 = "{category_1}"'
             if brand_names:  
