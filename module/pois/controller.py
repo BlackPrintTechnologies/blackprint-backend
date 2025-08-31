@@ -64,13 +64,14 @@ class POIsController:
             
             # Add icon URLs to the results
             enhanced_results = []
+            logger.info(f"Length of res: {len(res)}")
             for result in res:
                 result['icon_url'] = IconMapper.get_icon_url(result['category_1'])
                 enhanced_results.append(result)
             
             # Filter by category if specified
-            if category:
-                enhanced_results = [result for result in enhanced_results if result['category_1'] == category]
+            # if category:
+            #     enhanced_results = [result for result in enhanced_results if result['category_1'] in category]
             
             logger.info(f"Enhanced results count: {len(enhanced_results)}")
             resp = Response.success(data={"response": enhanced_results})
