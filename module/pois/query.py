@@ -77,7 +77,7 @@ class POIsQueryController:
         else:
             places_table = 'blackprint_db_prd.presentation.dim_places'
         
-        query = f'''SELECT DISTINCT brand, category_1, category_2, category_3 
+        query = f'''SELECT DISTINCT brand 
                     FROM {places_table} 
                     WHERE brand ILIKE '{brand_name}%' 
                     LIMIT 50'''
@@ -93,9 +93,7 @@ class POIsQueryController:
                     brand, 
                     names_pri, 
                     geometry_wkt, 
-                    category_1, 
-                    category_2, 
-                    category_3,
+                    category_1,
                     ST_Distance(
                         ST_GeomFromText(geometry_wkt, 4326),
                         ST_GeomFromText('POINT({lng} {lat})', 4326)
