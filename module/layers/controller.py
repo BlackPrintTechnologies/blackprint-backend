@@ -404,6 +404,84 @@ class BrandController:
             logger.info(f"Returning response with status: {resp[1] if isinstance(resp, tuple) else 'Unknown'}")
             return resp
 
+    def get_distinct_land_use(self, city='mexico'):
+        """
+        Get distinct land use values for the specified city.
+        Returns distinct usage_desc values for filtering purposes.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Getting distinct land use values for city: {city}")
+        
+        connection = None
+        cursor = None
+        resp = None
+        
+        try:
+            logger.info("Connecting to database...")
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            if city == 'queretaro' or city == 'el_marques':
+                # For Queretaro, get distinct land use from v_qro view
+                query = '''
+                    SELECT DISTINCT 
+                        COALESCE(usage_desc, 'Unknown') as land_use
+                    FROM blackprint_db_prd.data_product.v_qro 
+                    WHERE usage_desc IS NOT NULL 
+                    ORDER BY land_use ASC
+                '''
+            else:
+                # For Mexico City, get distinct land use from v_parcel_v3 view
+                query = '''
+                    SELECT DISTINCT 
+                        COALESCE(usage_desc, 'Unknown') as land_use
+                    FROM blackprint_db_prd.data_product.v_parcel_v3 
+                    WHERE usage_desc IS NOT NULL 
+                    ORDER BY land_use ASC
+                '''
+            
+            logger.info(f"Executing land use query for {city}...")
+            cursor.execute(query)
+            logger.info("Land use query executed successfully")
+            
+            logger.info("Fetching land use results...")
+            res = cursor.fetchall()
+            logger.info(f"Land use results count: {len(res)}")
+            
+            # Convert to list of land use values for easier frontend consumption
+            land_use_values = [row['land_use'] for row in res]
+            
+            resp = Response.success(data={
+                "land_use_values": land_use_values,
+                "city": city
+            })
+            logger.info("Successfully created land use response")
+            
+        except Exception as e:
+            logger.error(f"Land use query error for {city}: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            
+            if connection:
+                logger.info("Rolling back transaction...")
+                connection.rollback()
+            
+            resp = Response.internal_server_error(message=f"Failed to fetch land use values for {city}: {str(e)}")
+            logger.error(f"Created error response: {resp}")
+            
+        finally:
+            if cursor:
+                logger.info("Closing cursor...")
+                cursor.close()
+            if connection:
+                logger.info("Disconnecting from database...")
+                self.db.disconnect(connection)
+            
+            logger.info(f"Returning land use response for {city}")
+            return resp
+
 class TrafficController:
     def __init__(self) :
         self.db = RedshiftDatabase()

@@ -52,7 +52,7 @@ logger.info("Starting the Flask application...")
 from module.user.routes import Signup, Signin, ForgotPassword, ConfirmPasswordUpdate, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification, UpdateQuestionare
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
-from module.layers.routes import  Traffic, PropertyLayer
+from module.layers.routes import  Traffic, PropertyLayer, LandUseFilter
 from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch
 from module.markets.routes import PropertyTypes, MarketInfo
 from module.pois.routes import POIHierarchy, POIsByCoordinates, BrandSearch, Brands
@@ -82,6 +82,7 @@ api.add_resource(Traffic, '/traffic')
 api.add_resource(Property, '/property')
 api.add_resource(UserProperty, '/property/userproperty')
 api.add_resource(PropertyLayer, '/property/layer')
+api.add_resource(LandUseFilter, '/property/land-use-filter')
 api.add_resource(PropertyDemographic, '/property/demographic')
 api.add_resource(UpdateRequestInfo, '/property/requestinfo')
 api.add_resource(StreetViewImage, '/properties/street_view_image') #act as a proxy url to serve the image

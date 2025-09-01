@@ -202,3 +202,44 @@ class PropertyLayer(Resource):
                 logger.error("Mexico property layer cache is not available - fetching fresh data")
                 controller = PropertyLayerController()
                 return controller.get_property_layer(city='mexico')
+
+class LandUseFilter(Resource):
+    """
+    API endpoint to get distinct land use values for filtering properties.
+    Supports both Mexico City and Queretaro cities.
+    """
+    create_parser = reqparse.RequestParser()
+    create_parser.add_argument('config_city', type=str, required=False, default='mexico', help='City configuration (mexico, queretaro, el_marques)', location='args')
+
+    def get(self):
+        logger.info("Received request to fetch distinct land use values.")
+        data = self.create_parser.parse_args()
+        city = data.get('config_city', 'mexico')
+        
+        logger.info(f"Fetching land use values for city: {city}")
+        
+        # Validate city parameter
+        valid_cities = ['mexico', 'queretaro', 'el_marques']
+        if city not in valid_cities:
+            logger.warning(f"Invalid city parameter: {city}")
+            return Response.bad_request(
+                message=f"Invalid city parameter: {city}",
+                data={
+                    "provided_city": city,
+                    "valid_cities": valid_cities,
+                    "note": "Use 'mexico' for Mexico City, 'queretaro' or 'el_marques' for Queretaro region"
+                }
+            )
+        
+        try:
+            controller = BrandController()
+            response = controller.get_distinct_land_use(city=city)
+            logger.info(f"Successfully retrieved land use values for city: {city}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error fetching land use values for city {city}: {str(e)}")
+            return Response.internal_server_error(
+                message=f"Failed to fetch land use values for {city}",
+                data={"city": city, "error": str(e)}
+            )
