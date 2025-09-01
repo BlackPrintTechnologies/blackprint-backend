@@ -42,9 +42,10 @@ logger.info("Starting the Flask application...")
 from module.user.routes import Signup, Signin, ForgotPassword, ConfirmPasswordUpdate, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification, UpdateQuestionare
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
-from module.layers.routes import Brands, Traffic, SearchBrands, PropertyLayer
+from module.layers.routes import  Traffic, PropertyLayer
 from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch
 from module.markets.routes import PropertyTypes, MarketInfo
+from module.pois.routes import POIHierarchy, POIsByCoordinates, BrandSearch, Brands
 
 # Define API routes
 api.add_resource(Signup, '/user/signup')
@@ -60,8 +61,12 @@ api.add_resource(UserQuestionare, '/user/questionare/', '/user/questionare/<int:
 api.add_resource(UpdateQuestionare, '/user/updatequestionare/')
 api.add_resource(VerifyUser, '/user/verify')  # Missing '/' added
 api.add_resource(ResendVerification, '/user/resend-verification')
+# pois routes
 api.add_resource(Brands, '/brands')
-api.add_resource(SearchBrands, '/searchbrands/')
+api.add_resource(BrandSearch, '/searchbrands/')
+api.add_resource(POIHierarchy, '/pois/hierarchy')
+api.add_resource(POIsByCoordinates, '/pois/coordinates')
+
 api.add_resource(Traffic, '/traffic')
 # property related routes
 api.add_resource(Property, '/property')
