@@ -1,6 +1,7 @@
 import json
 import logging
 import traceback
+from functools import lru_cache
 from psycopg2.extras import RealDictCursor
 from module.pois.query import POIsQueryController
 from utils.responseUtils import Response
@@ -46,6 +47,7 @@ class POIsController:
                 self.redshift_db.disconnect(connection)
             return resp
 
+    @lru_cache(maxsize=1000)
     def get_brands(self, radius, fid, category=None, subcategories=None, subsubcategories=None, brand_names=None, city="mexico"):
         """Get brands within specified catchment radius."""
         connection = None
@@ -119,6 +121,7 @@ class POIsController:
                 self.redshift_db.disconnect(connection)
             return resp
 
+    @lru_cache(maxsize=100)
     def get_pois_hierarchy(self, config_city=None):
         """Get POI category hierarchy from places table."""
         connection = None
