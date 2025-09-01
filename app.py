@@ -8,7 +8,17 @@ from flask_compress import Compress
 from decimal import Decimal
 import uuid
 import json
+
+# Custom JSON encoder to handle Decimal types
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super(DecimalEncoder, self).default(obj)
+
 app = Flask(__name__)
+# Configure Flask-RESTful to use custom JSON encoder
+app.config['RESTFUL_JSON'] = {'cls': DecimalEncoder}
 api = Api(app)
 
 # Allow CORS for specific origins (localhost:3000 in this case)
