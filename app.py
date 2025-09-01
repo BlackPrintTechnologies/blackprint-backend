@@ -39,7 +39,7 @@ def before_request():
     logger.info(f"Starting request {request.request_id}")
 # Initialize logging
 
-# setup_logging()
+setup_logging()
 
 # Retrieve the logger
 logger = logging.getLogger(__name__)
