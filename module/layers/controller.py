@@ -83,14 +83,32 @@ class PropertyLayerController:
         else:
             # Mexico (existing query)
             query = f'''
-                select   
+                SELECT
                 fid,
                 centroid,
                 street_address,
                 is_on_market,
                 total_surface_area,
                 total_construction_area,
-                property_type_inmuebles24,
+                CASE
+                    WHEN property_type_spot2 IN ('Local Comercial','Oficinas','Industrial')
+                        THEN property_type_spot2
+                    WHEN property_type_inmuebles24 IN (
+                        'Local comercial',
+                        'Local en centro comercial',
+                        'Terreno comercial',
+                        'Industrial',
+                        'Oficinas',
+                        'Otros'
+                    )
+                        THEN property_type_inmuebles24
+                    WHEN property_type_propiedades IN (
+                        'Residencial',
+                        'Comercial',
+                        'Industrial'
+                    )
+                        THEN property_type_propiedades
+                END AS property_type__inmuebles24,
                 year_built,
                 special_facilities,
                 unit_land_value,
@@ -109,17 +127,27 @@ class PropertyLayerController:
                 cus,
                 min_housing,
                 ids_market_data_inmuebles24
-                from blackprint_db_prd.data_product.v_parcel_v3
-                WHERE 
-                (is_on_market = 'On Market')
+            FROM data_product.v_parcel_v3
+            WHERE 
+                is_on_market = 'On Market'
                 AND (
-                property_type_spot2 IN ('Local Comercial')
-                OR property_type_inmuebles24 IN (
-                    'Local comercial',
-                    'Local en centro comercial',
-                    'Terreno comercial'
-                )
-        )
+                    property_type_spot2 IN ('Local Comercial','Oficinas','Industrial')
+                    OR property_type_inmuebles24 IN (
+                        'Local comercial',
+                        'Local en centro comercial',
+                        'Terreno comercial',
+                        'Industrial',
+                        'Oficinas',
+                        'Otros'
+                    )
+                    OR property_type_propiedades IN (
+                        'Residencial',
+                        'Comercial',
+                        'Industrial'
+                    )
+                );
+
+
                 '''
             logger.info(f"Generated Mexico query")
         
