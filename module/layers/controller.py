@@ -91,24 +91,25 @@ class PropertyLayerController:
                 total_surface_area,
                 total_construction_area,
                 CASE
-                    WHEN property_type_spot2 IN ('Local Comercial','Oficinas','Industrial')
+                    WHEN property_type_spot2 IN (
+                        SELECT DISTINCT property_type
+                        FROM presentation.dim_market_data_spot2
+                        WHERE property_type IS NOT NULL
+                    )
                         THEN property_type_spot2
                     WHEN property_type_inmuebles24 IN (
-                        'Local comercial',
-                        'Local en centro comercial',
-                        'Terreno comercial',
-                        'Industrial',
-                        'Oficinas',
-                        'Otros'
+                        SELECT DISTINCT property_type
+                        FROM presentation.dim_market_data_inmuebles24
+                        WHERE property_type IS NOT NULL
                     )
                         THEN property_type_inmuebles24
                     WHEN property_type_propiedades IN (
-                        'Residencial',
-                        'Comercial',
-                        'Industrial'
+                        SELECT DISTINCT property_type
+                        FROM presentation.dim_market_data_propiedades
+                        WHERE property_type IS NOT NULL
                     )
                         THEN property_type_propiedades
-                END AS property_type__inmuebles24,
+                END AS property_type_inmuebles24,
                 year_built,
                 special_facilities,
                 unit_land_value,
@@ -131,19 +132,20 @@ class PropertyLayerController:
             WHERE 
                 is_on_market = 'On Market'
                 AND (
-                    property_type_spot2 IN ('Local Comercial','Oficinas','Industrial')
+                    property_type_spot2 IN (
+                        SELECT DISTINCT property_type
+                        FROM presentation.dim_market_data_spot2
+                        WHERE property_type IS NOT NULL
+                    )
                     OR property_type_inmuebles24 IN (
-                        'Local comercial',
-                        'Local en centro comercial',
-                        'Terreno comercial',
-                        'Industrial',
-                        'Oficinas',
-                        'Otros'
+                        SELECT DISTINCT property_type
+                        FROM presentation.dim_market_data_inmuebles24
+                        WHERE property_type IS NOT NULL
                     )
                     OR property_type_propiedades IN (
-                        'Residencial',
-                        'Comercial',
-                        'Industrial'
+                        SELECT DISTINCT property_type
+                        FROM presentation.dim_market_data_propiedades
+                        WHERE property_type IS NOT NULL
                     )
                 );
 
