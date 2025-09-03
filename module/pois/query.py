@@ -27,11 +27,11 @@ class POIsQueryController:
         if city == "mexico":
             id_column = "fid"
             parcel_table = 'blackprint_db_prd.data_product.v_parcel_v3'
-            dim_places_table = 'blackprint_db_prd.presentation.dim_places'
+            dim_places_table = 'blackprint_db_prd.presentation.dim_pois_cdmx'
         elif city == "queretaro" or city == "el_marques":
             id_column = "id_stg_demographic_socioeconomic_qro"
             parcel_table = 'blackprint_db_prd.data_product.v_qro'
-            dim_places_table = 'blackprint_db_prd.presentation.dim_places_qro'
+            dim_places_table = 'blackprint_db_prd.presentation.dim_pois_qro'
 
         if catchment == '500':
             query = f'''WITH split_values AS (
@@ -39,7 +39,7 @@ class POIsQueryController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_500m FROM {parcel_table} WHERE {id_column} = {fid}), ',')
                         )
-                        SELECT brand, names_pri, geometry_wkt, category_1 FROM {dim_places_table}
+                        SELECT null as brand, name as names_pri, geometry_wkt, main_category as category_1 FROM {dim_places_table}
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
 
         elif catchment == '1000':
@@ -48,7 +48,7 @@ class POIsQueryController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_1km FROM {parcel_table} WHERE {id_column} = {fid}), ',')
                         )
-                        SELECT brand, names_pri, geometry_wkt, category_1 FROM {dim_places_table}
+                        SELECT null as brand, name as names_pri, geometry_wkt, main_category as category_1 FROM {dim_places_table}
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
 
         elif catchment == '50':
@@ -57,24 +57,24 @@ class POIsQueryController:
                         FROM numbers
                         WHERE n <= f_count_elements((SELECT ids_pois_front FROM {parcel_table} WHERE {id_column} = {fid}), ',')
                         )
-                        SELECT brand, names_pri, geometry_wkt, category_1 FROM {dim_places_table}
+                        SELECT null as brand, name as names_pri, geometry_wkt, main_category as category_1 FROM {dim_places_table}
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
         else:
-            query = f'''SELECT brand, names_pri, geometry_wkt, category_1 FROM {dim_places_table}
+            query = f'''SELECT null as brand , name as names_pri, geometry_wkt, main_category as category_1 FROM {dim_places_table}
                         WHERE 1 = 1 '''
             if category_1:
                 category_1_list = "', '".join([name.strip() for name in category_1.split(',')])
-                query += f" AND category_1 in ('{category_1_list}')"
+                query += f" AND main_category in ('{category_1_list}')"
             if subcategories:
                 subcategories_list = "', '".join([name.strip() for name in subcategories.split(',')])
-                query += f" AND category_2 in ('{subcategories_list}')"
+                query += f" AND sub_category in ('{subcategories_list}')"
             if subsubcategories:
                 subsubcategories_list = "', '".join([name.strip() for name in subsubcategories.split(',')])
-                query += f" AND category_3 in ('{subsubcategories_list}')"
+                query += f" AND sub_sub_category in ('{subsubcategories_list}')"
             if brand_names:  
                 brand_list = "', '".join([name.strip() for name in brand_names.split(',')])
-                query += f" AND names_pri in ('{brand_list}') "
-        return query
+                query += f" AND name in ('{brand_list}') "
+        return query    
 
     @staticmethod
     def get_brand_search_query(brand_name, city="mexico"):
