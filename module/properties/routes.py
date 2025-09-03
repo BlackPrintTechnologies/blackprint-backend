@@ -497,3 +497,171 @@ class AdvancedMunicipalitySearch(Resource):
 # At the end of the file, add the resource to the API (example, actual registration may vary)
 # from your main app or blueprint registration, add:
 # api.add_resource(AdvancedMunicipalitySearch, '/properties/municipality_search')
+
+# Property Folder API Routes
+class PropertyFolderAPI(Resource):
+    """API for managing property folders"""
+    
+    create_folder_parser = reqparse.RequestParser()
+    create_folder_parser.add_argument('name', type=str, required=True, help='Folder name is required')
+    create_folder_parser.add_argument('description', type=str, required=False)
+    
+    update_folder_parser = reqparse.RequestParser()
+    update_folder_parser.add_argument('name', type=str, required=False)
+    update_folder_parser.add_argument('description', type=str, required=False)
+    
+    @authenticate
+    def get(self, current_user):
+        """Get all folders for the current user"""
+        try:
+            from module.properties.controller import PropertyFolderController
+            controller = PropertyFolderController()
+            folders = controller.get_user_folders(current_user)
+            return Response.success(data=folders, message='Folders retrieved successfully')
+        except Exception as e:
+            logger.error(f"Error retrieving folders: {str(e)}")
+            return Response.internal_error(message='Failed to retrieve folders')
+    
+    @authenticate
+    def post(self, current_user):
+        """Create a new folder"""
+        try:
+            data = self.create_folder_parser.parse_args()
+            from module.properties.controller import PropertyFolderController
+            controller = PropertyFolderController()
+            result = controller.create_folder(
+                user_id=current_user,
+                name=data['name'],
+                description=data.get('description')
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Error creating folder: {str(e)}")
+            return Response.internal_error(message='Failed to create folder')
+
+class PropertyFolderDetailAPI(Resource):
+    """API for managing individual folders"""
+    
+    update_parser = reqparse.RequestParser()
+    update_parser.add_argument('name', type=str, required=False)
+    update_parser.add_argument('description', type=str, required=False)
+    
+    @authenticate
+    def get(self, current_user, folder_id):
+        """Get folder details and properties"""
+        try:
+            from module.properties.controller import PropertyFolderController
+            controller = PropertyFolderController()
+            folder = controller.get_folder_details(current_user, folder_id)
+            if not folder:
+                return Response.not_found(message='Folder not found')
+            return Response.success(data=folder, message='Folder retrieved successfully')
+        except Exception as e:
+            logger.error(f"Error retrieving folder: {str(e)}")
+            return Response.internal_error(message='Failed to retrieve folder')
+    
+    @authenticate
+    def put(self, current_user, folder_id):
+        """Update folder details"""
+        try:
+            data = self.update_parser.parse_args()
+            from module.properties.controller import PropertyFolderController
+            controller = PropertyFolderController()
+            result = controller.update_folder(
+                user_id=current_user,
+                folder_id=folder_id,
+                name=data.get('name'),
+                description=data.get('description')
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Error updating folder: {str(e)}")
+            return Response.internal_error(message='Failed to update folder')
+    
+    @authenticate
+    def delete(self, current_user, folder_id):
+        """Delete folder (soft delete)"""
+        try:
+            from module.properties.controller import PropertyFolderController
+            controller = PropertyFolderController()
+            result = controller.delete_folder(current_user, folder_id)
+            return result
+        except Exception as e:
+            logger.error(f"Error deleting folder: {str(e)}")
+            return Response.internal_error(message='Failed to delete folder')
+
+class PropertySaveAPI(Resource):
+    """API for saving properties to folders"""
+    
+    save_parser = reqparse.RequestParser()
+    save_parser.add_argument('fid', type=int, required=True, help='Property ID is required')
+    save_parser.add_argument('folder_id', type=int, required=False, help='Folder ID (optional for new folder)')
+    save_parser.add_argument('folder_name', type=str, required=False, help='New folder name (if creating new folder)')
+    save_parser.add_argument('config_city', type=str, default='mexico', required=False)
+    save_parser.add_argument('notes', type=str, required=False)
+    
+    @authenticate
+    def post(self, current_user):
+        """Save property to folder (existing or new)"""
+        try:
+            data = self.save_parser.parse_args()
+            from module.properties.controller import PropertyFolderController
+            controller = PropertyFolderController()
+            
+            # If folder_id is provided, save to existing folder
+            if data.get('folder_id'):
+                result = controller.save_property_to_folder(
+                    user_id=current_user,
+                    folder_id=data['folder_id'],
+                    fid=data['fid'],
+                    config_city=data.get('config_city', 'mexico'),
+                    notes=data.get('notes')
+                )
+            # If folder_name is provided, create new folder and save
+            elif data.get('folder_name'):
+                result = controller.save_property_to_new_folder(
+                    user_id=current_user,
+                    folder_name=data['folder_name'],
+                    fid=data['fid'],
+                    config_city=data.get('config_city', 'mexico'),
+                    notes=data.get('notes')
+                )
+            else:
+                # Save to default "Liked" folder
+                result = controller.save_property_to_default_folder(
+                    user_id=current_user,
+                    fid=data['fid'],
+                    config_city=data.get('config_city', 'mexico'),
+                    notes=data.get('notes')
+                )
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error saving property: {str(e)}")
+            return Response.internal_error(message='Failed to save property')
+
+class PropertyRemoveAPI(Resource):
+    """API for removing properties from folders"""
+    
+    remove_parser = reqparse.RequestParser()
+    remove_parser.add_argument('folder_id', type=int, required=True, help='Folder ID is required')
+    remove_parser.add_argument('fid', type=int, required=True, help='Property ID is required')
+    remove_parser.add_argument('config_city', type=str, default='mexico', required=False)
+    
+    @authenticate
+    def delete(self, current_user):
+        """Remove property from folder"""
+        try:
+            data = self.remove_parser.parse_args()
+            from module.properties.controller import PropertyFolderController
+            controller = PropertyFolderController()
+            result = controller.remove_property_from_folder(
+                user_id=current_user,
+                folder_id=data['folder_id'],
+                fid=data['fid'],
+                config_city=data.get('config_city', 'mexico')
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Error removing property: {str(e)}")
+            return Response.internal_error(message='Failed to remove property')

@@ -53,7 +53,7 @@ from module.user.routes import Signup, Signin, ForgotPassword, ConfirmPasswordUp
 from module.search.routes import SavedSearches
 from module.group.routes import Group, GroupProperty
 from module.layers.routes import  Traffic, PropertyLayer, LandUseFilter
-from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch
+from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch, PropertyFolderAPI, PropertyFolderDetailAPI, PropertySaveAPI, PropertyRemoveAPI
 from module.markets.routes import PropertyTypes, MarketInfo
 from module.pois.routes import POIHierarchy, POIsByCoordinates, BrandSearch, Brands
 
@@ -92,6 +92,12 @@ api.add_resource(PropertyTraffic, '/property/traffic')
 api.add_resource(PropertyCommercialGrowth, '/property/commercial-growth')
 api.add_resource(PropertyFilter, '/property/filter')
 api.add_resource(AdvancedMunicipalitySearch, '/properties/municipality_search/')
+
+# Property folder routes
+api.add_resource(PropertyFolderAPI, '/property/folders')
+api.add_resource(PropertyFolderDetailAPI, '/property/folders/<int:folder_id>')
+api.add_resource(PropertySaveAPI, '/property/save')
+api.add_resource(PropertyRemoveAPI, '/property/remove')
 
 # Markets routes
 api.add_resource(MarketInfo, '/property/marketinfo')  # Catchment and fid as parameters
