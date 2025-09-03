@@ -5,19 +5,19 @@ class POIsQueryController:
     def get_pois_hierarchy_query(self, config_city=None):
         """Generate query to get POI category hierarchy."""
         if config_city == "queretaro" or config_city == "el_marques":
-            places_table = 'blackprint_db_prd.presentation.dim_places_qro'
+            places_table = 'blackprint_db_prd.presentation.dim_pois_qro'
         else:
-            places_table = 'blackprint_db_prd.presentation.dim_places'
+            places_table = 'blackprint_db_prd.presentation.dim_pois_cdmx'
         
         query = f'''
             SELECT DISTINCT 
-                category_1, 
-                category_2, 
-                category_3
+                main_category as category_1, 
+                sub_category as category_2, 
+                sub_sub_category as category_3
             FROM {places_table}
-            WHERE category_1 IS NOT NULL 
-            AND category_1 != ''
-            ORDER BY category_1, category_2, category_3
+            WHERE main_category IS NOT NULL 
+            AND main_category != ''
+            ORDER BY main_category, sub_category, sub_sub_category
         '''
         return query
 
