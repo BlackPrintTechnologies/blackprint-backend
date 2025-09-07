@@ -10,7 +10,9 @@ class Brands(Resource):
     
     post_parser = reqparse.RequestParser()
     post_parser.add_argument('radius', type=str, default='1000', required=False, location='json')
-    post_parser.add_argument('fid', type=str, required=True, help='FID is required', location='json')
+    # post_parser.add_argument('fid', type=str, required=True, help='FID is required', location='json')
+    post_parser.add_argument('lat', type=str, required=False, help='Latitude is required', location='json')
+    post_parser.add_argument('lng', type=str, required=False, help='Longitude is required', location='json')
     post_parser.add_argument('category', type=str, required=False, location='json')
     post_parser.add_argument('subcategories', type=str, required=False, location='json')
     post_parser.add_argument('subsubcategories', type=str, required=False, location='json')
@@ -24,6 +26,8 @@ class Brands(Resource):
             args = self.post_parser.parse_args()
             radius = args.get('radius', '1000')
             fid = args.get('fid')
+            lat = args.get('lat')
+            lng = args.get('lng')
             category = args.get('category')
             brand_names = args.get('brand_names')
             config_city = args.get('config_city', 'mexico')
@@ -32,7 +36,7 @@ class Brands(Resource):
                         fid, radius, config_city)
             
             poi_controller = POIsController()
-            response = poi_controller.get_brands(radius, fid, category, args.get('subcategories'), args.get('subsubcategories'), brand_names, config_city)
+            response = poi_controller.get_brands(radius, lat, lng, category, args.get('subcategories'), args.get('subsubcategories'), brand_names, config_city)
             
             return response
             

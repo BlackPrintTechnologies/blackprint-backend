@@ -22,45 +22,37 @@ class POIsQueryController:
         return query
 
     @staticmethod
-    def get_brand_query(catchment, fid, category_1=None, subcategories=None, subsubcategories=None, brand_names=None, city="mexico"):
+    def get_brand_query(catchment, lat, lng, category_1=None, subcategories=None, subsubcategories=None, brand_names=None, city="mexico"):
         """Generate brand query based on catchment radius and city."""
         if city == "mexico":
-            id_column = "fid"
-            parcel_table = 'blackprint_db_prd.data_product.v_parcel_v3'
             dim_places_table = 'blackprint_db_prd.presentation.dim_pois_cdmx'
         elif city == "queretaro" or city == "el_marques":
-            id_column = "id_stg_demographic_socioeconomic_qro"
-            parcel_table = 'blackprint_db_prd.data_product.v_qro'
             dim_places_table = 'blackprint_db_prd.presentation.dim_pois_qro'
 
-        if catchment == '500':
-            query = f'''WITH split_values AS (
-                        SELECT SPLIT_PART((SELECT ids_pois_500m FROM {parcel_table} WHERE {id_column} = {fid}), ',', n)::INTEGER as value
-                        FROM numbers
-                        WHERE n <= f_count_elements((SELECT ids_pois_500m FROM {parcel_table} WHERE {id_column} = {fid}), ',')
-                        )
-                        SELECT null as brand, name as names_pri, geometry_wkt, main_category as category_1 FROM {dim_places_table}
-                        WHERE id_place IN (SELECT value FROM split_values) ;'''
+        query = f'''WITH point_geom AS (
+            SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+            SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+            -- radius n meters
+            SELECT ST_Buffer(geom, {catchment}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+            SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT case when chain_id != 'None' then chain_id else null end as brand, name as names_pri, geometry_wkt, main_category as category_1 
+            FROM {dim_places_table} a
+            INNER JOIN h3_index b ON a.h3_value = b.h3_value
+            ;'''
 
-        elif catchment == '1000':
-            query = f'''WITH split_values AS (
-                        SELECT SPLIT_PART((SELECT ids_pois_1km FROM {parcel_table} WHERE {id_column} = {fid}), ',', n)::INTEGER as value
-                        FROM numbers
-                        WHERE n <= f_count_elements((SELECT ids_pois_1km FROM {parcel_table} WHERE {id_column} = {fid}), ',')
-                        )
-                        SELECT null as brand, name as names_pri, geometry_wkt, main_category as category_1 FROM {dim_places_table}
-                        WHERE id_place IN (SELECT value FROM split_values) ;'''
-
-        elif catchment == '50':
-            query = f'''WITH split_values AS (
-                        SELECT SPLIT_PART((SELECT ids_pois_front FROM {parcel_table} WHERE {id_column} = {fid}), ',', n)::INTEGER as value
-                        FROM numbers
-                        WHERE n <= f_count_elements((SELECT ids_pois_front FROM {parcel_table} WHERE {id_column} = {fid}), ',')
-                        )
-                        SELECT null as brand, name as names_pri, geometry_wkt, main_category as category_1 FROM {dim_places_table}
-                        WHERE id_place IN (SELECT value FROM split_values) ;'''
-        else:
-            query = f'''SELECT null as brand , name as names_pri, geometry_wkt, main_category as category_1 FROM {dim_places_table}
+        if not catchment:
+            query = f'''SELECT case when chain_id != 'None' then chain_id else null end as brand, name as names_pri, geometry_wkt, main_category as category_1  FROM {dim_places_table}
                         WHERE 1 = 1 '''
             if category_1:
                 category_1_list = "', '".join([name.strip() for name in category_1.split(',')])
@@ -80,13 +72,13 @@ class POIsQueryController:
     def get_brand_search_query(brand_name, city="mexico"):
         """Generate query to search brands by name pattern."""
         if city == "queretaro" or city == "el_marques":
-            places_table = 'blackprint_db_prd.presentation.dim_places_qro'
+            places_table = 'blackprint_db_prd.presentation.dim_pois_qro'
         else:
-            places_table = 'blackprint_db_prd.presentation.dim_places'
+            places_table = 'blackprint_db_prd.presentation.dim_pois_cdmx'
         
-        query = f'''SELECT DISTINCT brand 
+        query = f'''SELECT DISTINCT name as brand 
                     FROM {places_table} 
-                    WHERE brand ILIKE '{brand_name}%' 
+                    WHERE name ILIKE '{brand_name}%' 
                     LIMIT 50'''
         return query
 
