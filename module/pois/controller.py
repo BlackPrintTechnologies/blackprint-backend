@@ -47,8 +47,7 @@ class POIsController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    @lru_cache(maxsize=1000)
-    def get_brands(self, radius, fid, category=None, subcategories=None, subsubcategories=None, brand_names=None, city="mexico"):
+    def get_brands(self, radius, lat, lng, category=None, subcategories=None, subsubcategories=None, brand_names=None, city="mexico"):
         """Get brands within specified catchment radius."""
         connection = None
         cursor = None
@@ -57,7 +56,7 @@ class POIsController:
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            query = self.qc.get_brand_query(radius, fid, category_1=category, subcategories=subcategories, subsubcategories=subsubcategories, brand_names=brand_names, city=city)
+            query = self.qc.get_brand_query(radius, lat, lng, category_1=category, subcategories=subcategories, subsubcategories=subsubcategories, brand_names=brand_names, city=city)
             logger.info(f"Brand query: {query}")
             
             cursor.execute(query)
