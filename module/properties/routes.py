@@ -632,7 +632,10 @@ class PropertySaveAPI(Resource):
     save_parser.add_argument('folder_id', type=int, required=False, help='Folder ID (optional for existing folder)')
     save_parser.add_argument('folder_name', type=str, required=False, help='Folder name (will create if not exists)')
     save_parser.add_argument('config_city', type=str, required=True, help='City configuration is required')
+    save_parser.add_argument('lat', type=float, required=False, help='Latitude of the property')
+    save_parser.add_argument('long', type=float, required=False, help='Longitude of the property')
     save_parser.add_argument('notes', type=str, required=False)
+    save_parser.add_argument('description', type=str, required=False, help='Folder description (used when creating new folder)')
     
     @authenticate
     def post(self, current_user):
@@ -649,7 +652,10 @@ class PropertySaveAPI(Resource):
                 config_city=data.get('config_city'),
                 folder_name=data.get('folder_name'),
                 folder_id=data.get('folder_id'),
-                notes=data.get('notes')
+                lat=data.get('lat'),
+                long=data.get('long'),
+                notes=data.get('notes'),
+                description=data.get('description')
             )
             
             return result

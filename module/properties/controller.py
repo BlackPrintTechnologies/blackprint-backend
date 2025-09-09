@@ -2433,7 +2433,7 @@ class PropertyFolderController:
                 WHERE folder_id = %s AND config_city = %s
             """
             cursor.execute(city_check_query, (folder_id, config_city))
-            city_property_count = cursor.fetchone()[0]
+            city_property_count = cursor.fetchone()['count']
             
             # If no properties for this city, return None (folder not found for this city)
             if city_property_count == 0:
@@ -2441,7 +2441,7 @@ class PropertyFolderController:
             
             # Get properties for the specific city
             properties_query = """
-                SELECT fp.fid, fp.config_city, fp.added_at, fp.notes
+                SELECT fp.fid, fp.config_city, fp.lat, fp.long, fp.added_at, fp.notes
                 FROM folder_properties fp
                 WHERE fp.folder_id = %s AND fp.config_city = %s
                 ORDER BY fp.added_at DESC
@@ -2467,7 +2467,7 @@ class PropertyFolderController:
             if connection:
                 self.db.disconnect(connection)
     
-    def save_property_to_folder(self, user_id, folder_id, fid, config_city, notes=None):
+    def save_property_to_folder(self, user_id, folder_id, fid, config_city, lat=None, long=None, notes=None):
         """Save property to existing folder"""
         connection = None
         cursor = None
@@ -2508,10 +2508,10 @@ class PropertyFolderController:
             
             # Add property to folder
             insert_query = """
-                INSERT INTO folder_properties (folder_id, fid, config_city, notes, added_at)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO folder_properties (folder_id, fid, config_city, lat, long, notes, added_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(insert_query, (folder_id, fid, config_city, notes, datetime.utcnow()))
+            cursor.execute(insert_query, (folder_id, fid, config_city, lat, long, notes, datetime.utcnow()))
             
             # Get folder information for response
             folder_info_query = """
@@ -2531,7 +2531,9 @@ class PropertyFolderController:
                     'folder_description': folder_info[2],
                     'is_default': folder_info[3],
                     'fid': fid,
-                    'config_city': config_city
+                    'config_city': config_city,
+                    'lat': lat,
+                    'long': long
                 },
                 message='Property saved to folder successfully'
             )
@@ -2547,24 +2549,24 @@ class PropertyFolderController:
             if connection:
                 self.db.disconnect(connection)
     
-    def save_property_to_new_folder(self, user_id, folder_name, fid, config_city, notes=None):
+    def save_property_to_new_folder(self, user_id, folder_name, fid, config_city, lat=None, long=None, notes=None, description=None):
         """Create new folder and save property to it"""
         try:
             # First create the folder
-            folder_result = self.create_folder(user_id, folder_name)
-            if not isinstance(folder_result, dict) or folder_result.get('status') != 200:
-                return folder_result
+            folder_result, status_code = self.create_folder(user_id, folder_name, description)
+            if status_code != 200:
+                return folder_result, status_code
             
             folder_id = folder_result['data']['folder_id']
             
             # Then save the property to the new folder
-            return self.save_property_to_folder(user_id, folder_id, fid, config_city, notes)
+            return self.save_property_to_folder(user_id, folder_id, fid, config_city, lat, long, notes)
             
         except Exception as e:
             logger.error(f"Error saving property to new folder: {str(e)}")
             raise
     
-    def save_property_to_default_folder(self, user_id, fid, config_city, notes=None):
+    def save_property_to_default_folder(self, user_id, fid, config_city, lat=None, long=None, notes=None):
         """Save property to default "Liked" folder, create if doesn't exist"""
         connection = None
         cursor = None
@@ -2594,7 +2596,7 @@ class PropertyFolderController:
                 connection.commit()
             
             # Save property to default folder
-            return self.save_property_to_folder(user_id, folder_id, fid, config_city, notes)
+            return self.save_property_to_folder(user_id, folder_id, fid, config_city, lat, long, notes)
             
         except Exception as e:
             logger.error(f"Error saving property to default folder: {str(e)}")
@@ -2607,7 +2609,7 @@ class PropertyFolderController:
             if connection:
                 self.db.disconnect(connection)
     
-    def save_property_to_folder_unified(self, user_id, fid, config_city, folder_name=None, folder_id=None, notes=None):
+    def save_property_to_folder_unified(self, user_id, fid, config_city, folder_name=None, folder_id=None, lat=None, long=None, notes=None, description=None):
         """Unified method to save property to folder - create new folder or use existing"""
         connection = None
         cursor = None
@@ -2624,7 +2626,7 @@ class PropertyFolderController:
                     return Response.not_found(message='Folder not found')
                 
                 # Save to existing folder
-                return self.save_property_to_folder(user_id, folder_id, fid, config_city, notes)
+                return self.save_property_to_folder(user_id, folder_id, fid, config_city, lat, long, notes)
             
             # If folder_name is provided, find or create folder
             elif folder_name:
@@ -2636,14 +2638,14 @@ class PropertyFolderController:
                 if existing_folder:
                     # Use existing folder
                     folder_id = existing_folder[0]
-                    return self.save_property_to_folder(user_id, folder_id, fid, config_city, notes)
+                    return self.save_property_to_folder(user_id, folder_id, fid, config_city, lat, long, notes)
                 else:
                     # Create new folder and save property
-                    return self.save_property_to_new_folder(user_id, folder_name, fid, config_city, notes)
+                    return self.save_property_to_new_folder(user_id, folder_name, fid, config_city, lat, long, notes, description)
             
             # If neither folder_id nor folder_name provided, use default folder
             else:
-                return self.save_property_to_default_folder(user_id, fid, config_city, notes)
+                return self.save_property_to_default_folder(user_id, fid, config_city, lat, long, notes)
                 
         except Exception as e:
             logger.error(f"Error in unified save property to folder: {str(e)}")

@@ -32,6 +32,8 @@ class FolderProperty(db.Model):
     folder_id = db.Column(db.Integer, db.ForeignKey('property_folders.id'), nullable=False)
     fid = db.Column(db.Integer, nullable=False)  # Property ID
     config_city = db.Column(db.String(50), default='mexico')
+    lat = db.Column(db.Numeric(10, 8), nullable=True)  # Latitude
+    long = db.Column(db.Numeric(11, 8), nullable=True)  # Longitude
     added_at = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text, nullable=True)  # User notes about the property
     
