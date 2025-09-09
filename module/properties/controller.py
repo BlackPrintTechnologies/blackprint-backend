@@ -2320,8 +2320,8 @@ class PropertyFolderController:
     def __init__(self):
         self.db = Database()
     
-    def get_user_folders(self, user_id):
-        """Get all folders for a user"""
+    def get_user_folders(self, user_id, config_city):
+        """Get all folders for a user, optionally filtered by city"""
         connection = None
         cursor = None
         try:
@@ -2332,13 +2332,13 @@ class PropertyFolderController:
                 SELECT pf.id, pf.name, pf.description, pf.is_default, pf.created_at, pf.updated_at,
                        COUNT(fp.id) as property_count
                 FROM property_folders pf
-                LEFT JOIN folder_properties fp ON pf.id = fp.folder_id
+                INNER JOIN folder_properties fp ON pf.id = fp.folder_id AND fp.config_city = %s
                 WHERE pf.user_id = %s AND pf.status = 1
                 GROUP BY pf.id, pf.name, pf.description, pf.is_default, pf.created_at, pf.updated_at
                 ORDER BY pf.is_default DESC, pf.created_at DESC
             """
+            cursor.execute(query, (config_city, user_id))
             
-            cursor.execute(query, (user_id,))
             folders = cursor.fetchall()
             
             # Convert to list of dictionaries
@@ -2386,7 +2386,13 @@ class PropertyFolderController:
             connection.commit()
             
             return Response.success(
-                data={'folder_id': folder_id, 'name': name},
+                data={
+                    'folder_id': folder_id, 
+                    'name': name,
+                    'description': description,
+                    'is_default': False,
+                    'created_at': datetime.utcnow().isoformat()
+                },
                 message='Folder created successfully'
             )
             
@@ -2401,8 +2407,8 @@ class PropertyFolderController:
             if connection:
                 self.db.disconnect(connection)
     
-    def get_folder_details(self, user_id, folder_id):
-        """Get folder details with properties"""
+    def get_folder_details(self, user_id, folder_id, config_city):
+        """Get folder details with properties, optionally filtered by city"""
         connection = None
         cursor = None
         try:
@@ -2421,14 +2427,27 @@ class PropertyFolderController:
             if not folder:
                 return None
             
-            # Get properties in the folder
+            # Check if folder has any properties for the specified city
+            city_check_query = """
+                SELECT COUNT(*) FROM folder_properties 
+                WHERE folder_id = %s AND config_city = %s
+            """
+            cursor.execute(city_check_query, (folder_id, config_city))
+            city_property_count = cursor.fetchone()[0]
+            
+            # If no properties for this city, return None (folder not found for this city)
+            if city_property_count == 0:
+                return None
+            
+            # Get properties for the specific city
             properties_query = """
                 SELECT fp.fid, fp.config_city, fp.added_at, fp.notes
                 FROM folder_properties fp
-                WHERE fp.folder_id = %s
+                WHERE fp.folder_id = %s AND fp.config_city = %s
                 ORDER BY fp.added_at DESC
             """
-            cursor.execute(properties_query, (folder_id,))
+            cursor.execute(properties_query, (folder_id, config_city))
+            
             properties = cursor.fetchall()
             
             # Convert to dictionary
@@ -2448,7 +2467,7 @@ class PropertyFolderController:
             if connection:
                 self.db.disconnect(connection)
     
-    def save_property_to_folder(self, user_id, folder_id, fid, config_city='mexico', notes=None):
+    def save_property_to_folder(self, user_id, folder_id, fid, config_city, notes=None):
         """Save property to existing folder"""
         connection = None
         cursor = None
@@ -2466,7 +2485,26 @@ class PropertyFolderController:
             check_query = "SELECT id FROM folder_properties WHERE folder_id = %s AND fid = %s AND config_city = %s"
             cursor.execute(check_query, (folder_id, fid, config_city))
             if cursor.fetchone():
-                return Response.bad_request(message='Property already exists in this folder')
+                # Get folder information for response
+                folder_info_query = """
+                    SELECT id, name, description, is_default
+                    FROM property_folders
+                    WHERE id = %s
+                """
+                cursor.execute(folder_info_query, (folder_id,))
+                folder_info = cursor.fetchone()
+                
+                return Response.success(
+                    data={
+                        'folder_id': folder_id,
+                        'folder_name': folder_info[1],
+                        'folder_description': folder_info[2],
+                        'is_default': folder_info[3],
+                        'fid': fid,
+                        'config_city': config_city
+                    },
+                    message='Property already added to this folder'
+                )
             
             # Add property to folder
             insert_query = """
@@ -2475,9 +2513,28 @@ class PropertyFolderController:
             """
             cursor.execute(insert_query, (folder_id, fid, config_city, notes, datetime.utcnow()))
             
+            # Get folder information for response
+            folder_info_query = """
+                SELECT id, name, description, is_default
+                FROM property_folders
+                WHERE id = %s
+            """
+            cursor.execute(folder_info_query, (folder_id,))
+            folder_info = cursor.fetchone()
+            
             connection.commit()
             
-            return Response.success(message='Property saved to folder successfully')
+            return Response.success(
+                data={
+                    'folder_id': folder_id,
+                    'folder_name': folder_info[1],
+                    'folder_description': folder_info[2],
+                    'is_default': folder_info[3],
+                    'fid': fid,
+                    'config_city': config_city
+                },
+                message='Property saved to folder successfully'
+            )
             
         except Exception as e:
             logger.error(f"Error saving property to folder: {str(e)}")
@@ -2490,7 +2547,7 @@ class PropertyFolderController:
             if connection:
                 self.db.disconnect(connection)
     
-    def save_property_to_new_folder(self, user_id, folder_name, fid, config_city='mexico', notes=None):
+    def save_property_to_new_folder(self, user_id, folder_name, fid, config_city, notes=None):
         """Create new folder and save property to it"""
         try:
             # First create the folder
@@ -2507,7 +2564,7 @@ class PropertyFolderController:
             logger.error(f"Error saving property to new folder: {str(e)}")
             raise
     
-    def save_property_to_default_folder(self, user_id, fid, config_city='mexico', notes=None):
+    def save_property_to_default_folder(self, user_id, fid, config_city, notes=None):
         """Save property to default "Liked" folder, create if doesn't exist"""
         connection = None
         cursor = None
@@ -2550,7 +2607,56 @@ class PropertyFolderController:
             if connection:
                 self.db.disconnect(connection)
     
-    def remove_property_from_folder(self, user_id, folder_id, fid, config_city='mexico'):
+    def save_property_to_folder_unified(self, user_id, fid, config_city, folder_name=None, folder_id=None, notes=None):
+        """Unified method to save property to folder - create new folder or use existing"""
+        connection = None
+        cursor = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor()
+            
+            # If folder_id is provided, use existing folder
+            if folder_id:
+                # Verify folder belongs to user
+                folder_query = "SELECT id FROM property_folders WHERE id = %s AND user_id = %s AND status = 1"
+                cursor.execute(folder_query, (folder_id, user_id))
+                if not cursor.fetchone():
+                    return Response.not_found(message='Folder not found')
+                
+                # Save to existing folder
+                return self.save_property_to_folder(user_id, folder_id, fid, config_city, notes)
+            
+            # If folder_name is provided, find or create folder
+            elif folder_name:
+                # Check if folder with this name already exists for this user
+                check_query = "SELECT id FROM property_folders WHERE user_id = %s AND name = %s AND status = 1"
+                cursor.execute(check_query, (user_id, folder_name))
+                existing_folder = cursor.fetchone()
+                
+                if existing_folder:
+                    # Use existing folder
+                    folder_id = existing_folder[0]
+                    return self.save_property_to_folder(user_id, folder_id, fid, config_city, notes)
+                else:
+                    # Create new folder and save property
+                    return self.save_property_to_new_folder(user_id, folder_name, fid, config_city, notes)
+            
+            # If neither folder_id nor folder_name provided, use default folder
+            else:
+                return self.save_property_to_default_folder(user_id, fid, config_city, notes)
+                
+        except Exception as e:
+            logger.error(f"Error in unified save property to folder: {str(e)}")
+            if connection:
+                connection.rollback()
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+    
+    def remove_property_from_folder(self, user_id, folder_id, fid, config_city):
         """Remove property from folder"""
         connection = None
         cursor = None
@@ -2589,7 +2695,7 @@ class PropertyFolderController:
             if connection:
                 self.db.disconnect(connection)
     
-    def update_folder(self, user_id, folder_id, name=None, description=None):
+    def update_folder(self, user_id, folder_id, name=None, description=None, config_city=None):
         """Update folder details"""
         connection = None
         cursor = None
@@ -2644,8 +2750,8 @@ class PropertyFolderController:
             if connection:
                 self.db.disconnect(connection)
     
-    def delete_folder(self, user_id, folder_id):
-        """Soft delete folder"""
+    def delete_folder(self, user_id, folder_id, config_city):
+        """Soft delete folder and optionally remove city-specific properties"""
         connection = None
         cursor = None
         try:
@@ -2663,13 +2769,35 @@ class PropertyFolderController:
             if folder[1]:  # is_default
                 return Response.bad_request(message='Cannot delete default folder')
             
-            # Soft delete the folder
-            delete_query = "UPDATE property_folders SET status = 0, updated_at = %s WHERE id = %s AND user_id = %s"
-            cursor.execute(delete_query, (datetime.utcnow(), folder_id, user_id))
+            # First check if folder has any properties for the specified city
+            check_city_query = "SELECT COUNT(*) FROM folder_properties WHERE folder_id = %s AND config_city = %s"
+            cursor.execute(check_city_query, (folder_id, config_city))
+            city_property_count = cursor.fetchone()[0]
+            
+            # If no properties for this city, return not found
+            if city_property_count == 0:
+                return Response.not_found(message=f'No properties found for {config_city} city in this folder')
+            
+            # Remove properties for specific city
+            delete_properties_query = "DELETE FROM folder_properties WHERE folder_id = %s AND config_city = %s"
+            cursor.execute(delete_properties_query, (folder_id, config_city))
+            
+            # Check if folder has any remaining properties
+            remaining_query = "SELECT COUNT(*) FROM folder_properties WHERE folder_id = %s"
+            cursor.execute(remaining_query, (folder_id,))
+            remaining_count = cursor.fetchone()[0]
+            
+            # If no properties left, soft delete the folder
+            if remaining_count == 0:
+                delete_folder_query = "UPDATE property_folders SET status = 0, updated_at = %s WHERE id = %s AND user_id = %s"
+                cursor.execute(delete_folder_query, (datetime.utcnow(), folder_id, user_id))
+                message = f'Folder and all {config_city} properties deleted successfully'
+            else:
+                message = f'All {config_city} properties removed from folder successfully'
             
             connection.commit()
             
-            return Response.success(message='Folder deleted successfully')
+            return Response.success(message=message)
             
         except Exception as e:
             logger.error(f"Error deleting folder: {str(e)}")

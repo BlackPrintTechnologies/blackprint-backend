@@ -8,12 +8,15 @@ from flask_compress import Compress
 from decimal import Decimal
 import uuid
 import json
+from datetime import datetime, date
 
-# Custom JSON encoder to handle Decimal types
+# Custom JSON encoder to handle Decimal and datetime types
 class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, Decimal):
             return float(obj)
+        elif isinstance(obj, (datetime, date)):
+            return obj.isoformat()
         return super(DecimalEncoder, self).default(obj)
 
 app = Flask(__name__)
