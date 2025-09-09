@@ -2315,3 +2315,499 @@ class PropertyController:
                 cursor.close()
             if connection:
                 self.redshift_connection.disconnect(connection)
+
+class PropertyFolderController:
+    def __init__(self):
+        self.db = Database()
+    
+    def get_user_folders(self, user_id, config_city):
+        """Get all folders for a user, optionally filtered by city"""
+        connection = None
+        cursor = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            query = """
+                SELECT pf.id, pf.name, pf.description, pf.is_default, pf.created_at, pf.updated_at,
+                       COUNT(fp.id) as property_count
+                FROM property_folders pf
+                INNER JOIN folder_properties fp ON pf.id = fp.folder_id AND fp.config_city = %s
+                WHERE pf.user_id = %s AND pf.status = 1
+                GROUP BY pf.id, pf.name, pf.description, pf.is_default, pf.created_at, pf.updated_at
+                ORDER BY pf.is_default DESC, pf.created_at DESC
+            """
+            cursor.execute(query, (config_city, user_id))
+            
+            folders = cursor.fetchall()
+            
+            # Convert to list of dictionaries
+            result = []
+            for folder in folders:
+                folder_dict = dict(folder)
+                folder_dict['created_at'] = folder['created_at'].isoformat() if folder['created_at'] else None
+                folder_dict['updated_at'] = folder['updated_at'].isoformat() if folder['updated_at'] else None
+                result.append(folder_dict)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error getting user folders: {str(e)}")
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+    
+    def create_folder(self, user_id, name, description=None):
+        """Create a new folder for a user"""
+        connection = None
+        cursor = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor()
+            
+            # Check if folder name already exists for this user
+            check_query = "SELECT id FROM property_folders WHERE user_id = %s AND name = %s AND status = 1"
+            cursor.execute(check_query, (user_id, name))
+            if cursor.fetchone():
+                return Response.bad_request(message='Folder with this name already exists')
+            
+            # Create the folder
+            insert_query = """
+                INSERT INTO property_folders (user_id, name, description, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+            """
+            cursor.execute(insert_query, (user_id, name, description, datetime.utcnow(), datetime.utcnow()))
+            folder_id = cursor.fetchone()[0]
+            
+            connection.commit()
+            
+            return Response.success(
+                data={
+                    'folder_id': folder_id, 
+                    'name': name,
+                    'description': description,
+                    'is_default': False,
+                    'created_at': datetime.utcnow().isoformat()
+                },
+                message='Folder created successfully'
+            )
+            
+        except Exception as e:
+            logger.error(f"Error creating folder: {str(e)}")
+            if connection:
+                connection.rollback()
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+    
+    def get_folder_details(self, user_id, folder_id, config_city):
+        """Get folder details with properties, optionally filtered by city"""
+        connection = None
+        cursor = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            # Get folder info
+            folder_query = """
+                SELECT id, name, description, is_default, created_at, updated_at
+                FROM property_folders
+                WHERE id = %s AND user_id = %s AND status = 1
+            """
+            cursor.execute(folder_query, (folder_id, user_id))
+            folder = cursor.fetchone()
+            
+            if not folder:
+                return None
+            
+            # Check if folder has any properties for the specified city
+            city_check_query = """
+                SELECT COUNT(*) FROM folder_properties 
+                WHERE folder_id = %s AND config_city = %s
+            """
+            cursor.execute(city_check_query, (folder_id, config_city))
+            city_property_count = cursor.fetchone()['count']
+            
+            # If no properties for this city, return None (folder not found for this city)
+            if city_property_count == 0:
+                return None
+            
+            # Get properties for the specific city
+            properties_query = """
+                SELECT fp.fid, fp.config_city, fp.lat, fp.long, fp.added_at, fp.notes
+                FROM folder_properties fp
+                WHERE fp.folder_id = %s AND fp.config_city = %s
+                ORDER BY fp.added_at DESC
+            """
+            cursor.execute(properties_query, (folder_id, config_city))
+            
+            properties = cursor.fetchall()
+            
+            # Convert to dictionary
+            folder_dict = dict(folder)
+            folder_dict['created_at'] = folder['created_at'].isoformat() if folder['created_at'] else None
+            folder_dict['updated_at'] = folder['updated_at'].isoformat() if folder['updated_at'] else None
+            folder_dict['properties'] = [dict(prop) for prop in properties]
+            
+            return folder_dict
+            
+        except Exception as e:
+            logger.error(f"Error getting folder details: {str(e)}")
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+    
+    def save_property_to_folder(self, user_id, folder_id, fid, config_city, lat=None, long=None, notes=None):
+        """Save property to existing folder"""
+        connection = None
+        cursor = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor()
+            
+            # Verify folder belongs to user
+            folder_query = "SELECT id FROM property_folders WHERE id = %s AND user_id = %s AND status = 1"
+            cursor.execute(folder_query, (folder_id, user_id))
+            if not cursor.fetchone():
+                return Response.not_found(message='Folder not found')
+            
+            # Check if property already exists in folder
+            check_query = "SELECT id FROM folder_properties WHERE folder_id = %s AND fid = %s AND config_city = %s"
+            cursor.execute(check_query, (folder_id, fid, config_city))
+            if cursor.fetchone():
+                # Get folder information for response
+                folder_info_query = """
+                    SELECT id, name, description, is_default
+                    FROM property_folders
+                    WHERE id = %s
+                """
+                cursor.execute(folder_info_query, (folder_id,))
+                folder_info = cursor.fetchone()
+                
+                return Response.success(
+                    data={
+                        'folder_id': folder_id,
+                        'folder_name': folder_info[1],
+                        'folder_description': folder_info[2],
+                        'is_default': folder_info[3],
+                        'fid': fid,
+                        'config_city': config_city
+                    },
+                    message='Property already added to this folder'
+                )
+            
+            # Add property to folder
+            insert_query = """
+                INSERT INTO folder_properties (folder_id, fid, config_city, lat, long, notes, added_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(insert_query, (folder_id, fid, config_city, lat, long, notes, datetime.utcnow()))
+            
+            # Get folder information for response
+            folder_info_query = """
+                SELECT id, name, description, is_default
+                FROM property_folders
+                WHERE id = %s
+            """
+            cursor.execute(folder_info_query, (folder_id,))
+            folder_info = cursor.fetchone()
+            
+            connection.commit()
+            
+            return Response.success(
+                data={
+                    'folder_id': folder_id,
+                    'folder_name': folder_info[1],
+                    'folder_description': folder_info[2],
+                    'is_default': folder_info[3],
+                    'fid': fid,
+                    'config_city': config_city,
+                    'lat': lat,
+                    'long': long
+                },
+                message='Property saved to folder successfully'
+            )
+            
+        except Exception as e:
+            logger.error(f"Error saving property to folder: {str(e)}")
+            if connection:
+                connection.rollback()
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+    
+    def save_property_to_new_folder(self, user_id, folder_name, fid, config_city, lat=None, long=None, notes=None, description=None):
+        """Create new folder and save property to it"""
+        try:
+            # First create the folder
+            folder_result, status_code = self.create_folder(user_id, folder_name, description)
+            if status_code != 200:
+                return folder_result, status_code
+            
+            folder_id = folder_result['data']['folder_id']
+            
+            # Then save the property to the new folder
+            return self.save_property_to_folder(user_id, folder_id, fid, config_city, lat, long, notes)
+            
+        except Exception as e:
+            logger.error(f"Error saving property to new folder: {str(e)}")
+            raise
+    
+    def save_property_to_default_folder(self, user_id, fid, config_city, lat=None, long=None, notes=None):
+        """Save property to default "Liked" folder, create if doesn't exist"""
+        connection = None
+        cursor = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor()
+            
+            # Check if default folder exists
+            folder_query = "SELECT id FROM property_folders WHERE user_id = %s AND is_default = true AND status = 1"
+            cursor.execute(folder_query, (user_id,))
+            folder = cursor.fetchone()
+            
+            if folder:
+                folder_id = folder[0]
+            else:
+                # Create default folder
+                insert_query = """
+                    INSERT INTO property_folders (user_id, name, description, is_default, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """
+                cursor.execute(insert_query, (
+                    user_id, 'Liked', 'Default folder for liked properties', 
+                    True, datetime.utcnow(), datetime.utcnow()
+                ))
+                folder_id = cursor.fetchone()[0]
+                connection.commit()
+            
+            # Save property to default folder
+            return self.save_property_to_folder(user_id, folder_id, fid, config_city, lat, long, notes)
+            
+        except Exception as e:
+            logger.error(f"Error saving property to default folder: {str(e)}")
+            if connection:
+                connection.rollback()
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+    
+    def save_property_to_folder_unified(self, user_id, fid, config_city, folder_name=None, folder_id=None, lat=None, long=None, notes=None, description=None):
+        """Unified method to save property to folder - create new folder or use existing"""
+        connection = None
+        cursor = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor()
+            
+            # If folder_id is provided, use existing folder
+            if folder_id:
+                # Verify folder belongs to user
+                folder_query = "SELECT id FROM property_folders WHERE id = %s AND user_id = %s AND status = 1"
+                cursor.execute(folder_query, (folder_id, user_id))
+                if not cursor.fetchone():
+                    return Response.not_found(message='Folder not found')
+                
+                # Save to existing folder
+                return self.save_property_to_folder(user_id, folder_id, fid, config_city, lat, long, notes)
+            
+            # If folder_name is provided, find or create folder
+            elif folder_name:
+                # Check if folder with this name already exists for this user
+                check_query = "SELECT id FROM property_folders WHERE user_id = %s AND name = %s AND status = 1"
+                cursor.execute(check_query, (user_id, folder_name))
+                existing_folder = cursor.fetchone()
+                
+                if existing_folder:
+                    # Use existing folder
+                    folder_id = existing_folder[0]
+                    return self.save_property_to_folder(user_id, folder_id, fid, config_city, lat, long, notes)
+                else:
+                    # Create new folder and save property
+                    return self.save_property_to_new_folder(user_id, folder_name, fid, config_city, lat, long, notes, description)
+            
+            # If neither folder_id nor folder_name provided, use default folder
+            else:
+                return self.save_property_to_default_folder(user_id, fid, config_city, lat, long, notes)
+                
+        except Exception as e:
+            logger.error(f"Error in unified save property to folder: {str(e)}")
+            if connection:
+                connection.rollback()
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+    
+    def remove_property_from_folder(self, user_id, folder_id, fid, config_city):
+        """Remove property from folder"""
+        connection = None
+        cursor = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor()
+            
+            # Verify folder belongs to user
+            folder_query = "SELECT id FROM property_folders WHERE id = %s AND user_id = %s AND status = 1"
+            cursor.execute(folder_query, (folder_id, user_id))
+            if not cursor.fetchone():
+                return Response.not_found(message='Folder not found')
+            
+            # Remove property from folder
+            delete_query = """
+                DELETE FROM folder_properties 
+                WHERE folder_id = %s AND fid = %s AND config_city = %s
+            """
+            cursor.execute(delete_query, (folder_id, fid, config_city))
+            
+            if cursor.rowcount == 0:
+                return Response.not_found(message='Property not found in folder')
+            
+            connection.commit()
+            
+            return Response.success(message='Property removed from folder successfully')
+            
+        except Exception as e:
+            logger.error(f"Error removing property from folder: {str(e)}")
+            if connection:
+                connection.rollback()
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+    
+    def update_folder(self, user_id, folder_id, name=None, description=None, config_city=None):
+        """Update folder details"""
+        connection = None
+        cursor = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor()
+            
+            # Verify folder belongs to user
+            folder_query = "SELECT id FROM property_folders WHERE id = %s AND user_id = %s AND status = 1"
+            cursor.execute(folder_query, (folder_id, user_id))
+            if not cursor.fetchone():
+                return Response.not_found(message='Folder not found')
+            
+            # Build update query dynamically
+            update_parts = []
+            params = []
+            
+            if name is not None:
+                update_parts.append("name = %s")
+                params.append(name)
+            
+            if description is not None:
+                update_parts.append("description = %s")
+                params.append(description)
+            
+            if not update_parts:
+                return Response.bad_request(message='No fields to update')
+            
+            update_parts.append("updated_at = %s")
+            params.append(datetime.utcnow())
+            params.extend([folder_id, user_id])
+            
+            update_query = f"""
+                UPDATE property_folders 
+                SET {', '.join(update_parts)}
+                WHERE id = %s AND user_id = %s
+            """
+            
+            cursor.execute(update_query, params)
+            connection.commit()
+            
+            return Response.success(message='Folder updated successfully')
+            
+        except Exception as e:
+            logger.error(f"Error updating folder: {str(e)}")
+            if connection:
+                connection.rollback()
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+    
+    def delete_folder(self, user_id, folder_id, config_city):
+        """Soft delete folder and optionally remove city-specific properties"""
+        connection = None
+        cursor = None
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor()
+            
+            # Verify folder belongs to user
+            folder_query = "SELECT id, is_default FROM property_folders WHERE id = %s AND user_id = %s AND status = 1"
+            cursor.execute(folder_query, (folder_id, user_id))
+            folder = cursor.fetchone()
+            
+            if not folder:
+                return Response.not_found(message='Folder not found')
+            
+            if folder[1]:  # is_default
+                return Response.bad_request(message='Cannot delete default folder')
+            
+            # First check if folder has any properties for the specified city
+            check_city_query = "SELECT COUNT(*) FROM folder_properties WHERE folder_id = %s AND config_city = %s"
+            cursor.execute(check_city_query, (folder_id, config_city))
+            city_property_count = cursor.fetchone()[0]
+            
+            # If no properties for this city, return not found
+            if city_property_count == 0:
+                return Response.not_found(message=f'No properties found for {config_city} city in this folder')
+            
+            # Remove properties for specific city
+            delete_properties_query = "DELETE FROM folder_properties WHERE folder_id = %s AND config_city = %s"
+            cursor.execute(delete_properties_query, (folder_id, config_city))
+            
+            # Check if folder has any remaining properties
+            remaining_query = "SELECT COUNT(*) FROM folder_properties WHERE folder_id = %s"
+            cursor.execute(remaining_query, (folder_id,))
+            remaining_count = cursor.fetchone()[0]
+            
+            # If no properties left, soft delete the folder
+            if remaining_count == 0:
+                delete_folder_query = "UPDATE property_folders SET status = 0, updated_at = %s WHERE id = %s AND user_id = %s"
+                cursor.execute(delete_folder_query, (datetime.utcnow(), folder_id, user_id))
+                message = f'Folder and all {config_city} properties deleted successfully'
+            else:
+                message = f'All {config_city} properties removed from folder successfully'
+            
+            connection.commit()
+            
+            return Response.success(message=message)
+            
+        except Exception as e:
+            logger.error(f"Error deleting folder: {str(e)}")
+            if connection:
+                connection.rollback()
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)

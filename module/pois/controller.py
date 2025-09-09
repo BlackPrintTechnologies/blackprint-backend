@@ -1,6 +1,7 @@
 import json
 import logging
 import traceback
+from functools import lru_cache
 from psycopg2.extras import RealDictCursor
 from module.pois.query import POIsQueryController
 from utils.responseUtils import Response
@@ -119,6 +120,7 @@ class POIsController:
                 self.redshift_db.disconnect(connection)
             return resp
 
+    @lru_cache(maxsize=100)
     def get_pois_hierarchy(self, config_city=None):
         """Get POI category hierarchy from places table."""
         connection = None
