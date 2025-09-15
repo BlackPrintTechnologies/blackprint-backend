@@ -505,6 +505,7 @@ class PropertyFolderAPI(Resource):
     create_folder_parser = reqparse.RequestParser()
     create_folder_parser.add_argument('name', type=str, required=True, help='Folder name is required')
     create_folder_parser.add_argument('description', type=str, required=False)
+    create_folder_parser.add_argument('config_city', type=str, required=True, help='City configuration is required')
     
     update_folder_parser = reqparse.RequestParser()
     update_folder_parser.add_argument('name', type=str, required=False)
@@ -541,7 +542,8 @@ class PropertyFolderAPI(Resource):
             result = controller.create_folder(
                 user_id=current_user,
                 name=data['name'],
-                description=data.get('description')
+                description=data.get('description'),
+                config_city=data['config_city']
             )
             return result
         except Exception as e:
