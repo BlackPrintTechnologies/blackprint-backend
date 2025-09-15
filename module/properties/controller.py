@@ -501,97 +501,6 @@ class PropertyController:
                         "city_link": result["city_link"]
                     }
                 if show_all_keys:
-                    # Handle POI data for different cities
-                    if city == 'queretaro' or city == 'el_marques':
-                        pois = {
-                            #add category here for icon image
-                            "category": {
-                                category: IconMapper.get_icon_url(category) 
-                                for category in IconMapper.CATEGORY_ICON_MAP
-                            },
-                            "front" : {
-                                "brands_active_life_front": result.get("brands_active_life_front", None),
-                                "brands_arts_and_entertainment_front": result.get("brands_arts_and_entertainment_front", None),
-                                "brands_attractions_and_activities_front": result.get("brands_attractions_and_activities_front", None),
-                                "brands_automotive_front": result.get("brands_automotive_front", None),
-                                "brands_eat_and_drink_front": result.get("brands_eat_and_drink_front", None),
-                                "brands_education_front": result.get("brands_education_front", None),
-                                "brands_financial_service_front": result.get("brands_financial_service_front", None),
-                                "brands_health_and_medical_front": result.get("brands_health_and_medical_front", None),
-                                "brands_public_service_and_government_front": result.get("brands_public_service_and_government_front", None),
-                                "brands_retail_front": result.get("brands_retail_front", None),
-                            },
-                            "500" : {
-                                "brands_active_life_500m": result.get("brands_active_life_500m", None),
-                                "brands_arts_and_entertainment_500m": result.get("brands_arts_and_entertainment_500m", None),
-                                "brands_attractions_and_activities_500m": result.get("brands_attractions_and_activities_500m", None),
-                                "brands_automotive_500m": result.get("brands_automotive_500m", None),
-                                "brands_eat_and_drink_500m": result.get("brands_eat_and_drink_500m", None),
-                                "brands_education_500m": result.get("brands_education_500m", None),
-                                "brands_financial_service_500m": result.get("brands_financial_service_500m", None),
-                                "brands_health_and_medical_500m": result.get("brands_health_and_medical_500m", None),
-                                "brands_public_service_and_government_500m": result.get("brands_public_service_and_government_500m", None),
-                                "brands_retail_500m": result.get("brands_retail_500m", None),
-                            },
-                            "1000" : {
-                                "brands_active_life_1km": result.get("brands_active_life_1km", None),
-                                "brands_arts_and_entertainment_1km": result.get("brands_arts_and_entertainment_1km", None),
-                                "brands_attractions_and_activities_1km": result.get("brands_attractions_and_activities_1km", None),
-                                "brands_automotive_1km": result.get("brands_automotive_1km", None),
-                                "brands_eat_and_drink_1km": result.get("brands_eat_and_drink_1km", None),
-                                "brands_education_1km": result.get("brands_education_1km", None),
-                                "brands_financial_service_1km": result.get("brands_financial_service_1km", None),
-                                "brands_health_and_medical_1km": result.get("brands_health_and_medical_1km", None),
-                                "brands_public_service_and_government_1km": result.get("brands_public_service_and_government_1km", None),
-                                "brands_retail_1km": result.get("brands_retail_1km", None)
-                            },  
-                        }
-                    else:
-                        # CDMX structure (original)
-                        pois = {
-                            #add category here for icon image
-                            "category": {
-                                category: IconMapper.get_icon_url(category) 
-                                for category in IconMapper.CATEGORY_ICON_MAP
-                            },
-                            "front" : {
-                                "brands_active_life_front": result["brands_active_life_front"],
-                                "brands_arts_and_entertainment_front": result["brands_arts_and_entertainment_front"],
-                                "brands_attractions_and_activities_front": result["brands_attractions_and_activities_front"],
-                                "brands_automotive_front": result["brands_automotive_front"],
-                                "brands_eat_and_drink_front": result["brands_eat_and_drink_front"],
-                                "brands_education_front": result["brands_education_front"],
-                                "brands_financial_service_front": result["brands_financial_service_front"],
-                                "brands_health_and_medical_front": result["brands_health_and_medical_front"],
-                                "brands_public_service_and_government_front": result["brands_public_service_and_government_front"],
-                                "brands_retail_front": result["brands_retail_front"],
-                            },
-                            "500" : {
-                                "brands_active_life_500m": result["brands_active_life_500m"],
-                                "brands_arts_and_entertainment_500m": result["brands_arts_and_entertainment_500m"],
-                                "brands_attractions_and_activities_500m": result["brands_attractions_and_activities_500m"],
-                                "brands_automotive_500m": result["brands_automotive_500m"],
-                                "brands_eat_and_drink_500m": result["brands_eat_and_drink_500m"],
-                                "brands_education_500m": result["brands_education_500m"],
-                                "brands_financial_service_500m": result["brands_financial_service_500m"],
-                                "brands_health_and_medical_500m": result["brands_health_and_medical_500m"],
-                                "brands_public_service_and_government_500m": result["brands_public_service_and_government_500m"],
-                                "brands_retail_500m": result["brands_retail_500m"],
-                            },
-                            "1000" : {
-                                "brands_active_life_1km": result["brands_active_life_1km"],
-                                "brands_arts_and_entertainment_1km": result["brands_arts_and_entertainment_1km"],
-                                "brands_attractions_and_activities_1km": result["brands_attractions_and_activities_1km"],
-                                "brands_automotive_1km": result["brands_automotive_1km"],
-                                "brands_eat_and_drink_1km": result["brands_eat_and_drink_1km"],
-                                "brands_education_1km": result["brands_education_1km"],
-                                "brands_financial_service_1km": result["brands_financial_service_1km"],
-                                "brands_health_and_medical_1km": result["brands_health_and_medical_1km"],
-                                "brands_public_service_and_government_1km": result["brands_public_service_and_government_1km"],
-                                "brands_retail_1km": result["brands_retail_1km"]
-                            },  
-                        }
-                if show_all_keys:
                     # Handle traffic data for different cities
                     if city == 'queretaro' or city == 'el_marques':
                         traffic = {
@@ -1175,7 +1084,6 @@ class PropertyController:
                     resp.append( {
                                 "property_details": property_details,
                                 "market_info": market_info,
-                                "pois": pois,
                                 "traffic": traffic
                             })
                 else:
