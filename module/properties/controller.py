@@ -2552,7 +2552,7 @@ class PropertyFolderController:
         """Create new folder and save property to it"""
         try:
             # First create the folder
-            folder_result, status_code = self.create_folder(user_id, folder_name, description)
+            folder_result, status_code = self.create_folder(user_id, folder_name, description, config_city)
             if status_code != 200:
                 return folder_result, status_code
             
