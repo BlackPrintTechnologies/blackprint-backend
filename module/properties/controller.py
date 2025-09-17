@@ -55,10 +55,10 @@ class UserPropertyController:
             fid_col = "fid" if config_city == 'mexico' else "id_stg_demographic_socioeconomic_qro"
             fid_filter = f"WHERE {fid_col} IN ({','.join(fids)})"
             
-            # Get full property details from Redshift using existing query controller
+            # Get full property details from Redshift using combined query controller
             redshift_connection = self.redshift_connection.connect()
             redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-            property_query = self.qc.get_property_query(fid_filter, city=config_city, include_market_join=False)
+            property_query = self.qc.get_property_with_market_data_query(fid_filter, city=config_city, show_all_keys=False)
             logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
             redshift_cursor.execute(property_query)
             property_results = redshift_cursor.fetchall()
@@ -500,6 +500,29 @@ class PropertyController:
                         "locality_size": result["locality_size"],
                         "city_link": result["city_link"]
                     }
+                
+                # Create separate market_data section with data from dim_market_data_combined
+                market_data = {
+                    "id_market_data": result.get("id_market_data", None),
+                    "source": result.get("source", None),
+                    "state": result.get("state", None),
+                    "title": result.get("title", None),
+                    "rent_price_clean": result.get("rent_price_clean", None),
+                    "rent_price_per_m2": result.get("rent_price_per_m2", None),
+                    "buy_price_clean": result.get("buy_price_clean", None),
+                    "buy_price_per_m2": result.get("buy_price_per_m2", None),
+                    "publication_date": result.get("publication_date", None),
+                    "total_area_clean": result.get("total_area_clean", None),
+                    "latitude": result.get("latitude", None),
+                    "longitude": result.get("longitude", None),
+                    "pictures": result.get("pictures", None),
+                    "property_type": result.get("property_type", None),
+                    "operation_type": result.get("operation_type", None),
+                    "city": result.get("market_city", None),
+                    "url": result.get("url", None),
+                    "geometry_coords": result.get("geometry_coords", None)
+                }
+                
                 if show_all_keys:
                     # Handle traffic data for different cities
                     if city == 'queretaro' or city == 'el_marques':
@@ -1084,12 +1107,14 @@ class PropertyController:
                     resp.append( {
                                 "property_details": property_details,
                                 "market_info": market_info,
+                                "market_data": market_data,
                                 "traffic": traffic
                             })
                 else:
                     resp.append({
                         "property_details": property_details,
                         "market_info": market_info,
+                        "market_data": market_data,
                         "traffic": traffic
                     })
             return resp
@@ -1135,7 +1160,7 @@ class PropertyController:
                 logger.warning("Invalid request: Missing fid or lat/lng")
                 return Response.bad_request(message="Invalid request")
 
-            query = self.qc.get_property_query(filter_query, city=city, include_market_join=False)
+            query = self.qc.get_property_with_market_data_query(filter_query, city=city, show_all_keys=True)
             logger.info(f"[get_properties] Executing query for city={city}: ")
 
             def fetch_property_details():
@@ -2079,7 +2104,7 @@ class PropertyController:
                 filter_query += f" AND v.id_stg_demographic_socioeconomic_qro IN ({staging_ids_str})"
                 logger.info(f"[COMBINED FILTER] Applied combined staging ID filter: {staging_ids_str}")
             
-            query = self.qc.get_property_query(filter_query, city=city, include_market_join=(city == 'queretaro' or city == 'el_marques'))
+            query = self.qc.get_property_with_market_data_query(filter_query, city=city, show_all_keys=True)
             query = query + " limit 15"
             # Log the generated query for debugging
             logger.info(f"[FILTER QUERY] Generated SQL for city {city}: {query}")
