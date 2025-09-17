@@ -281,7 +281,45 @@ class PropertyController:
         resp = []
         try:
             logger.info("Processing property JSON for %d results with city=%s", len(results), city)
+            
+            # Group results by fid to handle multiple market data entries
+            grouped_results = {}
             for result in results:
+                fid = result["fid"]
+                if fid not in grouped_results:
+                    grouped_results[fid] = {
+                        'property_data': result,
+                        'market_data_entries': []
+                    }
+                
+                # Collect market data entries (only if they have market data)
+                if result.get("id_market_data") is not None:
+                    market_data_entry = {
+                        "id_market_data": result.get("id_market_data", None),
+                        "source": result.get("source", None),
+                        "state": result.get("state", None),
+                        "title": result.get("title", None),
+                        "rent_price_clean": result.get("rent_price_clean", None),
+                        "rent_price_per_m2": result.get("rent_price_per_m2", None),
+                        "buy_price_clean": result.get("buy_price_clean", None),
+                        "buy_price_per_m2": result.get("buy_price_per_m2", None),
+                        "publication_date": result.get("publication_date", None),
+                        "total_area_clean": result.get("total_area_clean", None),
+                        "latitude": result.get("latitude", None),
+                        "longitude": result.get("longitude", None),
+                        "pictures": result.get("pictures", None),
+                        "property_type": result.get("property_type", None),
+                        "operation_type": result.get("operation_type", None),
+                        "city": result.get("market_city", None),
+                        "url": result.get("url", None),
+                        "geometry_coords": result.get("geometry_coords", None)
+                    }
+                    grouped_results[fid]['market_data_entries'].append(market_data_entry)
+            
+            # Process each grouped result
+            for fid, group_data in grouped_results.items():
+                result = group_data['property_data']
+                market_data_entries = group_data['market_data_entries']
                 traffic = {}  # Always initialize traffic to an empty dict
                 # Handle different column structures for CDMX vs QRO
                 if city == 'queretaro' or city == 'el_marques':
@@ -501,27 +539,27 @@ class PropertyController:
                         "city_link": result["city_link"]
                     }
                 
-                # Create separate market_data section with data from dim_market_data_combined
-                market_data = {
-                    "id_market_data": result.get("id_market_data", None),
-                    "source": result.get("source", None),
-                    "state": result.get("state", None),
-                    "title": result.get("title", None),
-                    "rent_price_clean": result.get("rent_price_clean", None),
-                    "rent_price_per_m2": result.get("rent_price_per_m2", None),
-                    "buy_price_clean": result.get("buy_price_clean", None),
-                    "buy_price_per_m2": result.get("buy_price_per_m2", None),
-                    "publication_date": result.get("publication_date", None),
-                    "total_area_clean": result.get("total_area_clean", None),
-                    "latitude": result.get("latitude", None),
-                    "longitude": result.get("longitude", None),
-                    "pictures": result.get("pictures", None),
-                    "property_type": result.get("property_type", None),
-                    "operation_type": result.get("operation_type", None),
-                    "city": result.get("market_city", None),
-                    "url": result.get("url", None),
-                    "geometry_coords": result.get("geometry_coords", None)
-                }
+                # Use collected market data entries (array of all market data for this property)
+                market_data = market_data_entries if market_data_entries else [{
+                    "id_market_data": None,
+                    "source": None,
+                    "state": None,
+                    "title": None,
+                    "rent_price_clean": None,
+                    "rent_price_per_m2": None,
+                    "buy_price_clean": None,
+                    "buy_price_per_m2": None,
+                    "publication_date": None,
+                    "total_area_clean": None,
+                    "latitude": None,
+                    "longitude": None,
+                    "pictures": None,
+                    "property_type": None,
+                    "operation_type": None,
+                    "city": None,
+                    "url": None,
+                    "geometry_coords": None
+                }]
                 
                 if show_all_keys:
                     # Handle traffic data for different cities
