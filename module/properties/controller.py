@@ -55,10 +55,10 @@ class UserPropertyController:
             fid_col = "fid" if config_city == 'mexico' else "id_stg_demographic_socioeconomic_qro"
             fid_filter = f"WHERE {fid_col} IN ({','.join(fids)})"
             
-            # Get full property details from Redshift using existing query controller
+            # Get full property details from Redshift using combined query controller
             redshift_connection = self.redshift_connection.connect()
             redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-            property_query = self.qc.get_property_query(fid_filter, city=config_city, include_market_join=False)
+            property_query = self.qc.get_property_with_market_data_query(fid_filter, city=config_city, show_all_keys=False)
             logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
             redshift_cursor.execute(property_query)
             property_results = redshift_cursor.fetchall()
@@ -281,7 +281,45 @@ class PropertyController:
         resp = []
         try:
             logger.info("Processing property JSON for %d results with city=%s", len(results), city)
+            
+            # Group results by fid to handle multiple market data entries
+            grouped_results = {}
             for result in results:
+                fid = result["fid"]
+                if fid not in grouped_results:
+                    grouped_results[fid] = {
+                        'property_data': result,
+                        'market_data_entries': []
+                    }
+                
+                # Collect market data entries (only if they have market data)
+                if result.get("id_market_data") is not None:
+                    market_data_entry = {
+                        "id_market_data": result.get("id_market_data", None),
+                        "source": result.get("source", None),
+                        "state": result.get("state", None),
+                        "title": result.get("title", None),
+                        "rent_price_clean": result.get("rent_price_clean", None),
+                        "rent_price_per_m2": result.get("rent_price_per_m2", None),
+                        "buy_price_clean": result.get("buy_price_clean", None),
+                        "buy_price_per_m2": result.get("buy_price_per_m2", None),
+                        "publication_date": result.get("publication_date", None),
+                        "total_area_clean": result.get("total_area_clean", None),
+                        "latitude": result.get("latitude", None),
+                        "longitude": result.get("longitude", None),
+                        "pictures": result.get("pictures", None),
+                        "property_type": result.get("property_type", None),
+                        "operation_type": result.get("operation_type", None),
+                        "city": result.get("market_city", None),
+                        "url": result.get("url", None),
+                        "geometry_coords": result.get("geometry_coords", None)
+                    }
+                    grouped_results[fid]['market_data_entries'].append(market_data_entry)
+            
+            # Process each grouped result
+            for fid, group_data in grouped_results.items():
+                result = group_data['property_data']
+                market_data_entries = group_data['market_data_entries']
                 traffic = {}  # Always initialize traffic to an empty dict
                 # Handle different column structures for CDMX vs QRO
                 if city == 'queretaro' or city == 'el_marques':
@@ -500,97 +538,29 @@ class PropertyController:
                         "locality_size": result["locality_size"],
                         "city_link": result["city_link"]
                     }
-                if show_all_keys:
-                    # Handle POI data for different cities
-                    if city == 'queretaro' or city == 'el_marques':
-                        pois = {
-                            #add category here for icon image
-                            "category": {
-                                category: IconMapper.get_icon_url(category) 
-                                for category in IconMapper.CATEGORY_ICON_MAP
-                            },
-                            "front" : {
-                                "brands_active_life_front": result.get("brands_active_life_front", None),
-                                "brands_arts_and_entertainment_front": result.get("brands_arts_and_entertainment_front", None),
-                                "brands_attractions_and_activities_front": result.get("brands_attractions_and_activities_front", None),
-                                "brands_automotive_front": result.get("brands_automotive_front", None),
-                                "brands_eat_and_drink_front": result.get("brands_eat_and_drink_front", None),
-                                "brands_education_front": result.get("brands_education_front", None),
-                                "brands_financial_service_front": result.get("brands_financial_service_front", None),
-                                "brands_health_and_medical_front": result.get("brands_health_and_medical_front", None),
-                                "brands_public_service_and_government_front": result.get("brands_public_service_and_government_front", None),
-                                "brands_retail_front": result.get("brands_retail_front", None),
-                            },
-                            "500" : {
-                                "brands_active_life_500m": result.get("brands_active_life_500m", None),
-                                "brands_arts_and_entertainment_500m": result.get("brands_arts_and_entertainment_500m", None),
-                                "brands_attractions_and_activities_500m": result.get("brands_attractions_and_activities_500m", None),
-                                "brands_automotive_500m": result.get("brands_automotive_500m", None),
-                                "brands_eat_and_drink_500m": result.get("brands_eat_and_drink_500m", None),
-                                "brands_education_500m": result.get("brands_education_500m", None),
-                                "brands_financial_service_500m": result.get("brands_financial_service_500m", None),
-                                "brands_health_and_medical_500m": result.get("brands_health_and_medical_500m", None),
-                                "brands_public_service_and_government_500m": result.get("brands_public_service_and_government_500m", None),
-                                "brands_retail_500m": result.get("brands_retail_500m", None),
-                            },
-                            "1000" : {
-                                "brands_active_life_1km": result.get("brands_active_life_1km", None),
-                                "brands_arts_and_entertainment_1km": result.get("brands_arts_and_entertainment_1km", None),
-                                "brands_attractions_and_activities_1km": result.get("brands_attractions_and_activities_1km", None),
-                                "brands_automotive_1km": result.get("brands_automotive_1km", None),
-                                "brands_eat_and_drink_1km": result.get("brands_eat_and_drink_1km", None),
-                                "brands_education_1km": result.get("brands_education_1km", None),
-                                "brands_financial_service_1km": result.get("brands_financial_service_1km", None),
-                                "brands_health_and_medical_1km": result.get("brands_health_and_medical_1km", None),
-                                "brands_public_service_and_government_1km": result.get("brands_public_service_and_government_1km", None),
-                                "brands_retail_1km": result.get("brands_retail_1km", None)
-                            },  
-                        }
-                    else:
-                        # CDMX structure (original)
-                        pois = {
-                            #add category here for icon image
-                            "category": {
-                                category: IconMapper.get_icon_url(category) 
-                                for category in IconMapper.CATEGORY_ICON_MAP
-                            },
-                            "front" : {
-                                "brands_active_life_front": result["brands_active_life_front"],
-                                "brands_arts_and_entertainment_front": result["brands_arts_and_entertainment_front"],
-                                "brands_attractions_and_activities_front": result["brands_attractions_and_activities_front"],
-                                "brands_automotive_front": result["brands_automotive_front"],
-                                "brands_eat_and_drink_front": result["brands_eat_and_drink_front"],
-                                "brands_education_front": result["brands_education_front"],
-                                "brands_financial_service_front": result["brands_financial_service_front"],
-                                "brands_health_and_medical_front": result["brands_health_and_medical_front"],
-                                "brands_public_service_and_government_front": result["brands_public_service_and_government_front"],
-                                "brands_retail_front": result["brands_retail_front"],
-                            },
-                            "500" : {
-                                "brands_active_life_500m": result["brands_active_life_500m"],
-                                "brands_arts_and_entertainment_500m": result["brands_arts_and_entertainment_500m"],
-                                "brands_attractions_and_activities_500m": result["brands_attractions_and_activities_500m"],
-                                "brands_automotive_500m": result["brands_automotive_500m"],
-                                "brands_eat_and_drink_500m": result["brands_eat_and_drink_500m"],
-                                "brands_education_500m": result["brands_education_500m"],
-                                "brands_financial_service_500m": result["brands_financial_service_500m"],
-                                "brands_health_and_medical_500m": result["brands_health_and_medical_500m"],
-                                "brands_public_service_and_government_500m": result["brands_public_service_and_government_500m"],
-                                "brands_retail_500m": result["brands_retail_500m"],
-                            },
-                            "1000" : {
-                                "brands_active_life_1km": result["brands_active_life_1km"],
-                                "brands_arts_and_entertainment_1km": result["brands_arts_and_entertainment_1km"],
-                                "brands_attractions_and_activities_1km": result["brands_attractions_and_activities_1km"],
-                                "brands_automotive_1km": result["brands_automotive_1km"],
-                                "brands_eat_and_drink_1km": result["brands_eat_and_drink_1km"],
-                                "brands_education_1km": result["brands_education_1km"],
-                                "brands_financial_service_1km": result["brands_financial_service_1km"],
-                                "brands_health_and_medical_1km": result["brands_health_and_medical_1km"],
-                                "brands_public_service_and_government_1km": result["brands_public_service_and_government_1km"],
-                                "brands_retail_1km": result["brands_retail_1km"]
-                            },  
-                        }
+                
+                # Use collected market data entries (array of all market data for this property)
+                market_data = market_data_entries if market_data_entries else [{
+                    "id_market_data": None,
+                    "source": None,
+                    "state": None,
+                    "title": None,
+                    "rent_price_clean": None,
+                    "rent_price_per_m2": None,
+                    "buy_price_clean": None,
+                    "buy_price_per_m2": None,
+                    "publication_date": None,
+                    "total_area_clean": None,
+                    "latitude": None,
+                    "longitude": None,
+                    "pictures": None,
+                    "property_type": None,
+                    "operation_type": None,
+                    "city": None,
+                    "url": None,
+                    "geometry_coords": None
+                }]
+                
                 if show_all_keys:
                     # Handle traffic data for different cities
                     if city == 'queretaro' or city == 'el_marques':
@@ -1175,13 +1145,14 @@ class PropertyController:
                     resp.append( {
                                 "property_details": property_details,
                                 "market_info": market_info,
-                                "pois": pois,
+                                "market_data": market_data,
                                 "traffic": traffic
                             })
                 else:
                     resp.append({
                         "property_details": property_details,
                         "market_info": market_info,
+                        "market_data": market_data,
                         "traffic": traffic
                     })
             return resp
@@ -1227,7 +1198,7 @@ class PropertyController:
                 logger.warning("Invalid request: Missing fid or lat/lng")
                 return Response.bad_request(message="Invalid request")
 
-            query = self.qc.get_property_query(filter_query, city=city, include_market_join=False)
+            query = self.qc.get_property_with_market_data_query(filter_query, city=city, show_all_keys=True)
             logger.info(f"[get_properties] Executing query for city={city}: ")
 
             def fetch_property_details():
@@ -2171,7 +2142,7 @@ class PropertyController:
                 filter_query += f" AND v.id_stg_demographic_socioeconomic_qro IN ({staging_ids_str})"
                 logger.info(f"[COMBINED FILTER] Applied combined staging ID filter: {staging_ids_str}")
             
-            query = self.qc.get_property_query(filter_query, city=city, include_market_join=(city == 'queretaro' or city == 'el_marques'))
+            query = self.qc.get_property_with_market_data_query(filter_query, city=city, show_all_keys=True)
             query = query + " limit 15"
             # Log the generated query for debugging
             logger.info(f"[FILTER QUERY] Generated SQL for city {city}: {query}")
@@ -2321,7 +2292,7 @@ class PropertyFolderController:
         self.db = Database()
     
     def get_user_folders(self, user_id, config_city):
-        """Get all folders for a user, optionally filtered by city"""
+        """Get all folders for a user, filtered by city"""
         connection = None
         cursor = None
         try:
@@ -2329,15 +2300,15 @@ class PropertyFolderController:
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
             query = """
-                SELECT pf.id, pf.name, pf.description, pf.is_default, pf.created_at, pf.updated_at,
+                SELECT pf.id, pf.name, pf.description, pf.config_city, pf.created_at, pf.updated_at,
                        COUNT(fp.id) as property_count
-                FROM property_folders pf
-                INNER JOIN folder_properties fp ON pf.id = fp.folder_id AND fp.config_city = %s
-                WHERE pf.user_id = %s AND pf.status = 1
-                GROUP BY pf.id, pf.name, pf.description, pf.is_default, pf.created_at, pf.updated_at
-                ORDER BY pf.is_default DESC, pf.created_at DESC
+                FROM bp_portfolio_file pf
+                LEFT JOIN bp_file_map fp ON pf.id = fp.folder_id AND fp.config_city = %s
+                WHERE pf.user_id = %s AND pf.config_city = %s
+                GROUP BY pf.id, pf.name, pf.description, pf.config_city, pf.created_at, pf.updated_at
+                ORDER BY pf.created_at DESC
             """
-            cursor.execute(query, (config_city, user_id))
+            cursor.execute(query, (config_city, user_id, config_city))
             
             folders = cursor.fetchall()
             
@@ -2360,27 +2331,27 @@ class PropertyFolderController:
             if connection:
                 self.db.disconnect(connection)
     
-    def create_folder(self, user_id, name, description=None):
-        """Create a new folder for a user"""
+    def create_folder(self, user_id, name, description=None, config_city='mexico'):
+        """Create a new folder for a user in a specific city"""
         connection = None
         cursor = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor()
             
-            # Check if folder name already exists for this user
-            check_query = "SELECT id FROM property_folders WHERE user_id = %s AND name = %s AND status = 1"
-            cursor.execute(check_query, (user_id, name))
+            # Check if folder name already exists for this user in this city
+            check_query = "SELECT id FROM bp_portfolio_file WHERE user_id = %s AND name = %s AND config_city = %s"
+            cursor.execute(check_query, (user_id, name, config_city))
             if cursor.fetchone():
-                return Response.bad_request(message='Folder with this name already exists')
+                return Response.bad_request(message=f'Folder with this name already exists in {config_city}')
             
             # Create the folder
             insert_query = """
-                INSERT INTO property_folders (user_id, name, description, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO bp_portfolio_file (user_id, name, description, config_city, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
             """
-            cursor.execute(insert_query, (user_id, name, description, datetime.utcnow(), datetime.utcnow()))
+            cursor.execute(insert_query, (user_id, name, description, config_city, datetime.utcnow(), datetime.utcnow()))
             folder_id = cursor.fetchone()[0]
             
             connection.commit()
@@ -2390,7 +2361,7 @@ class PropertyFolderController:
                     'folder_id': folder_id, 
                     'name': name,
                     'description': description,
-                    'is_default': False,
+                    'config_city': config_city,
                     'created_at': datetime.utcnow().isoformat()
                 },
                 message='Folder created successfully'
@@ -2417,9 +2388,9 @@ class PropertyFolderController:
             
             # Get folder info
             folder_query = """
-                SELECT id, name, description, is_default, created_at, updated_at
-                FROM property_folders
-                WHERE id = %s AND user_id = %s AND status = 1
+                SELECT id, name, description, created_at, updated_at
+                FROM bp_portfolio_file
+                WHERE id = %s AND user_id = %s
             """
             cursor.execute(folder_query, (folder_id, user_id))
             folder = cursor.fetchone()
@@ -2429,7 +2400,7 @@ class PropertyFolderController:
             
             # Check if folder has any properties for the specified city
             city_check_query = """
-                SELECT COUNT(*) FROM folder_properties 
+                SELECT COUNT(*) FROM bp_file_map 
                 WHERE folder_id = %s AND config_city = %s
             """
             cursor.execute(city_check_query, (folder_id, config_city))
@@ -2442,7 +2413,7 @@ class PropertyFolderController:
             # Get properties for the specific city
             properties_query = """
                 SELECT fp.fid, fp.config_city, fp.lat, fp.long, fp.added_at, fp.notes
-                FROM folder_properties fp
+                FROM bp_file_map fp
                 WHERE fp.folder_id = %s AND fp.config_city = %s
                 ORDER BY fp.added_at DESC
             """
@@ -2476,19 +2447,19 @@ class PropertyFolderController:
             cursor = connection.cursor()
             
             # Verify folder belongs to user
-            folder_query = "SELECT id FROM property_folders WHERE id = %s AND user_id = %s AND status = 1"
+            folder_query = "SELECT id FROM bp_portfolio_file WHERE id = %s AND user_id = %s"
             cursor.execute(folder_query, (folder_id, user_id))
             if not cursor.fetchone():
                 return Response.not_found(message='Folder not found')
             
             # Check if property already exists in folder
-            check_query = "SELECT id FROM folder_properties WHERE folder_id = %s AND fid = %s AND config_city = %s"
+            check_query = "SELECT id FROM bp_file_map WHERE folder_id = %s AND fid = %s AND config_city = %s"
             cursor.execute(check_query, (folder_id, fid, config_city))
             if cursor.fetchone():
                 # Get folder information for response
                 folder_info_query = """
-                    SELECT id, name, description, is_default
-                    FROM property_folders
+                    SELECT id, name, description
+                    FROM bp_portfolio_file
                     WHERE id = %s
                 """
                 cursor.execute(folder_info_query, (folder_id,))
@@ -2508,15 +2479,15 @@ class PropertyFolderController:
             
             # Add property to folder
             insert_query = """
-                INSERT INTO folder_properties (folder_id, fid, config_city, lat, long, notes, added_at)
+                INSERT INTO bp_file_map (folder_id, fid, config_city, lat, long, notes, added_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(insert_query, (folder_id, fid, config_city, lat, long, notes, datetime.utcnow()))
             
             # Get folder information for response
             folder_info_query = """
-                SELECT id, name, description, is_default
-                FROM property_folders
+                SELECT id, name, description
+                FROM bp_portfolio_file
                 WHERE id = %s
             """
             cursor.execute(folder_info_query, (folder_id,))
@@ -2529,7 +2500,6 @@ class PropertyFolderController:
                     'folder_id': folder_id,
                     'folder_name': folder_info[1],
                     'folder_description': folder_info[2],
-                    'is_default': folder_info[3],
                     'fid': fid,
                     'config_city': config_city,
                     'lat': lat,
@@ -2553,7 +2523,7 @@ class PropertyFolderController:
         """Create new folder and save property to it"""
         try:
             # First create the folder
-            folder_result, status_code = self.create_folder(user_id, folder_name, description)
+            folder_result, status_code = self.create_folder(user_id, folder_name, description, config_city)
             if status_code != 200:
                 return folder_result, status_code
             
@@ -2568,46 +2538,36 @@ class PropertyFolderController:
     
     def save_property_to_default_folder(self, user_id, fid, config_city, lat=None, long=None, notes=None):
         """Save property to default "Liked" folder, create if doesn't exist"""
-        connection = None
-        cursor = None
         try:
-            connection = self.db.connect()
-            cursor = connection.cursor()
+            # Try to create a "Liked" folder for this user and city
+            folder_result = self.create_folder(user_id, 'Liked', 'Default folder for liked properties', config_city)
             
-            # Check if default folder exists
-            folder_query = "SELECT id FROM property_folders WHERE user_id = %s AND is_default = true AND status = 1"
-            cursor.execute(folder_query, (user_id,))
-            folder = cursor.fetchone()
-            
-            if folder:
-                folder_id = folder[0]
+            if folder_result.status_code == 200:
+                # Folder created successfully, get the folder_id
+                folder_id = folder_result.data['folder_id']
+                return self.save_property_to_folder(user_id, folder_id, fid, config_city, lat, long, notes)
+            elif 'already exists' in folder_result.message:
+                # Folder already exists, find it and save property
+                connection = self.db.connect()
+                cursor = connection.cursor()
+                try:
+                    folder_query = "SELECT id FROM bp_portfolio_file WHERE user_id = %s AND name = %s AND config_city = %s"
+                    cursor.execute(folder_query, (user_id, 'Liked', config_city))
+                    folder = cursor.fetchone()
+                    if folder:
+                        folder_id = folder[0]
+                        return self.save_property_to_folder(user_id, folder_id, fid, config_city, lat, long, notes)
+                    else:
+                        return Response.not_found(message='Default folder not found')
+                finally:
+                    cursor.close()
+                    self.db.disconnect(connection)
             else:
-                # Create default folder
-                insert_query = """
-                    INSERT INTO property_folders (user_id, name, description, is_default, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                """
-                cursor.execute(insert_query, (
-                    user_id, 'Liked', 'Default folder for liked properties', 
-                    True, datetime.utcnow(), datetime.utcnow()
-                ))
-                folder_id = cursor.fetchone()[0]
-                connection.commit()
-            
-            # Save property to default folder
-            return self.save_property_to_folder(user_id, folder_id, fid, config_city, lat, long, notes)
-            
+                return folder_result
+                
         except Exception as e:
             logger.error(f"Error saving property to default folder: {str(e)}")
-            if connection:
-                connection.rollback()
-            raise
-        finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                self.db.disconnect(connection)
+            return Response.internal_server_error(message='Failed to save property to default folder')
     
     def save_property_to_folder_unified(self, user_id, fid, config_city, folder_name=None, folder_id=None, lat=None, long=None, notes=None, description=None):
         """Unified method to save property to folder - create new folder or use existing"""
@@ -2620,7 +2580,7 @@ class PropertyFolderController:
             # If folder_id is provided, use existing folder
             if folder_id:
                 # Verify folder belongs to user
-                folder_query = "SELECT id FROM property_folders WHERE id = %s AND user_id = %s AND status = 1"
+                folder_query = "SELECT id FROM bp_portfolio_file WHERE id = %s AND user_id = %s"
                 cursor.execute(folder_query, (folder_id, user_id))
                 if not cursor.fetchone():
                     return Response.not_found(message='Folder not found')
@@ -2630,9 +2590,9 @@ class PropertyFolderController:
             
             # If folder_name is provided, find or create folder
             elif folder_name:
-                # Check if folder with this name already exists for this user
-                check_query = "SELECT id FROM property_folders WHERE user_id = %s AND name = %s AND status = 1"
-                cursor.execute(check_query, (user_id, folder_name))
+                # Check if folder with this name already exists for this user in this city
+                check_query = "SELECT id FROM bp_portfolio_file WHERE user_id = %s AND name = %s AND config_city = %s"
+                cursor.execute(check_query, (user_id, folder_name, config_city))
                 existing_folder = cursor.fetchone()
                 
                 if existing_folder:
@@ -2667,14 +2627,14 @@ class PropertyFolderController:
             cursor = connection.cursor()
             
             # Verify folder belongs to user
-            folder_query = "SELECT id FROM property_folders WHERE id = %s AND user_id = %s AND status = 1"
+            folder_query = "SELECT id FROM bp_portfolio_file WHERE id = %s AND user_id = %s"
             cursor.execute(folder_query, (folder_id, user_id))
             if not cursor.fetchone():
                 return Response.not_found(message='Folder not found')
             
             # Remove property from folder
             delete_query = """
-                DELETE FROM folder_properties 
+                DELETE FROM bp_file_map 
                 WHERE folder_id = %s AND fid = %s AND config_city = %s
             """
             cursor.execute(delete_query, (folder_id, fid, config_city))
@@ -2706,10 +2666,21 @@ class PropertyFolderController:
             cursor = connection.cursor()
             
             # Verify folder belongs to user
-            folder_query = "SELECT id FROM property_folders WHERE id = %s AND user_id = %s AND status = 1"
+            folder_query = "SELECT id, config_city FROM bp_portfolio_file WHERE id = %s AND user_id = %s"
             cursor.execute(folder_query, (folder_id, user_id))
-            if not cursor.fetchone():
+            folder = cursor.fetchone()
+            if not folder:
                 return Response.not_found(message='Folder not found')
+            
+            current_city = folder[1]
+            target_city = config_city or current_city
+            
+            # If name is being updated, check for conflicts in the target city
+            if name is not None:
+                check_query = "SELECT id FROM bp_portfolio_file WHERE user_id = %s AND name = %s AND config_city = %s AND id != %s"
+                cursor.execute(check_query, (user_id, name, target_city, folder_id))
+                if cursor.fetchone():
+                    return Response.bad_request(message=f'Folder with this name already exists in {target_city}')
             
             # Build update query dynamically
             update_parts = []
@@ -2723,6 +2694,10 @@ class PropertyFolderController:
                 update_parts.append("description = %s")
                 params.append(description)
             
+            if config_city is not None and config_city != current_city:
+                update_parts.append("config_city = %s")
+                params.append(config_city)
+            
             if not update_parts:
                 return Response.bad_request(message='No fields to update')
             
@@ -2731,7 +2706,7 @@ class PropertyFolderController:
             params.extend([folder_id, user_id])
             
             update_query = f"""
-                UPDATE property_folders 
+                UPDATE bp_portfolio_file 
                 SET {', '.join(update_parts)}
                 WHERE id = %s AND user_id = %s
             """
@@ -2753,47 +2728,40 @@ class PropertyFolderController:
                 self.db.disconnect(connection)
     
     def delete_folder(self, user_id, folder_id, config_city):
-        """Soft delete folder and optionally remove city-specific properties"""
+        """Permanently delete folder and all its properties for a specific city"""
         connection = None
         cursor = None
         try:
             connection = self.db.connect()
             cursor = connection.cursor()
             
-            # Verify folder belongs to user
-            folder_query = "SELECT id, is_default FROM property_folders WHERE id = %s AND user_id = %s AND status = 1"
-            cursor.execute(folder_query, (folder_id, user_id))
+            # Verify folder belongs to user and is in the specified city
+            folder_query = "SELECT id, config_city FROM bp_portfolio_file WHERE id = %s AND user_id = %s AND config_city = %s"
+            cursor.execute(folder_query, (folder_id, user_id, config_city))
             folder = cursor.fetchone()
             
             if not folder:
-                return Response.not_found(message='Folder not found')
-            
-            if folder[1]:  # is_default
-                return Response.bad_request(message='Cannot delete default folder')
+                return Response.not_found(message='Folder not found in this city')
             
             # First check if folder has any properties for the specified city
-            check_city_query = "SELECT COUNT(*) FROM folder_properties WHERE folder_id = %s AND config_city = %s"
+            check_city_query = "SELECT COUNT(*) FROM bp_file_map WHERE folder_id = %s AND config_city = %s"
             cursor.execute(check_city_query, (folder_id, config_city))
             city_property_count = cursor.fetchone()[0]
             
-            # If no properties for this city, return not found
-            if city_property_count == 0:
-                return Response.not_found(message=f'No properties found for {config_city} city in this folder')
-            
             # Remove properties for specific city
-            delete_properties_query = "DELETE FROM folder_properties WHERE folder_id = %s AND config_city = %s"
+            delete_properties_query = "DELETE FROM bp_file_map WHERE folder_id = %s AND config_city = %s"
             cursor.execute(delete_properties_query, (folder_id, config_city))
             
-            # Check if folder has any remaining properties
-            remaining_query = "SELECT COUNT(*) FROM folder_properties WHERE folder_id = %s"
+            # Check if folder has any remaining properties in other cities
+            remaining_query = "SELECT COUNT(*) FROM bp_file_map WHERE folder_id = %s"
             cursor.execute(remaining_query, (folder_id,))
             remaining_count = cursor.fetchone()[0]
             
-            # If no properties left, soft delete the folder
+            # If no properties left in any city, permanently delete the folder
             if remaining_count == 0:
-                delete_folder_query = "UPDATE property_folders SET status = 0, updated_at = %s WHERE id = %s AND user_id = %s"
-                cursor.execute(delete_folder_query, (datetime.utcnow(), folder_id, user_id))
-                message = f'Folder and all {config_city} properties deleted successfully'
+                delete_folder_query = "DELETE FROM bp_portfolio_file WHERE id = %s AND user_id = %s"
+                cursor.execute(delete_folder_query, (folder_id, user_id))
+                message = f'Folder and all {config_city} properties deleted permanently'
             else:
                 message = f'All {config_city} properties removed from folder successfully'
             

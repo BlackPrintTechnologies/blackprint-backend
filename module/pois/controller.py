@@ -62,12 +62,15 @@ class POIsController:
             cursor.execute(query)
             connection.commit()
             res = cursor.fetchall()
+            #print the first 5 value of res
+            print("res=====>", res[:5])
             
-            # Add icon URLs to the results
+            # Add icon URLs and brand URLs to the results
             enhanced_results = []
             logger.info(f"Length of res: {len(res)}")
             for result in res:
                 result['icon_url'] = IconMapper.get_icon_url(result['category_1'])
+                result['brand_url'] = IconMapper.get_brand_url(result['brand'])
                 enhanced_results.append(result)
             
             # Filter by category if specified
