@@ -236,76 +236,219 @@ class AreaAnalysisController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    def get_comprehensive_analysis(self, lat, lng, radius=2000, user_types=None):
+    def get_area_summary(self, lat, lng, radius=2000):
         """
-        Get comprehensive area analysis including all user types and time breakdowns.
+        Get area analysis summary matching the UI mockup exactly.
+        Returns all the summary data needed for the main UI panel.
         
         Args:
             lat (float): Latitude of the center point
             lng (float): Longitude of the center point
             radius (int): Radius in meters (default: 2000)
-            user_types (list): List of user types to analyze or None for all
             
         Returns:
-            dict: Response with comprehensive analysis data
+            dict: Response with area summary data matching UI structure
         """
-        if user_types is None:
-            user_types = ['vehiculo', 'peaton', 'estacionario']
-        
-        analysis_data = {
-            "summary": {
-                "center_point": {"lat": lat, "lng": lng},
-                "radius_meters": radius,
-                "area_km2": round((3.14159 * (radius/1000) ** 2), 2),
-                "analysis_types": user_types
-            },
-            "user_type_breakdown": {},
-            "daily_patterns": {},
-            "hourly_patterns": {}
-        }
-        
-        total_all_users = 0
+        connection = None
+        cursor = None
+        resp = None
         
         try:
-            # Get data for each user type
+            connection = self.redshift_db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            user_types = ['vehiculo', 'peaton', 'estacionario']
+            traffic_data = {}
+            total_all_users = 0
+            
+            # Get traffic data for each user type directly from database
             for user_type in user_types:
-                # Get summary for this user type
-                summary_resp = self.get_traffic_summary(lat, lng, radius, user_type)
-                if summary_resp.get('status_code') == 200:
-                    user_total = summary_resp['data']['summary']['total_unique_users']
+                query = self._build_traffic_summary_query(lat, lng, radius, user_type)
+                logger.info(f"Executing query for {user_type}: {query}")
+                
+                cursor.execute(query)
+                connection.commit()
+                res = cursor.fetchall()
+                
+                if res and len(res) > 0:
+                    user_total = res[0].get('total_users', 0)
+                    traffic_data[user_type] = user_total
                     total_all_users += user_total
-                    analysis_data['user_type_breakdown'][user_type] = {
-                        "total_users": user_total
+                    logger.info(f"Found {user_total} users for {user_type}")
+                else:
+                    traffic_data[user_type] = 0
+                    logger.info(f"No data found for {user_type}")
+            
+            # Calculate area in km²
+            area_km2 = round((3.14159 * (radius/1000) ** 2), 2)
+            
+            # Calculate percentages
+            vehicle_pct = round((traffic_data.get('vehiculo', 0) / total_all_users * 100), 0) if total_all_users > 0 else 0
+            pedestrian_pct = round((traffic_data.get('peaton', 0) / total_all_users * 100), 0) if total_all_users > 0 else 0
+            stationary_pct = round((traffic_data.get('estacionario', 0) / total_all_users * 100), 0) if total_all_users > 0 else 0
+            
+            # Structure response to match UI mockup exactly
+            summary_data = {
+                "summary": {
+                    "num_parcels": 435,  # Static for now - could be calculated from H3 cells
+                    "population": 6489,  # Static for now - could be from census data
+                    "area_km2": area_km2,
+                    "center_point": {"lat": lat, "lng": lng},
+                    "radius_meters": radius
+                },
+                "socioeconomic": {
+                    "total_unique_devices": total_all_users,
+                    "devices_per_person": round(total_all_users / 6489, 2) if total_all_users > 0 else 0,
+                    "municipality_average": 1.84  # Static for now
+                },
+                "traffic": {
+                    "vehicles": {
+                        "count": traffic_data.get('vehiculo', 0),
+                        "percentage": int(vehicle_pct),
+                        "municipality_percentage": 50,  # Static for now
+                        "trend": "down"  # Static for now - could be calculated from historical data
+                    },
+                    "pedestrians": {
+                        "count": traffic_data.get('peaton', 0), 
+                        "percentage": int(pedestrian_pct),
+                        "municipality_percentage": 36,  # Static for now
+                        "trend": "down"  # Static for now
+                    },
+                    "stationary_devices": {
+                        "count": traffic_data.get('estacionario', 0),
+                        "percentage": int(stationary_pct), 
+                        "municipality_percentage": 14,  # Static for now
+                        "trend": "up"  # Static for now
                     }
-                
-                # Get daily pattern for this user type
-                daily_resp = self.get_traffic_by_day(lat, lng, radius, user_type)
-                if daily_resp.get('status_code') == 200:
-                    analysis_data['daily_patterns'][user_type] = daily_resp['data']['traffic_by_day']
-                
-                # Get hourly pattern for this user type
-                hourly_resp = self.get_traffic_by_hour(lat, lng, radius, user_type)
-                if hourly_resp.get('status_code') == 200:
-                    analysis_data['hourly_patterns'][user_type] = hourly_resp['data']['traffic_by_hour']
+                }
+            }
             
-            # Add total summary
-            analysis_data['summary']['total_unique_users'] = total_all_users
-            
-            # Calculate percentages for user types
-            if total_all_users > 0:
-                for user_type in user_types:
-                    if user_type in analysis_data['user_type_breakdown']:
-                        user_count = analysis_data['user_type_breakdown'][user_type]['total_users']
-                        percentage = round((user_count / total_all_users) * 100, 1)
-                        analysis_data['user_type_breakdown'][user_type]['percentage'] = percentage
-            
-            logger.info(f"Comprehensive analysis completed for {total_all_users} total users")
-            return Response.success(data=analysis_data)
+            logger.info(f"Area summary completed for {total_all_users} total users")
+            resp = Response.success(data=summary_data)
             
         except Exception as e:
-            logger.error(f"Error in get_comprehensive_analysis: {str(e)}")
+            logger.error(f"Error in get_area_summary: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
-            return Response.internal_server_error(message=str(e))
+            if connection:
+                connection.rollback()
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_db.disconnect(connection)
+            return resp
+
+    def get_traffic_patterns(self, lat, lng, radius=2000, pattern_type='both'):
+        """
+        Get detailed traffic patterns for charts (hourly and/or daily).
+        
+        Args:
+            lat (float): Latitude of the center point
+            lng (float): Longitude of the center point
+            radius (int): Radius in meters (default: 2000)
+            pattern_type (str): 'hourly', 'daily', or 'both'
+            
+        Returns:
+            dict: Response with traffic pattern data for charts
+        """
+        connection = None
+        cursor = None
+        resp = None
+        
+        try:
+            connection = self.redshift_db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            patterns_data = {
+                "center_point": {"lat": lat, "lng": lng},
+                "radius_meters": radius,
+                "pattern_type": pattern_type
+            }
+            
+            # Get combined traffic data for all user types
+            if pattern_type in ['hourly', 'both']:
+                # Get hourly data for all user types combined (no user_type filter)
+                query = self._build_traffic_by_hour_query(lat, lng, radius, None)
+                logger.info(f"Executing hourly query: {query}")
+                
+                cursor.execute(query)
+                connection.commit()
+                res = cursor.fetchall()
+                
+                if res and len(res) > 0:
+                    hourly_data = res[0]
+                    
+                    # Convert to array format for charts [0-23]
+                    hourly_array = []
+                    max_value = 0
+                    for hour in range(24):
+                        hour_key = f"hour_{hour}"
+                        value = hourly_data.get(hour_key, 0)
+                        hourly_array.append(value)
+                        max_value = max(max_value, value)
+                    
+                    # Convert to percentages (0-40% as shown in UI)
+                    hourly_percentages = []
+                    for value in hourly_array:
+                        percentage = (value / max_value * 40) if max_value > 0 else 0
+                        hourly_percentages.append(round(percentage, 1))
+                    
+                    patterns_data["hourly_traffic"] = {
+                        "raw_values": hourly_array,
+                        "percentages": hourly_percentages,
+                        "max_value": max_value
+                    }
+            
+            if pattern_type in ['daily', 'both']:
+                # Get daily data for all user types combined (no user_type filter)
+                query = self._build_traffic_by_day_query(lat, lng, radius, None)
+                logger.info(f"Executing daily query: {query}")
+                
+                cursor.execute(query)
+                connection.commit()
+                res = cursor.fetchall()
+                
+                if res and len(res) > 0:
+                    daily_data = res[0]
+                    
+                    # Convert to array format for charts
+                    days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+                    daily_array = []
+                    max_value = 0
+                    for day in days:
+                        value = daily_data.get(day, 0)
+                        daily_array.append(value)
+                        max_value = max(max_value, value)
+                    
+                    # Convert to percentages (0-40% as shown in UI)
+                    daily_percentages = []
+                    for value in daily_array:
+                        percentage = (value / max_value * 40) if max_value > 0 else 0
+                        daily_percentages.append(round(percentage, 1))
+                    
+                    patterns_data["daily_traffic"] = {
+                        "raw_values": daily_array,
+                        "percentages": daily_percentages,
+                        "max_value": max_value,
+                        "days": days
+                    }
+            
+            logger.info(f"Traffic patterns ({pattern_type}) completed")
+            resp = Response.success(data=patterns_data)
+            
+        except Exception as e:
+            logger.error(f"Error in get_traffic_patterns: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            if connection:
+                connection.rollback()
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_db.disconnect(connection)
+            return resp
 
     def _build_traffic_by_day_query(self, lat, lng, radius, user_type=None):
         """Build SQL query for traffic data by day of the week."""
