@@ -64,9 +64,11 @@ class MarketsController:
                 query = self.query_controller.get_property_market_info_combined_query(
                     spot2_id, inmuebles24_id, propiedades_id, city
                 )
+                print("market query i am getting",query)
                 logger.debug("Using combined table query: %s", query)
                 cursor.execute(query)
                 res = cursor.fetchall()
+                print("market res i am getting",res)
                 
                 # If combined table returns results, use them
                 if res and len(res) > 0:

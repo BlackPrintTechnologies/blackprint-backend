@@ -27,6 +27,9 @@ class PropertyLayerController:
                     ELSE ST_Transform(mdc.geometry_coords, 4326)
                   END
                 ) AS centroid,
+                -- Add latitude and longitude from dim_market_data_combined
+                mdc.latitude,
+                mdc.longitude,
                 v.is_on_market,
                 v.ids_market_data_spot2,
                 v.ids_market_data_inmuebles24,

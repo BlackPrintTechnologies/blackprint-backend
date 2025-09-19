@@ -55,10 +55,10 @@ class UserPropertyController:
             fid_col = "fid" if config_city == 'mexico' else "id_stg_demographic_socioeconomic_qro"
             fid_filter = f"WHERE {fid_col} IN ({','.join(fids)})"
             
-            # Get full property details from Redshift using existing query controller
+            # Get full property details from Redshift using combined query controller
             redshift_connection = self.redshift_connection.connect()
             redshift_cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-            property_query = self.qc.get_property_query(fid_filter, city=config_city, include_market_join=False)
+            property_query = self.qc.get_property_with_market_data_query(fid_filter, city=config_city, show_all_keys=False)
             logger.info("PROPERTY QUERY I AM GETTING %s",property_query)
             redshift_cursor.execute(property_query)
             property_results = redshift_cursor.fetchall()
@@ -281,7 +281,45 @@ class PropertyController:
         resp = []
         try:
             logger.info("Processing property JSON for %d results with city=%s", len(results), city)
+            
+            # Group results by fid to handle multiple market data entries
+            grouped_results = {}
             for result in results:
+                fid = result["fid"]
+                if fid not in grouped_results:
+                    grouped_results[fid] = {
+                        'property_data': result,
+                        'market_data_entries': []
+                    }
+                
+                # Collect market data entries (only if they have market data)
+                if result.get("id_market_data") is not None:
+                    market_data_entry = {
+                        "id_market_data": result.get("id_market_data", None),
+                        "source": result.get("source", None),
+                        "state": result.get("state", None),
+                        "title": result.get("title", None),
+                        "rent_price_clean": result.get("rent_price_clean", None),
+                        "rent_price_per_m2": result.get("rent_price_per_m2", None),
+                        "buy_price_clean": result.get("buy_price_clean", None),
+                        "buy_price_per_m2": result.get("buy_price_per_m2", None),
+                        "publication_date": result.get("publication_date", None),
+                        "total_area_clean": result.get("total_area_clean", None),
+                        "latitude": result.get("latitude", None),
+                        "longitude": result.get("longitude", None),
+                        "pictures": result.get("pictures", None),
+                        "property_type": result.get("property_type", None),
+                        "operation_type": result.get("operation_type", None),
+                        "city": result.get("market_city", None),
+                        "url": result.get("url", None),
+                        "geometry_coords": result.get("geometry_coords", None)
+                    }
+                    grouped_results[fid]['market_data_entries'].append(market_data_entry)
+            
+            # Process each grouped result
+            for fid, group_data in grouped_results.items():
+                result = group_data['property_data']
+                market_data_entries = group_data['market_data_entries']
                 traffic = {}  # Always initialize traffic to an empty dict
                 # Handle different column structures for CDMX vs QRO
                 if city == 'queretaro' or city == 'el_marques':
@@ -500,97 +538,29 @@ class PropertyController:
                         "locality_size": result["locality_size"],
                         "city_link": result["city_link"]
                     }
-                if show_all_keys:
-                    # Handle POI data for different cities
-                    if city == 'queretaro' or city == 'el_marques':
-                        pois = {
-                            #add category here for icon image
-                            "category": {
-                                category: IconMapper.get_icon_url(category) 
-                                for category in IconMapper.CATEGORY_ICON_MAP
-                            },
-                            "front" : {
-                                "brands_active_life_front": result.get("brands_active_life_front", None),
-                                "brands_arts_and_entertainment_front": result.get("brands_arts_and_entertainment_front", None),
-                                "brands_attractions_and_activities_front": result.get("brands_attractions_and_activities_front", None),
-                                "brands_automotive_front": result.get("brands_automotive_front", None),
-                                "brands_eat_and_drink_front": result.get("brands_eat_and_drink_front", None),
-                                "brands_education_front": result.get("brands_education_front", None),
-                                "brands_financial_service_front": result.get("brands_financial_service_front", None),
-                                "brands_health_and_medical_front": result.get("brands_health_and_medical_front", None),
-                                "brands_public_service_and_government_front": result.get("brands_public_service_and_government_front", None),
-                                "brands_retail_front": result.get("brands_retail_front", None),
-                            },
-                            "500" : {
-                                "brands_active_life_500m": result.get("brands_active_life_500m", None),
-                                "brands_arts_and_entertainment_500m": result.get("brands_arts_and_entertainment_500m", None),
-                                "brands_attractions_and_activities_500m": result.get("brands_attractions_and_activities_500m", None),
-                                "brands_automotive_500m": result.get("brands_automotive_500m", None),
-                                "brands_eat_and_drink_500m": result.get("brands_eat_and_drink_500m", None),
-                                "brands_education_500m": result.get("brands_education_500m", None),
-                                "brands_financial_service_500m": result.get("brands_financial_service_500m", None),
-                                "brands_health_and_medical_500m": result.get("brands_health_and_medical_500m", None),
-                                "brands_public_service_and_government_500m": result.get("brands_public_service_and_government_500m", None),
-                                "brands_retail_500m": result.get("brands_retail_500m", None),
-                            },
-                            "1000" : {
-                                "brands_active_life_1km": result.get("brands_active_life_1km", None),
-                                "brands_arts_and_entertainment_1km": result.get("brands_arts_and_entertainment_1km", None),
-                                "brands_attractions_and_activities_1km": result.get("brands_attractions_and_activities_1km", None),
-                                "brands_automotive_1km": result.get("brands_automotive_1km", None),
-                                "brands_eat_and_drink_1km": result.get("brands_eat_and_drink_1km", None),
-                                "brands_education_1km": result.get("brands_education_1km", None),
-                                "brands_financial_service_1km": result.get("brands_financial_service_1km", None),
-                                "brands_health_and_medical_1km": result.get("brands_health_and_medical_1km", None),
-                                "brands_public_service_and_government_1km": result.get("brands_public_service_and_government_1km", None),
-                                "brands_retail_1km": result.get("brands_retail_1km", None)
-                            },  
-                        }
-                    else:
-                        # CDMX structure (original)
-                        pois = {
-                            #add category here for icon image
-                            "category": {
-                                category: IconMapper.get_icon_url(category) 
-                                for category in IconMapper.CATEGORY_ICON_MAP
-                            },
-                            "front" : {
-                                "brands_active_life_front": result["brands_active_life_front"],
-                                "brands_arts_and_entertainment_front": result["brands_arts_and_entertainment_front"],
-                                "brands_attractions_and_activities_front": result["brands_attractions_and_activities_front"],
-                                "brands_automotive_front": result["brands_automotive_front"],
-                                "brands_eat_and_drink_front": result["brands_eat_and_drink_front"],
-                                "brands_education_front": result["brands_education_front"],
-                                "brands_financial_service_front": result["brands_financial_service_front"],
-                                "brands_health_and_medical_front": result["brands_health_and_medical_front"],
-                                "brands_public_service_and_government_front": result["brands_public_service_and_government_front"],
-                                "brands_retail_front": result["brands_retail_front"],
-                            },
-                            "500" : {
-                                "brands_active_life_500m": result["brands_active_life_500m"],
-                                "brands_arts_and_entertainment_500m": result["brands_arts_and_entertainment_500m"],
-                                "brands_attractions_and_activities_500m": result["brands_attractions_and_activities_500m"],
-                                "brands_automotive_500m": result["brands_automotive_500m"],
-                                "brands_eat_and_drink_500m": result["brands_eat_and_drink_500m"],
-                                "brands_education_500m": result["brands_education_500m"],
-                                "brands_financial_service_500m": result["brands_financial_service_500m"],
-                                "brands_health_and_medical_500m": result["brands_health_and_medical_500m"],
-                                "brands_public_service_and_government_500m": result["brands_public_service_and_government_500m"],
-                                "brands_retail_500m": result["brands_retail_500m"],
-                            },
-                            "1000" : {
-                                "brands_active_life_1km": result["brands_active_life_1km"],
-                                "brands_arts_and_entertainment_1km": result["brands_arts_and_entertainment_1km"],
-                                "brands_attractions_and_activities_1km": result["brands_attractions_and_activities_1km"],
-                                "brands_automotive_1km": result["brands_automotive_1km"],
-                                "brands_eat_and_drink_1km": result["brands_eat_and_drink_1km"],
-                                "brands_education_1km": result["brands_education_1km"],
-                                "brands_financial_service_1km": result["brands_financial_service_1km"],
-                                "brands_health_and_medical_1km": result["brands_health_and_medical_1km"],
-                                "brands_public_service_and_government_1km": result["brands_public_service_and_government_1km"],
-                                "brands_retail_1km": result["brands_retail_1km"]
-                            },  
-                        }
+                
+                # Use collected market data entries (array of all market data for this property)
+                market_data = market_data_entries if market_data_entries else [{
+                    "id_market_data": None,
+                    "source": None,
+                    "state": None,
+                    "title": None,
+                    "rent_price_clean": None,
+                    "rent_price_per_m2": None,
+                    "buy_price_clean": None,
+                    "buy_price_per_m2": None,
+                    "publication_date": None,
+                    "total_area_clean": None,
+                    "latitude": None,
+                    "longitude": None,
+                    "pictures": None,
+                    "property_type": None,
+                    "operation_type": None,
+                    "city": None,
+                    "url": None,
+                    "geometry_coords": None
+                }]
+                
                 if show_all_keys:
                     # Handle traffic data for different cities
                     if city == 'queretaro' or city == 'el_marques':
@@ -1175,13 +1145,14 @@ class PropertyController:
                     resp.append( {
                                 "property_details": property_details,
                                 "market_info": market_info,
-                                "pois": pois,
+                                "market_data": market_data,
                                 "traffic": traffic
                             })
                 else:
                     resp.append({
                         "property_details": property_details,
                         "market_info": market_info,
+                        "market_data": market_data,
                         "traffic": traffic
                     })
             return resp
@@ -1227,7 +1198,7 @@ class PropertyController:
                 logger.warning("Invalid request: Missing fid or lat/lng")
                 return Response.bad_request(message="Invalid request")
 
-            query = self.qc.get_property_query(filter_query, city=city, include_market_join=False)
+            query = self.qc.get_property_with_market_data_query(filter_query, city=city, show_all_keys=True)
             logger.info(f"[get_properties] Executing query for city={city}: ")
 
             def fetch_property_details():
@@ -2171,7 +2142,7 @@ class PropertyController:
                 filter_query += f" AND v.id_stg_demographic_socioeconomic_qro IN ({staging_ids_str})"
                 logger.info(f"[COMBINED FILTER] Applied combined staging ID filter: {staging_ids_str}")
             
-            query = self.qc.get_property_query(filter_query, city=city, include_market_join=(city == 'queretaro' or city == 'el_marques'))
+            query = self.qc.get_property_with_market_data_query(filter_query, city=city, show_all_keys=True)
             query = query + " limit 15"
             # Log the generated query for debugging
             logger.info(f"[FILTER QUERY] Generated SQL for city {city}: {query}")

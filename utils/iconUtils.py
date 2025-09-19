@@ -24,7 +24,19 @@ class IconMapper:
         'structure_and_geography': 'geography.svg',
         'business_to_business': 'b2b.svg',
         'real_estate': 'Real+Estate+Agent+Icon.svg',
-        'pets': 'pets.svg'
+        'pets': 'pets.svg',
+        # New category mappings
+        'healthcare': 'health+and+medical.svg',
+        'civil_society': 'public+service+and+gov.svg',
+        'dining': 'food.svg',
+        'beauty': 'beauty+and+spa.svg',
+        'convenience_and_grocery_stores': 'retail.svg',
+        'automotive_services': 'automotive.svg',
+        'transportation_services': 'travel.svg',
+        'entertainment_and_recreation': 'arts+and+entertainment.svg',
+        'home_services': 'home+service.svg',
+        'bars': 'food.svg',
+        'uncategorized': 'default.svg'
     }
 
     # Logo mapper for the brands
