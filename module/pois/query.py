@@ -65,7 +65,7 @@ class POIsQueryController:
                 query += f" AND sub_sub_category in ('{subsubcategories_list}')"
             if brand_names:  
                 brand_list = "', '".join([name.strip() for name in brand_names.split(',')])
-                query += f" AND name in ('{brand_list}') "
+                query += f" AND chain_id in ('{brand_list}') "
         return query    
 
     @staticmethod
@@ -76,9 +76,9 @@ class POIsQueryController:
         else:
             places_table = 'blackprint_db_prd.presentation.dim_pois_cdmx'
         
-        query = f'''SELECT DISTINCT name as brand 
+        query = f'''SELECT DISTINCT chain_id as brand 
                     FROM {places_table} 
-                    WHERE name ILIKE '{brand_name}%' 
+                    WHERE chain_id ILIKE '{brand_name}%' 
                     LIMIT 50'''
         return query
 
