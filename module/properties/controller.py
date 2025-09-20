@@ -321,13 +321,33 @@ class PropertyController:
                 result = group_data['property_data']
                 market_data_entries = group_data['market_data_entries']
                 traffic = {}  # Always initialize traffic to an empty dict
+                
+                # Determine lat/lng priority: market data coordinates first, then centroid
+                market_lat = None
+                market_lng = None
+                
+                # Check if any market data entries have valid coordinates
+                for entry in market_data_entries:
+                    if entry.get('latitude') is not None and entry.get('longitude') is not None:
+                        market_lat = entry['latitude']
+                        market_lng = entry['longitude']
+                        break  # Use the first valid coordinates found
+                
+                # Fallback to centroid coordinates if no market coordinates available
+                centroid_lat = json.loads(result['centroid'])['coordinates'][1] if result['centroid'] else None
+                centroid_lng = json.loads(result['centroid'])['coordinates'][0] if result['centroid'] else None
+                
+                # Use market coordinates if available, otherwise use centroid
+                final_lat = market_lat if market_lat is not None else centroid_lat
+                final_lng = market_lng if market_lng is not None else centroid_lng
+                
                 # Handle different column structures for CDMX vs QRO
                 if city == 'queretaro' or city == 'el_marques':
                     # QRO now uses same structure as CDMX (no demographic fields)
                     property_details = {
                         "fid": result["fid"],
-                        "lat": json.loads(result['centroid'])['coordinates'][1] if result['centroid'] else None,
-                        "lng" : json.loads(result['centroid'])['coordinates'][0] if result['centroid'] else None,
+                        "lat": final_lat,
+                        "lng": final_lng,
                         "is_on_market": result["is_on_market"],
                         "total_surface_area": result.get("total_surface_area", None),
                         "total_construction_area": result.get("total_construction_area", None),
@@ -356,8 +376,8 @@ class PropertyController:
                     # CDMX structure (original)
                     property_details = {
                         "fid": result["fid"],
-                        "lat": json.loads(result['centroid'])['coordinates'][1] if result['centroid'] else None,
-                        "lng" : json.loads(result['centroid'])['coordinates'][0] if result['centroid'] else None,
+                        "lat": final_lat,
+                        "lng": final_lng,
                         "is_on_market": result["is_on_market"],
                         "total_surface_area": result["total_surface_area"],
                         "total_construction_area": result["total_construction_area"],
@@ -467,77 +487,16 @@ class PropertyController:
                 street_images = [img for img in street_images if img and img.strip() and img.strip().lower() != "none"]
                 property_details["street_images"] = street_images
 
-                # Handle market_info for different cities
-                if city == 'queretaro' or city == 'el_marques':
-                    market_info = {
-                        "ids_market_data_spot2" : result.get("ids_market_data_spot2", None),
-                        "ids_market_data_inmuebles24" : result.get("ids_market_data_inmuebles24", None),
-                        "ids_market_data_propiedades" : result.get("ids_market_data_propiedades", None),
-                        # QRO doesn't have these market columns, use .get() with defaults
-                        "rent_price_spot2": result.get("rent_price_spot2", None),
-                        "rent_price_per_m2_spot2": result.get("rent_price_per_m2_spot2", None),
-                        "buy_price_spot2": result.get("buy_price_spot2", None),
-                        "buy_price_per_m2_spot2": result.get("buy_price_per_m2_spot2", None),
-                        "total_area_spot2": result.get("total_area_spot2", None),
-                        "property_type_spot2": result.get("property_type_spot2", None),
-                        "rent_price_inmuebles24": result.get("rent_price_inmuebles24", None),
-                        "rent_price_per_m2_inmuebles24": result.get("rent_price_per_m2_inmuebles24", None),
-                        "buy_price_inmuebles24": result.get("buy_price_inmuebles24", None),
-                        "buy_price_per_m2_inmuebles24": result.get("buy_price_per_m2_inmuebles24", None),
-                        "total_area_inmuebles24": result.get("total_area_inmuebles24", None),
-                        "property_type_inmuebles24": result.get("property_type_inmuebles24", None),
-                        "rent_price_propiedades": result.get("rent_price_propiedades", None),
-                        "rent_price_per_m2_propiedades": result.get("rent_price_per_m2_propiedades", None),
-                        "buy_price_propiedades": result.get("buy_price_propiedades", None),
-                        "buy_price_per_m2_propiedades": result.get("buy_price_per_m2_propiedades", None),
-                        "total_area_propiedades": result.get("total_area_propiedades", None),
-                        "block_type": result.get("block_type", None),
-                        "density_d": result.get("density_d", None),
-                        "scope": result.get("scope", None),
-                        "floor_levels": result.get("floor_levels", None),
-                        "open_space" : result.get("open_space", None),
-                        "id_land_use": result.get('id_land_use', None),
-                        "id_municipality": result.get("id_municipality", None),
-                        "id_city_blocks": result.get("id_city_blocks", None),
-                        "total_houses": result.get("total_houses", None),
-                        "locality_size": result.get("locality_size", None),
-                        "city_link": result.get("city_link", None)
-                    }
-                else:
-                    # CDMX structure (original)
-                    market_info = {
-                        "ids_market_data_spot2" : result["ids_market_data_spot2"],
-                        "ids_market_data_inmuebles24" : result["ids_market_data_inmuebles24"],
-                        "ids_market_data_propiedades" : result["ids_market_data_propiedades"],
-                        "rent_price_spot2": result["rent_price_spot2"],
-                        "rent_price_per_m2_spot2": result["rent_price_per_m2_spot2"],
-                        "buy_price_spot2": result["buy_price_spot2"],
-                        "buy_price_per_m2_spot2": result["buy_price_per_m2_spot2"],
-                        "total_area_spot2": result["total_area_spot2"],
-                        "property_type_spot2": result["property_type_spot2"],
-                        "rent_price_inmuebles24": result["rent_price_inmuebles24"],
-                        "rent_price_per_m2_inmuebles24": result["rent_price_per_m2_inmuebles24"],
-                        "buy_price_inmuebles24": result["buy_price_inmuebles24"],
-                        "buy_price_per_m2_inmuebles24": result["buy_price_per_m2_inmuebles24"],
-                        "total_area_inmuebles24": result["total_area_inmuebles24"],
-                        "property_type_inmuebles24": result["property_type_inmuebles24"],
-                        "rent_price_propiedades": result["rent_price_propiedades"],
-                        "rent_price_per_m2_propiedades": result["rent_price_per_m2_propiedades"],
-                        "buy_price_propiedades": result["buy_price_propiedades"],
-                        "buy_price_per_m2_propiedades": result["buy_price_per_m2_propiedades"],
-                        "total_area_propiedades": result["total_area_propiedades"],
-                        "block_type": result["block_type"],
-                        "density_d": result["density_d"],
-                        "scope": result["scope"],
-                        "floor_levels": result["floor_levels"],
-                        "open_space" : result["open_space"],
-                        "id_land_use": result['id_land_use'],
-                        "id_municipality": result["id_municipality"],
-                        "id_city_blocks": result["id_city_blocks"],
-                        "total_houses": result["total_houses"],
-                        "locality_size": result["locality_size"],
-                        "city_link": result["city_link"]
-                    }
+                
+                # Create zoning_info section
+                zoning_info = {
+                    "block_type": result.get("block_type", None),
+                    "density_d": result.get("density_d", None),
+                    "scope": result.get("scope", None),
+                    "floor_levels": result.get("floor_levels", None),
+                    "open_space": result.get("open_space", None),
+                    "id_land_use": result.get("id_land_use", None)
+                }
                 
                 # Use collected market data entries (array of all market data for this property)
                 market_data = market_data_entries if market_data_entries else [{
@@ -1144,15 +1103,15 @@ class PropertyController:
                 if show_all_keys:
                     resp.append( {
                                 "property_details": property_details,
-                                "market_info": market_info,
-                                "market_data": market_data,
+                                "market_info": market_data,
+                                "zoning_info": zoning_info,
                                 "traffic": traffic
                             })
                 else:
                     resp.append({
                         "property_details": property_details,
-                        "market_info": market_info,
-                        "market_data": market_data,
+                        "market_info": market_data,
+                        "zoning_info": zoning_info,
                         "traffic": traffic
                     })
             return resp
