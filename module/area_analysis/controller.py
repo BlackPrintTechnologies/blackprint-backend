@@ -533,30 +533,27 @@ class AreaAnalysisController:
         ),
         buffered AS (
           SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
         )
         SELECT 
-            d.POBTOT as total_population,
-            d.POBMAS as male_population,
-            d.POBFEM as female_population,
-            d.P_0A2_M, d.P_0A2_F,
-            d.P_3A5_M, d.P_3A5_F,
-            d.P_6A11_M, d.P_6A11_F,
-            d.P_12A14_M, d.P_12A14_F,
-            d.P_15A17_M, d.P_15A17_F,
-            d.P_18A24_M, d.P_18A24_F,
-            d.P_60YMAS_M, d.P_60YMAS_F,
-            d.GRAPROES,
-            d.PROM_HNV,
-            d.PRO_OCUP_C
-        FROM blackprint_db_prd.staging.stg_demographics_qro d
-        INNER JOIN h3_index h ON d.h3_index::VARCHAR = h.h3_value::VARCHAR
+            d.pobtot as total_population,
+            d.pob15_64 as working_age_population,
+            d.pob0_14 as child_population,
+            d.pob65_mas as elderly_population,
+            d.p_0a2,
+            d.p_3a5,
+            d.p_6a11,
+            d.p_12a14,
+            d.p_15a17,
+            d.p_18a24,
+            d.p_60ymas,
+            d.graproes,
+            d.niv_predom,
+            d.tot_vivien as total_households,
+            d.pct_viv_ab, d.pct_viv_cp, d.pct_viv_c, d.pct_viv_cm, 
+            d.pct_viv_dp, d.pct_viv_d, d.pct_viv_e
+        FROM blackprint_db_prd.staging.stg_demographic_socioeconomic_qro d,
+             buffered b
+        WHERE ST_Intersects(d.geometry_coords, ST_Transform(b.geom, ST_SRID(d.geometry_coords)))
         """
         return query
 
@@ -584,59 +581,45 @@ class AreaAnalysisController:
         for record in demographic_data:
             # Population totals
             pop = record.get('total_population', 0) or 0
-            male_pop = record.get('male_population', 0) or 0
-            female_pop = record.get('female_population', 0) or 0
+            child_pop = record.get('child_population', 0) or 0  # 0-14 years
+            working_pop = record.get('working_age_population', 0) or 0  # 15-64 years
+            elderly_pop = record.get('elderly_population', 0) or 0  # 65+ years
             
             total_population += pop
-            total_male += male_pop
-            total_female += female_pop
             
-            # Age groups - 0-14
-            age_totals['0-14']['male'] += (
-                (record.get('p_0a2_m', 0) or 0) +
-                (record.get('p_3a5_m', 0) or 0) +
-                (record.get('p_6a11_m', 0) or 0) +
-                (record.get('p_12a14_m', 0) or 0)
-            )
-            age_totals['0-14']['female'] += (
-                (record.get('p_0a2_f', 0) or 0) +
-                (record.get('p_3a5_f', 0) or 0) +
-                (record.get('p_6a11_f', 0) or 0) +
-                (record.get('p_12a14_f', 0) or 0)
-            )
+            # Use existing age group data from the table
+            # 0-14 age group (both male and female combined)
+            age_totals['0-14']['male'] += child_pop // 2  # Approximate split
+            age_totals['0-14']['female'] += child_pop - (child_pop // 2)
             
-            # Age groups - 15-24
-            age_totals['15-24']['male'] += (
-                (record.get('p_15a17_m', 0) or 0) +
-                (record.get('p_18a24_m', 0) or 0)
-            )
-            age_totals['15-24']['female'] += (
-                (record.get('p_15a17_f', 0) or 0) +
-                (record.get('p_18a24_f', 0) or 0)
-            )
+            # For specific age ranges, we'll use the available columns
+            p_15a17 = record.get('p_15a17', 0) or 0
+            p_18a24 = record.get('p_18a24', 0) or 0
+            p_60ymas = record.get('p_60ymas', 0) or 0
             
-            # Age groups - 60+
-            age_totals['60+']['male'] += (record.get('p_60ymas_m', 0) or 0)
-            age_totals['60+']['female'] += (record.get('p_60ymas_f', 0) or 0)
+            # 15-24 age group
+            age_15_24 = p_15a17 + p_18a24
+            age_totals['15-24']['male'] += age_15_24 // 2  # Approximate split
+            age_totals['15-24']['female'] += age_15_24 - (age_15_24 // 2)
             
-            # Calculate 25-59 (derived)
-            male_25_59 = male_pop - (
-                age_totals['0-14']['male'] + age_totals['15-24']['male'] + age_totals['60+']['male']
-            )
-            female_25_59 = female_pop - (
-                age_totals['0-14']['female'] + age_totals['15-24']['female'] + age_totals['60+']['female']
-            )
+            # 60+ age group  
+            age_totals['60+']['male'] += p_60ymas // 2  # Approximate split
+            age_totals['60+']['female'] += p_60ymas - (p_60ymas // 2)
             
-            age_totals['25-59']['male'] += max(0, male_25_59)
-            age_totals['25-59']['female'] += max(0, female_25_59)
+            # 25-59 age group (derived from working age minus 15-24)
+            age_25_59 = working_pop - age_15_24
+            age_totals['25-59']['male'] += max(0, age_25_59 // 2)
+            age_totals['25-59']['female'] += max(0, age_25_59 - (age_25_59 // 2))
             
-            # Income and education (aggregate averages)
-            if record.get('prom_hnv'):
-                total_income += record.get('prom_hnv', 0) * pop
+            # Calculate male/female totals
+            total_male += pop // 2  # Approximate split
+            total_female += pop - (pop // 2)
+            
+            # Education and household data
             if record.get('graproes'):
                 total_education_level += record.get('graproes', 0) * pop
-            if record.get('pro_ocup_c'):
-                total_households += record.get('pro_ocup_c', 0)
+            if record.get('tot_vivien'):
+                total_households += record.get('tot_vivien', 0)
         
         # Calculate percentages and averages
         male_percentage = (total_male / total_population * 100) if total_population > 0 else 0
@@ -663,17 +646,34 @@ class AreaAnalysisController:
                 "percentage": round((total_age_group / total_population * 100), 1) if total_population > 0 else 0
             })
         
-        # Simulate socioeconomic levels (these would come from actual data)
-        # Based on your UI mockup showing levels A, B, C+, C, C-, D+, D, E
-        socioeconomic_levels = [
-            {"level": "AB", "households": int(total_population * 0.05), "percentage": 5.0},
-            {"level": "C+", "households": int(total_population * 0.15), "percentage": 15.0},
-            {"level": "C", "households": int(total_population * 0.38), "percentage": 38.2},  # Predominant
-            {"level": "C-", "households": int(total_population * 0.25), "percentage": 25.0},
-            {"level": "D+", "households": int(total_population * 0.12), "percentage": 12.0},
-            {"level": "D", "households": int(total_population * 0.04), "percentage": 4.0},
-            {"level": "E", "households": int(total_population * 0.01), "percentage": 0.8}
-        ]
+        # Process socioeconomic levels from actual housing data
+        # Collect housing percentages from all records
+        housing_totals = {
+            "AB": 0, "C+": 0, "C": 0, "C-": 0, "D+": 0, "D": 0, "E": 0
+        }
+        
+        for record in demographic_data:
+            households = record.get('tot_vivien', 0) or 0
+            if households > 0:
+                housing_totals["AB"] += (record.get('pct_viv_ab', 0) or 0) * households / 100
+                housing_totals["C+"] += (record.get('pct_viv_cp', 0) or 0) * households / 100
+                housing_totals["C"] += (record.get('pct_viv_c', 0) or 0) * households / 100
+                housing_totals["C-"] += (record.get('pct_viv_cm', 0) or 0) * households / 100
+                housing_totals["D+"] += (record.get('pct_viv_dp', 0) or 0) * households / 100
+                housing_totals["D"] += (record.get('pct_viv_d', 0) or 0) * households / 100
+                housing_totals["E"] += (record.get('pct_viv_e', 0) or 0) * households / 100
+        
+        # Calculate total households and percentages
+        total_housing = sum(housing_totals.values())
+        socioeconomic_levels = []
+        
+        for level, count in housing_totals.items():
+            percentage = (count / total_housing * 100) if total_housing > 0 else 0
+            socioeconomic_levels.append({
+                "level": level,
+                "households": int(count),
+                "percentage": round(percentage, 1)
+            })
         
         # Find predominant level (highest percentage)
         predominant_level = max(socioeconomic_levels, key=lambda x: x['percentage'])
