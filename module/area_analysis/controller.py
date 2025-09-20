@@ -287,38 +287,38 @@ class AreaAnalysisController:
             pedestrian_pct = round((traffic_data.get('peaton', 0) / total_all_users * 100), 0) if total_all_users > 0 else 0
             stationary_pct = round((traffic_data.get('estacionario', 0) / total_all_users * 100), 0) if total_all_users > 0 else 0
             
-            # Structure response to match UI mockup exactly
+            # Structure response with real data only, null for unavailable data
             summary_data = {
                 "summary": {
-                    "num_parcels": 435,  # Static for now - could be calculated from H3 cells
-                    "population": 6489,  # Static for now - could be from census data
+                    "num_parcels": None,  # Not available - would need parcels/cadastral data
+                    "population": None,   # Not available - would need census data
                     "area_km2": area_km2,
                     "center_point": {"lat": lat, "lng": lng},
                     "radius_meters": radius
                 },
                 "socioeconomic": {
                     "total_unique_devices": total_all_users,
-                    "devices_per_person": round(total_all_users / 6489, 2) if total_all_users > 0 else 0,
-                    "municipality_average": 1.84  # Static for now
+                    "devices_per_person": None,  # Cannot calculate without population data
+                    "municipality_average": None  # Not available - would need municipality-wide stats
                 },
                 "traffic": {
                     "vehicles": {
                         "count": traffic_data.get('vehiculo', 0),
                         "percentage": int(vehicle_pct),
-                        "municipality_percentage": 50,  # Static for now
-                        "trend": "down"  # Static for now - could be calculated from historical data
+                        "municipality_percentage": None,  # Not available - would need municipality-wide data
+                        "trend": None  # Not available - would need historical data
                     },
                     "pedestrians": {
                         "count": traffic_data.get('peaton', 0), 
                         "percentage": int(pedestrian_pct),
-                        "municipality_percentage": 36,  # Static for now
-                        "trend": "down"  # Static for now
+                        "municipality_percentage": None,  # Not available - would need municipality-wide data
+                        "trend": None  # Not available - would need historical data
                     },
                     "stationary_devices": {
                         "count": traffic_data.get('estacionario', 0),
                         "percentage": int(stationary_pct), 
-                        "municipality_percentage": 14,  # Static for now
-                        "trend": "up"  # Static for now
+                        "municipality_percentage": None,  # Not available - would need municipality-wide data
+                        "trend": None  # Not available - would need historical data
                     }
                 }
             }
@@ -339,15 +339,14 @@ class AreaAnalysisController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    def get_traffic_patterns(self, lat, lng, radius=2000, pattern_type='both'):
+    def get_traffic_patterns(self, lat, lng, radius=2000):
         """
-        Get detailed traffic patterns for charts (hourly and/or daily).
+        Get detailed traffic patterns for charts (both hourly and daily).
         
         Args:
             lat (float): Latitude of the center point
             lng (float): Longitude of the center point
             radius (int): Radius in meters (default: 2000)
-            pattern_type (str): 'hourly', 'daily', or 'both'
             
         Returns:
             dict: Response with traffic pattern data for charts
@@ -363,78 +362,98 @@ class AreaAnalysisController:
             patterns_data = {
                 "center_point": {"lat": lat, "lng": lng},
                 "radius_meters": radius,
-                "pattern_type": pattern_type
+                "pattern_type": "both"
             }
             
-            # Get combined traffic data for all user types
-            if pattern_type in ['hourly', 'both']:
-                # Get hourly data for all user types combined (no user_type filter)
-                query = self._build_traffic_by_hour_query(lat, lng, radius, None)
-                logger.info(f"Executing hourly query: {query}")
-                
-                cursor.execute(query)
-                connection.commit()
-                res = cursor.fetchall()
-                
-                if res and len(res) > 0:
-                    hourly_data = res[0]
-                    
-                    # Convert to array format for charts [0-23]
-                    hourly_array = []
-                    max_value = 0
-                    for hour in range(24):
-                        hour_key = f"hour_{hour}"
-                        value = hourly_data.get(hour_key, 0)
-                        hourly_array.append(value)
-                        max_value = max(max_value, value)
-                    
-                    # Convert to percentages (0-40% as shown in UI)
-                    hourly_percentages = []
-                    for value in hourly_array:
-                        percentage = (value / max_value * 40) if max_value > 0 else 0
-                        hourly_percentages.append(round(percentage, 1))
-                    
-                    patterns_data["hourly_traffic"] = {
-                        "raw_values": hourly_array,
-                        "percentages": hourly_percentages,
-                        "max_value": max_value
-                    }
+            # Get hourly data for all user types combined (no user_type filter)
+            query = self._build_traffic_by_hour_query(lat, lng, radius, None)
+            logger.info(f"Executing hourly query: {query}")
             
-            if pattern_type in ['daily', 'both']:
-                # Get daily data for all user types combined (no user_type filter)
-                query = self._build_traffic_by_day_query(lat, lng, radius, None)
-                logger.info(f"Executing daily query: {query}")
-                
-                cursor.execute(query)
-                connection.commit()
-                res = cursor.fetchall()
-                
-                if res and len(res) > 0:
-                    daily_data = res[0]
-                    
-                    # Convert to array format for charts
-                    days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-                    daily_array = []
-                    max_value = 0
-                    for day in days:
-                        value = daily_data.get(day, 0)
-                        daily_array.append(value)
-                        max_value = max(max_value, value)
-                    
-                    # Convert to percentages (0-40% as shown in UI)
-                    daily_percentages = []
-                    for value in daily_array:
-                        percentage = (value / max_value * 40) if max_value > 0 else 0
-                        daily_percentages.append(round(percentage, 1))
-                    
-                    patterns_data["daily_traffic"] = {
-                        "raw_values": daily_array,
-                        "percentages": daily_percentages,
-                        "max_value": max_value,
-                        "days": days
-                    }
+            cursor.execute(query)
+            connection.commit()
+            res = cursor.fetchall()
             
-            logger.info(f"Traffic patterns ({pattern_type}) completed")
+            if res and len(res) > 0:
+                hourly_data = res[0]
+                
+                # Convert to array format for charts [0-23]
+                hourly_array = []
+                max_value = 0
+                for hour in range(24):
+                    hour_key = f"hour_{hour}"
+                    value = hourly_data.get(hour_key, 0)
+                    hourly_array.append(value)
+                    max_value = max(max_value, value)
+                
+                # Calculate average visits per hour
+                total_hourly_visits = sum(hourly_array)
+                avg_visits_per_hour = round(total_hourly_visits / 24) if total_hourly_visits > 0 else 0
+                
+                # Convert to percentages (0-40% as shown in UI)
+                hourly_percentages = []
+                for value in hourly_array:
+                    percentage = (value / max_value * 40) if max_value > 0 else 0
+                    hourly_percentages.append(round(percentage, 1))
+                
+                # Create time labels for x-axis (0-23 hours)
+                time_labels = [f"{hour:02d}:00" for hour in range(24)]
+                
+                patterns_data["hourly_traffic"] = {
+                    "raw_values": hourly_array,
+                    "percentages": hourly_percentages,
+                    "max_value": max_value,
+                    "avg_visits_per_hour": avg_visits_per_hour,
+                    "total_visits": total_hourly_visits,
+                    "time_labels": time_labels,
+                    "x_axis_labels": list(range(24))  # For chart x-axis
+                }
+            
+            # Get daily data for all user types combined (no user_type filter)
+            query = self._build_traffic_by_day_query(lat, lng, radius, None)
+            logger.info(f"Executing daily query: {query}")
+            
+            cursor.execute(query)
+            connection.commit()
+            res = cursor.fetchall()
+            
+            if res and len(res) > 0:
+                daily_data = res[0]
+                
+                # Convert to array format for charts
+                days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+                daily_array = []
+                max_value = 0
+                for day in days:
+                    value = daily_data.get(day, 0)
+                    daily_array.append(value)
+                    max_value = max(max_value, value)
+                
+                # Calculate average visits per day
+                total_daily_visits = sum(daily_array)
+                avg_visits_per_day = round(total_daily_visits / 7) if total_daily_visits > 0 else 0
+                
+                # Convert to percentages (0-40% as shown in UI)
+                daily_percentages = []
+                for value in daily_array:
+                    percentage = (value / max_value * 40) if max_value > 0 else 0
+                    daily_percentages.append(round(percentage, 1))
+                
+                # Create day labels for x-axis
+                day_labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S']  # Short labels as shown in UI
+                day_full_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                
+                patterns_data["daily_traffic"] = {
+                    "raw_values": daily_array,
+                    "percentages": daily_percentages,
+                    "max_value": max_value,
+                    "avg_visits_per_day": avg_visits_per_day,
+                    "total_visits": total_daily_visits,
+                    "days": days,
+                    "day_labels": day_labels,  # Short labels for chart
+                    "day_full_names": day_full_names  # Full names for tooltips
+                }
+            
+            logger.info("Traffic patterns completed")
             resp = Response.success(data=patterns_data)
             
         except Exception as e:
