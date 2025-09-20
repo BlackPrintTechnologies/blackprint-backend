@@ -53,7 +53,7 @@ logger.info("Starting the Flask application...")
 
 # Import your routes
 from module.user.routes import Signup, Signin, ForgotPassword, ConfirmPasswordUpdate, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification, UpdateQuestionare
-from module.search.routes import SavedSearches
+from module.search.routes import SavedSearches, ActiveSearch, MobilityData, POIsData
 from module.group.routes import Group, GroupProperty
 from module.layers.routes import  Traffic, PropertyLayer, LandUseFilter
 from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch, PropertyFolderAPI, PropertyFolderDetailAPI, PropertySaveAPI, PropertyRemoveAPI
@@ -69,6 +69,11 @@ api.add_resource(ConfirmPasswordUpdate, '/user/confirm-password-update')
 api.add_resource(UpdateUser, '/user/updateuser')
 api.add_resource(GetUser, '/user/getuser')
 api.add_resource(SavedSearches, '/savesearch', '/savesearch/<int:search_id>')
+
+api.add_resource(ActiveSearch, '/search/active')
+api.add_resource(MobilityData, '/search/mobility')
+api.add_resource(POIsData, '/search/poisdata')
+
 api.add_resource(Group, '/group', '/group/<int:grp_id>')
 api.add_resource(GroupProperty, '/groupproperty')
 api.add_resource(UserQuestionare, '/user/questionare/', '/user/questionare/<int:id>')
