@@ -524,16 +524,11 @@ class AreaAnalysisController:
 
     def _build_demographics_query(self, lat, lng, radius):
         """Build SQL query to get demographic data within the specified area."""
+        # Convert radius from meters to degrees (approximate conversion for latitude)
+        # 1 degree ≈ 111,000 meters
+        radius_degrees = radius / 111000.0
+        
         query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        )
         SELECT 
             d.pobtot as total_population,
             d.pob15_64 as working_age_population,
@@ -551,9 +546,17 @@ class AreaAnalysisController:
             d.tot_vivien as total_households,
             d.pct_viv_ab, d.pct_viv_cp, d.pct_viv_c, d.pct_viv_cm, 
             d.pct_viv_dp, d.pct_viv_d, d.pct_viv_e
-        FROM blackprint_db_prd.staging.stg_demographic_socioeconomic_qro d,
-             buffered b
-        WHERE ST_Intersects(d.geometry_coords, ST_Transform(b.geom, ST_SRID(d.geometry_coords)))
+        FROM blackprint_db_prd.staging.stg_demographic_socioeconomic_qro d
+        WHERE d.geometry_coords IS NOT NULL
+        AND ST_DWithin(
+            ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326),
+            CASE 
+                WHEN ST_SRID(d.geometry_coords) = 0 THEN ST_SetSRID(d.geometry_coords, 4326)
+                ELSE d.geometry_coords 
+            END,
+            {radius_degrees}
+        )
+        LIMIT 100
         """
         return query
 
