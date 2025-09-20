@@ -59,7 +59,7 @@ from module.layers.routes import  Traffic, PropertyLayer, LandUseFilter
 from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch, PropertyFolderAPI, PropertyFolderDetailAPI, PropertySaveAPI, PropertyRemoveAPI
 from module.markets.routes import PropertyTypes, MarketInfo
 from module.pois.routes import POIHierarchy, POIsByCoordinates, BrandSearch, Brands
-from module.area_analysis.routes import AreaAnalysisSummary, AreaAnalysisTrafficPatterns
+from module.area_analysis.routes import AreaAnalysisSummary, AreaAnalysisTrafficPatterns, AreaAnalysisDemographics
 
 # Define API routes
 api.add_resource(Signup, '/user/signup')
@@ -110,6 +110,7 @@ api.add_resource(PropertyTypes, '/market/propertytypes')
 # Area Analysis routes
 api.add_resource(AreaAnalysisSummary, '/area-analysis/summary')
 api.add_resource(AreaAnalysisTrafficPatterns, '/area-analysis/traffic-patterns')
+api.add_resource(AreaAnalysisDemographics, '/area-analysis/demographics')
 
 @app.after_request
 def after_request(response):
