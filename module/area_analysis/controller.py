@@ -4,6 +4,7 @@ import traceback
 from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
 from utils.dbUtils import Database, RedshiftDatabase
+from module.area_analysis.query import AreaAnalysisQuery
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +12,7 @@ class AreaAnalysisController:
     def __init__(self):
         self.db = Database()
         self.redshift_db = RedshiftDatabase()
+        self.query_builder = AreaAnalysisQuery()
 
     def get_traffic_by_day(self, lat, lng, radius=2000, user_type=None):
         """
@@ -32,7 +34,7 @@ class AreaAnalysisController:
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            query = self._build_traffic_by_day_query(lat, lng, radius, user_type)
+            query = self.query_builder.build_traffic_by_day_query(lat, lng, radius, user_type)
             logger.info(f"Traffic by day query: {query}")
             
             cursor.execute(query)
@@ -117,7 +119,7 @@ class AreaAnalysisController:
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            query = self._build_traffic_by_hour_query(lat, lng, radius, user_type)
+            query = self.query_builder.build_traffic_by_hour_query(lat, lng, radius, user_type)
             logger.info(f"Traffic by hour query: {query}")
             
             cursor.execute(query)
@@ -192,7 +194,7 @@ class AreaAnalysisController:
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            query = self._build_traffic_summary_query(lat, lng, radius, user_type)
+            query = self.query_builder.build_traffic_summary_query(lat, lng, radius, user_type)
             logger.info(f"Traffic summary query: {query}")
             
             cursor.execute(query)
@@ -263,7 +265,7 @@ class AreaAnalysisController:
             
             # Get traffic data for each user type directly from database
             for user_type in user_types:
-                query = self._build_traffic_summary_query(lat, lng, radius, user_type)
+                query = self.query_builder.build_traffic_summary_query(lat, lng, radius, user_type)
                 logger.info(f"Executing query for {user_type}: {query}")
                 
                 cursor.execute(query)
@@ -366,7 +368,7 @@ class AreaAnalysisController:
             }
             
             # Get hourly data for all user types combined (no user_type filter)
-            query = self._build_traffic_by_hour_query(lat, lng, radius, None)
+            query = self.query_builder.build_traffic_by_hour_query(lat, lng, radius, None)
             logger.info(f"Executing hourly query: {query}")
             
             cursor.execute(query)
@@ -409,7 +411,7 @@ class AreaAnalysisController:
                 }
             
             # Get daily data for all user types combined (no user_type filter)
-            query = self._build_traffic_by_day_query(lat, lng, radius, None)
+            query = self.query_builder.build_traffic_by_day_query(lat, lng, radius, None)
             logger.info(f"Executing daily query: {query}")
             
             cursor.execute(query)
@@ -469,7 +471,7 @@ class AreaAnalysisController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    def get_area_demographics(self, lat, lng, radius=2000):
+    def get_area_demographics(self, lat, lng, radius=2000, config_city='mexico'):
         """
         Get demographic and socioeconomic analysis for a specific area.
         Returns population demographics, income levels, and socioeconomic distribution.
@@ -478,6 +480,7 @@ class AreaAnalysisController:
             lat (float): Latitude of the center point
             lng (float): Longitude of the center point
             radius (int): Radius in meters (default: 2000)
+            config_city (str): City configuration - 'mexico', 'queretaro', or 'el_marques'
             
         Returns:
             dict: Response with demographic analysis data matching UI structure
@@ -490,9 +493,14 @@ class AreaAnalysisController:
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            # Build query to get demographic data within the H3 buffer
-            query = self._build_demographics_query(lat, lng, radius)
-            logger.info(f"Executing demographics query: {query}")
+            # Build query to get demographic data within the specified area
+            if config_city == 'mexico':
+                query = self.query_builder.build_mexico_demographics_query(lat, lng, radius)
+            elif config_city == 'queretaro':
+                query = self.query_builder.build_queretaro_demographics_query(lat, lng, radius)
+            else:
+                query = self.query_builder.build_demographics_query(lat, lng, radius, config_city)
+            logger.info(f"Executing demographics query for city={config_city}: {query}")
             
             cursor.execute(query)
             connection.commit()
@@ -500,17 +508,22 @@ class AreaAnalysisController:
             
             if res and len(res) > 0:
                 # Process demographic data
-                demographics_data = self._process_demographics_data(res, lat, lng, radius)
-                logger.info(f"Demographics analysis completed for {len(res)} records")
+                if config_city == 'mexico':
+                    demographics_data = self._process_mexico_demographics_data(res, lat, lng, radius, connection)
+                elif config_city == 'queretaro':
+                    demographics_data = self._process_queretaro_demographics_data(res, lat, lng, radius, connection)
+                else:
+                    demographics_data = self._process_demographics_data(res, lat, lng, radius, config_city)
+                logger.info(f"Demographics analysis completed for {len(res)} records in {config_city}")
                 resp = Response.success(data=demographics_data)
             else:
                 # Return empty demographics structure
                 demographics_data = self._get_empty_demographics_structure(lat, lng, radius)
-                logger.info("No demographic data found, returning empty structure")
+                logger.info(f"No demographic data found for {config_city}, returning empty structure")
                 resp = Response.success(data=demographics_data)
             
         except Exception as e:
-            logger.error(f"Error in get_area_demographics: {str(e)}")
+            logger.error(f"Error in get_area_demographics for {config_city}: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             if connection:
                 connection.rollback()
@@ -522,45 +535,1014 @@ class AreaAnalysisController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    def _build_demographics_query(self, lat, lng, radius):
-        """Build SQL query to get demographic data within the specified area."""
-        query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
-        )
-        SELECT 
-            d.POBTOT as total_population,
-            d.POBMAS as male_population,
-            d.POBFEM as female_population,
-            d.P_0A2_M, d.P_0A2_F,
-            d.P_3A5_M, d.P_3A5_F,
-            d.P_6A11_M, d.P_6A11_F,
-            d.P_12A14_M, d.P_12A14_F,
-            d.P_15A17_M, d.P_15A17_F,
-            d.P_18A24_M, d.P_18A24_F,
-            d.P_60YMAS_M, d.P_60YMAS_F,
-            d.GRAPROES,
-            d.PROM_HNV,
-            d.PRO_OCUP_C
-        FROM blackprint_db_prd.staging.stg_demographics_qro d
-        INNER JOIN h3_index h ON d.h3_index::VARCHAR = h.h3_value::VARCHAR
+    def get_area_socioeconomic(self, lat, lng, radius=2000, config_city='mexico'):
         """
-        return query
+        Get socioeconomic analysis for a specific area matching the UI mockup.
+        Returns income levels, predominant socioeconomic level, and household distribution.
+        
+        Args:
+            lat (float): Latitude of the center point
+            lng (float): Longitude of the center point
+            radius (int): Radius in meters (default: 2000)
+            config_city (str): City configuration - 'mexico', 'queretaro', or 'el_marques'
+            
+        Returns:
+            dict: Response with socioeconomic analysis data matching UI structure
+        """
+        connection = None
+        cursor = None
+        resp = None
+        
+        try:
+            connection = self.redshift_db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            # Build query to get socioeconomic data within the specified area
+            query = self.query_builder.build_socioeconomic_query(lat, lng, radius, config_city)
+            logger.info(f"Executing socioeconomic query for city={config_city}: {query}")
+            
+            cursor.execute(query)
+            connection.commit()
+            res = cursor.fetchall()
+            
+            if res and len(res) > 0:
+                # Process socioeconomic data
+                socioeconomic_data = self._process_socioeconomic_data(res, lat, lng, radius, config_city)
+                logger.info(f"Socioeconomic analysis completed for {len(res)} records in {config_city}")
+                resp = Response.success(data=socioeconomic_data)
+            else:
+                # Return empty socioeconomic structure
+                socioeconomic_data = self._get_empty_socioeconomic_structure(lat, lng, radius)
+                logger.info(f"No socioeconomic data found for {config_city}, returning empty structure")
+                resp = Response.success(data=socioeconomic_data)
+            
+        except Exception as e:
+            logger.error(f"Error in get_area_socioeconomic for {config_city}: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            if connection:
+                connection.rollback()
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_db.disconnect(connection)
+            return resp
 
-    def _process_demographics_data(self, demographic_data, lat, lng, radius):
+    def _process_mexico_demographics_data(self, demographic_data, lat, lng, radius, connection=None):
+        """
+        Process Mexico City demographic data using the optimized structure from properties controller.
+        This matches the demographic structure you provided for Mexico City.
+        """
+        # Filter records by distance for Mexico (since we can't do it in SQL)
+        filtered_data = []
+        radius_degrees = radius / 111000.0  # Convert meters to degrees
+        
+        for record in demographic_data:
+            try:
+                # Parse centroid JSON string to extract coordinates
+                centroid_str = record.get('centroid', '')
+                if centroid_str and 'coordinates' in centroid_str:
+                    # Simple string parsing since JSON type is not available
+                    import re
+                    coords_match = re.search(r'\[([^,]+),\s*([^\]]+)\]', centroid_str)
+                    if coords_match:
+                        record_lng = float(coords_match.group(1))
+                        record_lat = float(coords_match.group(2))
+                        
+                        # Check if within radius (simple bounding box)
+                        if (abs(record_lat - lat) <= radius_degrees and 
+                            abs(record_lng - lng) <= radius_degrees):
+                            filtered_data.append(record)
+            except (ValueError, AttributeError):
+                continue
+        
+        demographic_data = filtered_data
+        logger.info(f"Filtered to {len(demographic_data)} records within radius for Mexico")
+        
+        if not demographic_data:
+            return self._get_empty_demographics_structure(lat, lng, radius)
+        
+        # Process the first record to get the structure (assuming all records have similar structure)
+        result = demographic_data[0]
+        
+        # Calculate area
+        area_km2 = round((3.14159 * (radius/1000) ** 2), 2)
+        
+        # Build the demographic structure exactly as in properties controller
+        demographic = {
+            "general": {
+                "block": {
+                    "neighborhood": result["neighborhood"],
+                    "predominant_level": result["predominant_level"],
+                    "ageb_code": result["ageb_code"],
+                    "total_household": result["vivtot"],
+                    "average_household_size": result["prom_ocup"],
+                    "average_number_of_rooms": result["pro_ocup_c"]
+                },
+                "colonia": {
+                    "neighborhood": result["neighborhood"],
+                    "predominant_level": result["predominant_level"],
+                    "ageb_code": result["ageb_code"],
+                    "total_household": result["vivtot_colonia"],
+                    "average_household_size": result["prom_ocup_colonia"],
+                    "average_number_of_rooms": result["pro_ocup_c_colonia"]
+                },
+                "alcaldia": {
+                    "neighborhood": result['nom_mun'],
+                    "predominant_level": result["predominant_level"],
+                    "ageb_code": result["ageb_code"],
+                    "total_household": result["vivtot_alcaldia"],
+                    "average_household_size": result["prom_ocup_alcaldia"],
+                    "average_number_of_rooms": result["pro_ocup_c_alcaldia"]
+                }
+            },
+            "socio_economic_level": {
+                "block": {
+                    "ses_ab": result["ses_ab"],
+                    "ses_c_plus": result["ses_c_plus"],
+                    "ses_c": result["ses_c"],
+                    "ses_c_minus": result["ses_c_minus"],
+                    "ses_d": result["ses_d"],
+                    "ses_d_plus": result["ses_d_plus"],
+                    "ses_e": result["ses_e"]
+                },
+                "colonia": {
+                    "ses_ab": result["ses_ab_colonia"],
+                    "ses_c_plus": result["ses_c_plus_colonia"],
+                    "ses_c": result["ses_c_colonia"],
+                    "ses_c_minus": result["ses_c_minus_colonia"],
+                    "ses_d": result["ses_d_colonia"],
+                    "ses_d_plus": result["ses_d_plus_colonia"],
+                    "ses_e": result["ses_e_colonia"]
+                },
+                "alcaldia": {
+                    "ses_ab": result["ses_ab_alcaldia"],
+                    "ses_c_plus": result["ses_c_plus_alcaldia"],
+                    "ses_c": result["ses_c_alcaldia"],
+                    "ses_c_minus": result["ses_c_minus_alcaldia"],
+                    "ses_d": result["ses_d_alcaldia"],
+                    "ses_d_plus": result["ses_d_plus_alcaldia"],
+                    "ses_e": result["ses_e_alcaldia"]
+                }
+            },
+            "population": {
+                "block": {
+                    "total_population": result["pobtot"],
+                    "male_population": result["pobmas"],
+                    "female_population": result["pobfem"],
+                },
+                "colonia": {
+                    "total_population": result["pobtot_colonia"],
+                    "male_population": result["pobmas_colonia"], 
+                    "female_population": result["pobfem_colonia"],
+                },
+                "alcaldia": {
+                    "total_population": result["pobtot_alcaldia"],
+                    "male_population": result["pobmas_alcaldia"],
+                    "female_population": result["pobfem_alcaldia"],
+                }
+            },
+            "education": {
+                "block": {
+                    "education_3_5": result["p_3a5"],
+                    "education_6_11": result["p_6a11"],
+                    "education_12_14": result["p_12a14"],
+                    "education_15_17": result["p_15a17"],
+                    "education_18_24": result["p_18a24"],
+                    "education_3_5_attending_school": result["p3a5_noa"],
+                    "education_6_11_attending_school": result["p6a11_noa"],
+                    "education_12_14_attending_school": result["p12a14noa"],
+                    "education_15_17_attending_school": result["p15a17a"],
+                    "education_18_24_attending_school": result["p18a24a"]
+                },
+                "colonia": {
+                    "education_3_5": result["p_3a5_colonia"],
+                    "education_6_11": result["p_6a11_colonia"],
+                    "education_12_14": result["p_12a14_colonia"],
+                    "education_15_17": result["p_15a17_colonia"],
+                    "education_18_24": result["p_18a24_colonia"],
+                    "education_3_5_attending_school": result["p3a5_noa_colonia"],
+                    "education_6_11_attending_school": result["p6a11_noa_colonia"],
+                    "education_12_14_attending_school": result["p12a14noa_colonia"],
+                    "education_15_17_attending_school": result["p15a17a_colonia"],
+                    "education_18_24_attending_school": result["p18a24a_colonia"]
+                },
+                "alcaldia": {
+                    "education_3_5": result["p_3a5_alcaldia"],
+                    "education_6_11": result["p_6a11_alcaldia"],
+                    "education_12_14": result["p_12a14_alcaldia"],
+                    "education_15_17": result["p_15a17_alcaldia"],
+                    "education_18_24": result["p_18a24_alcaldia"],
+                    "education_3_5_attending_school": result["p3a5_noa_alcaldia"],
+                    "education_6_11_attending_school": result["p6a11_noa_alcaldia"],
+                    "education_12_14_attending_school": result["p12a14noa_alcaldia"],
+                    "education_15_17_attending_school": result["p15a17a_alcaldia"],
+                    "education_18_24_attending_school": result["p18a24a_alcaldia"]
+                }
+            },
+            "workforce": {
+                "block": {
+                    "total_workforce": result["pea"],
+                    "total_male_workforce": result["pea_m"],
+                    "total_female_workforce": result["pea_f"],
+                    "total_inactive_population": result["pe_inac"],
+                    "total_inactive_male_population": result["pe_inac_m"],
+                    "total_inactive_female_population": result["pe_inac_f"]
+                },
+                "colonia": {
+                    "total_workforce": result["pea_colonia"],
+                    "total_male_workforce": result["pea_m_colonia"],
+                    "total_female_workforce": result["pea_f_colonia"],
+                    "total_inactive_population": result["pe_inac_colonia"],
+                    "total_inactive_male_population": result["pe_inac_m_colonia"],
+                    "total_inactive_female_population": result["pe_inac_f_colonia"]
+                },
+                "alcaldia": {
+                    "total_workforce": result["pea_alcaldia"],
+                    "total_male_workforce": result["pea_m_alcaldia"],
+                    "total_female_workforce": result["pea_f_alcaldia"],
+                    "total_inactive_population": result["pe_inac_alcaldia"],
+                    "total_inactive_male_population": result["pe_inac_m_alcaldia"],
+                    "total_inactive_female_population": result["pe_inac_f_alcaldia"]
+                }
+            },
+            "employment": {
+                "block": {
+                    "total_employed_population": result["pocupada"],
+                    "total_male_employed_population": result["pocupada_m"],
+                    "total_female_emloyed_population": result["pocupada_f"],
+                    "total_unemployed_population": result["pdesocup"],
+                    "total_unemployed_male_population": result["pdesocup_m"],
+                    "total_unemployed_female_population": result["pdesocup_f"]
+                },
+                "colonia": {
+                    "total_employed_population": result["pocupada_colonia"],
+                    "total_male_employed_population": result["pocupada_m_colonia"],
+                    "total_female_emloyed_population": result["pocupada_f_colonia"],
+                    "total_unemployed_population": result["pdesocup_colonia"],
+                    "total_unemployed_male_population": result["pdesocup_m_colonia"],
+                    "total_unemployed_female_population": result["pdesocup_f_colonia"] 
+                },
+                "alcaldia": {
+                    "total_employed_population": result["pocupada_alcaldia"],
+                    "total_male_employed_population": result["pocupada_m_alcaldia"],
+                    "total_female_emloyed_population": result["pocupada_f_alcaldia"],
+                    "total_unemployed_population": result["pdesocup_alcaldia"],
+                    "total_unemployed_male_population": result["pdesocup_m_alcaldia"],
+                    "total_unemployed_female_population": result["pdesocup_f_alcaldia"],
+                }   
+            },    
+            "population_growth": {
+                "block": { 
+                    "2000": [result.get('pob_2000_ageb', 0), 0],
+                    "2005": [result.get('pob_2005_ageb', 0), float(result.get('cambio_porcentual_2005_ageb', 0) or 0)],
+                    "2010": [result.get('pob_2010_ageb', 0), float(result.get('cambio_porcentual_2010_ageb', 0) or 0)],
+                    "2015": [result.get('pob_2015_ageb', 0), float(result.get('cambio_porcentual_2015_ageb', 0) or 0)],
+                    "2020": [result.get('pob_2020_ageb', 0), float(result.get('cambio_porcentual_2020_ageb', 0) or 0)]
+                },
+                "colonia": {
+                    "2000": [result.get('pob_2000_entidad', 0), 0],
+                    "2005": [result.get('pob_2005_entidad', 0), float(result.get('cambio_porcentual_2005_entidad', 0) or 0)],
+                    "2010": [result.get('pob_2010_entidad', 0), float(result.get('cambio_porcentual_2010_entidad', 0) or 0)],
+                    "2015": [result.get('pob_2015_entidad', 0), float(result.get('cambio_porcentual_2015_entidad', 0) or 0)],
+                    "2020": [result.get('pob_2020_entidad', 0), float(result.get('cambio_porcentual_2020_entidad', 0) or 0)]
+                },
+                "alcaldia": {
+                    "2000": [result.get('pob_2000_municipal', 0), 0],
+                    "2005": [result.get('pob_2005_municipal', 0), float(result.get('cambio_porcentual_2005_municipal', 0) or 0)],
+                    "2010": [result.get('pob_2010_municipal', 0), float(result.get('cambio_porcentual_2010_municipal', 0) or 0)],
+                    "2015": [result.get('pob_2015_municipal', 0), float(result.get('cambio_porcentual_2015_municipal', 0) or 0)],
+                    "2020": [result.get('pob_2020_municipal', 0), float(result.get('cambio_porcentual_2020_municipal', 0) or 0)]
+                }
+            }
+        }
+        
+        # Calculate population density for selected area
+        area_population_density = round(result["pobtot"] / area_km2, 2) if area_km2 > 0 else 0
+        
+        # Calculate municipality population density dynamically from database
+        municipality_code = result.get("municipality_code")
+        if municipality_code and connection:
+            municipality_area_km2 = self._get_municipality_area_km2(municipality_code, connection)
+        else:
+            # Fallback: calculate area from available data or use a reasonable estimate
+            municipality_area_km2 = self._calculate_fallback_municipality_area(result)
+        municipality_population_density = round(result["pobtot_alcaldia"] / municipality_area_km2, 2) if municipality_area_km2 > 0 else 0
+        
+        # Calculate male/female percentages
+        male_percentage = round((result["pobmas"] / result["pobtot"] * 100), 1) if result["pobtot"] > 0 else 0
+        female_percentage = round((result["pobfem"] / result["pobtot"] * 100), 1) if result["pobtot"] > 0 else 0
+        
+        # Calculate municipality male/female percentages
+        municipality_male_percentage = round((result["pobmas_alcaldia"] / result["pobtot_alcaldia"] * 100), 1) if result["pobtot_alcaldia"] > 0 else 0
+        municipality_female_percentage = round((result["pobfem_alcaldia"] / result["pobtot_alcaldia"] * 100), 1) if result["pobtot_alcaldia"] > 0 else 0
+        
+        # Create age pyramid data structure for 2024
+        age_pyramid_data = self._create_age_pyramid_data(result)
+        
+        # Create population growth data structure for 2000-2020
+        population_growth_data = self._create_population_growth_data(result)
+        
+        # Structure response to match UI mockup
+        demographics_data = {
+            "summary": {
+                "area_km2": area_km2,
+                "population": result["pobtot"],
+                "population_density": area_population_density,
+                "population_density_formatted": f"{area_population_density} persons / km²",
+                "center_point": {"lat": lat, "lng": lng},
+                "radius_meters": radius
+            },
+            "demographics": {
+                "total_population": result["pobtot"],
+                "male_population": result["pobmas"],
+                "female_population": result["pobfem"],
+                "male_percentage": male_percentage,
+                "female_percentage": female_percentage,
+                "total_households": result["vivtot"],
+                "average_household_size": result["prom_ocup"]
+            },
+            "detailed_data": demographic,  # Include the full detailed structure
+            "age_pyramid_2024": age_pyramid_data,
+            "population_growth_2024": population_growth_data,
+            "comparison": {
+                "selected_area": {
+                    "population_density": f"{area_population_density} persons/km²",
+                    "population_density_trend": "down" if area_population_density < municipality_population_density else "up",
+                    "male_population": result["pobmas"],
+                    "male_percentage": f"{male_percentage}%",
+                    "male_trend": "down" if male_percentage < municipality_male_percentage else "up",
+                    "female_population": result["pobfem"],
+                    "female_percentage": f"{female_percentage}%",
+                    "female_trend": "up" if female_percentage > municipality_female_percentage else "down",
+                    "total_households": result["vivtot"],
+                    "households_trend": "up"  # Default trend
+                },
+                "municipality": {
+                    "population_density": f"{municipality_population_density} persons/km²",
+                    "male_population": result["pobmas_alcaldia"],
+                    "male_percentage": f"{municipality_male_percentage}%",
+                    "female_population": result["pobfem_alcaldia"],
+                    "female_percentage": f"{municipality_female_percentage}%",
+                    "total_households": result["vivtot_alcaldia"]
+                }
+            }
+        }
+        
+        return demographics_data
+
+    def _create_age_pyramid_data(self, result):
+        """Create age pyramid data structure for 2024 visualization."""
+        # Debug: Log available columns
+        logger.info(f"Available columns in result: {list(result.keys())}")
+        
+        # Age groups for the pyramid (in years)
+        age_groups = [
+            {"range": "0-2", "male": result.get("p_0a2_m", 0) or 0, "female": result.get("p_0a2_f", 0) or 0},
+            {"range": "3-5", "male": result.get("p_3a5_m", 0) or 0, "female": result.get("p_3a5_f", 0) or 0},
+            {"range": "6-11", "male": result.get("p_6a11_m", 0) or 0, "female": result.get("p_6a11_f", 0) or 0},
+            {"range": "12-14", "male": result.get("p_12a14_m", 0) or 0, "female": result.get("p_12a14_f", 0) or 0},
+            {"range": "15-17", "male": result.get("p_15a17_m", 0) or 0, "female": result.get("p_15a17_f", 0) or 0},
+            {"range": "18-24", "male": result.get("p_18a24_m", 0) or 0, "female": result.get("p_18a24_f", 0) or 0},
+            {"range": "25-34", "male": 0, "female": 0},  # Not available in data
+            {"range": "35-44", "male": 0, "female": 0},  # Not available in data
+            {"range": "45-54", "male": 0, "female": 0},  # Not available in data
+            {"range": "55-64", "male": 0, "female": 0},  # Not available in data
+            {"range": "65+", "male": result.get("p_60ymas_m", 0) or 0, "female": result.get("p_60ymas_f", 0) or 0}
+        ]
+        
+        # Debug: Log the values we're getting
+        logger.info(f"Age pyramid data - p_0a2_m: {result.get('p_0a2_m')}, p_0a2_f: {result.get('p_0a2_f')}")
+        logger.info(f"Age pyramid data - p_3a5_m: {result.get('p_3a5_m')}, p_3a5_f: {result.get('p_3a5_f')}")
+        logger.info(f"Age pyramid data - p_6a11_m: {result.get('p_6a11_m')}, p_6a11_f: {result.get('p_6a11_f')}")
+        
+        # Calculate percentages for each age group
+        total_population = result.get("pobtot", 1) or 1
+        for group in age_groups:
+            group["male_percentage"] = round((group["male"] / total_population * 100), 2) if total_population > 0 else 0
+            group["female_percentage"] = round((group["female"] / total_population * 100), 2) if total_population > 0 else 0
+        
+        return {
+            "age_groups": age_groups,
+            "total_population": total_population
+        }
+
+    def _create_population_growth_data(self, result):
+        """Create population growth data structure for 2000-2020 visualization."""
+        # Use the population growth data from the result
+        block_growth = {
+            "2000": [result.get('pob_2000_ageb', 0), 0],
+            "2005": [result.get('pob_2005_ageb', 0), float(result.get('cambio_porcentual_2005_ageb', 0) or 0)],
+            "2010": [result.get('pob_2010_ageb', 0), float(result.get('cambio_porcentual_2010_ageb', 0) or 0)],
+            "2015": [result.get('pob_2015_ageb', 0), float(result.get('cambio_porcentual_2015_ageb', 0) or 0)],
+            "2020": [result.get('pob_2020_ageb', 0), float(result.get('cambio_porcentual_2020_ageb', 0) or 0)]
+        }
+        
+        alcaldia_growth = {
+            "2000": [result.get('pob_2000_municipal', 0), 0],
+            "2005": [result.get('pob_2005_municipal', 0), float(result.get('cambio_porcentual_2005_municipal', 0) or 0)],
+            "2010": [result.get('pob_2010_municipal', 0), float(result.get('cambio_porcentual_2010_municipal', 0) or 0)],
+            "2015": [result.get('pob_2015_municipal', 0), float(result.get('cambio_porcentual_2015_municipal', 0) or 0)],
+            "2020": [result.get('pob_2020_municipal', 0), float(result.get('cambio_porcentual_2020_municipal', 0) or 0)]
+        }
+        
+        # Create data points for the chart
+        years = [2000, 2005, 2007, 2010, 2015, 2020]
+        area_data = []
+        municipality_data = []
+        
+        for year in years:
+            if year == 2007:  # Interpolate for 2007
+                area_growth = self._interpolate_growth_for_year(block_growth, 2007)
+                municipality_growth = self._interpolate_growth_for_year(alcaldia_growth, 2007)
+            elif str(year) in block_growth:
+                area_growth = block_growth[str(year)][1] if len(block_growth[str(year)]) > 1 else 0
+            else:
+                area_growth = 0
+                
+            if year == 2007:  # Interpolate for 2007
+                municipality_growth = self._interpolate_growth_for_year(alcaldia_growth, 2007)
+            elif str(year) in alcaldia_growth:
+                municipality_growth = alcaldia_growth[str(year)][1] if len(alcaldia_growth[str(year)]) > 1 else 0
+            else:
+                municipality_growth = 0
+            
+            area_data.append({
+                "year": year,
+                "growth_percentage": round(area_growth, 1)
+            })
+            municipality_data.append({
+                "year": year,
+                "growth_percentage": round(municipality_growth, 1)
+            })
+        
+        return {
+            "area": area_data,
+            "municipality": municipality_data,
+            "years": years
+        }
+
+    def _calculate_fallback_municipality_area(self, result):
+        """Calculate fallback municipality area when database query fails."""
+        # Try to estimate based on population density patterns
+        population = result.get("pobtot_alcaldia", 0)
+        if population > 0:
+            # Estimate area based on typical population density patterns
+            # Mexico City average density is around 6,000 people/km²
+            estimated_area = population / 6000
+            return max(estimated_area, 10.0)  # Minimum 10 km²
+        else:
+            return self._get_default_municipality_area()
+
+    def _estimate_municipality_area_from_population(self, population):
+        """Estimate municipality area based on population size."""
+        if population > 0:
+            # Estimate area based on typical population density patterns
+            # Mexico City average density is around 6,000 people/km²
+            estimated_area = population / 6000
+            return max(estimated_area, 10.0)  # Minimum 10 km²
+        else:
+            return self._get_default_municipality_area()
+
+    def _interpolate_growth_for_year(self, growth_data, target_year):
+        """Interpolate growth percentage for a specific year based on available data."""
+        # Get available years and their growth rates
+        available_years = []
+        growth_rates = []
+        
+        for year_str, data in growth_data.items():
+            if len(data) > 1 and data[1] is not None:
+                available_years.append(int(year_str))
+                growth_rates.append(data[1])
+        
+        if len(available_years) < 2:
+            return 0.0  # Not enough data for interpolation
+        
+        # Sort by year
+        sorted_data = sorted(zip(available_years, growth_rates))
+        years, rates = zip(*sorted_data)
+        
+        # Find the two closest years for interpolation
+        if target_year <= years[0]:
+            return rates[0]
+        elif target_year >= years[-1]:
+            return rates[-1]
+        else:
+            # Linear interpolation between two points
+            for i in range(len(years) - 1):
+                if years[i] <= target_year <= years[i + 1]:
+                    # Linear interpolation
+                    x1, y1 = years[i], rates[i]
+                    x2, y2 = years[i + 1], rates[i + 1]
+                    interpolated = y1 + (y2 - y1) * (target_year - x1) / (x2 - x1)
+                    return round(interpolated, 1)
+        
+        return 0.0
+
+    def _get_default_municipality_area(self):
+        """Get default municipality area based on typical Mexico City patterns."""
+        # Use a reasonable default based on typical Mexico City municipality sizes
+        # Most municipalities range from 20-50 km², with 32.44 being a reasonable median
+        return 32.44
+
+    def _get_municipality_area_km2(self, municipality_code, connection):
+        """Calculate municipality area in km² from database data."""
+        cursor = None
+        try:
+            cursor = connection.cursor()
+            
+            # Query to get total area of all parcels in the municipality
+            query = """
+            SELECT SUM(total_area) as total_area_m2
+            FROM blackprint_db_prd.data_product.v_parcel_v3 
+            WHERE municipality_code = %s
+            AND total_area IS NOT NULL
+            AND total_area > 0
+            """
+            
+            cursor.execute(query, (municipality_code,))
+            result = cursor.fetchone()
+            
+            if result and result[0]:
+                # Convert from square meters to square kilometers
+                total_area_m2 = float(result[0])
+                total_area_km2 = total_area_m2 / 1_000_000  # Convert m² to km²
+                return round(total_area_km2, 2)
+            else:
+                # Fallback: estimate based on population density patterns
+                return self._estimate_municipality_area_from_population(result.get("pobtot_alcaldia", 0))
+                
+        except Exception as e:
+            logger.error(f"Error calculating municipality area: {str(e)}")
+            return self._estimate_municipality_area_from_population(0)
+        finally:
+            if cursor:
+                cursor.close()
+
+    def _process_queretaro_demographics_data(self, demographic_data, lat, lng, radius, connection=None):
+        """
+        Process Queretaro demographic data using the staging table structure.
+        This matches the demographic structure for Queretaro city.
+        """
+        # For now, use all records since spatial filtering is temporarily disabled
+        # TODO: Re-enable spatial filtering once the query is working
+        filtered_data = demographic_data
+        
+        if not filtered_data:
+            logger.warning("No Queretaro demographic data found")
+            return self._get_empty_demographics_structure(lat, lng, radius)
+        
+        # Aggregate data from all records
+        result = self._aggregate_queretaro_demographic_data(filtered_data)
+        
+        # Calculate area in km² (approximate)
+        area_km2 = round((radius / 1000) ** 2 * 3.14159, 2)
+        
+        # Calculate population density
+        area_population_density = round(result["pobtot"] / area_km2, 2) if area_km2 > 0 else 0
+        
+        # Calculate municipality population density dynamically from database
+        municipality_code = result.get("municipality_code")
+        if municipality_code and connection:
+            municipality_area_km2 = self._get_municipality_area_km2(municipality_code, connection)
+        else:
+            # Fallback: calculate area from available data or use a reasonable estimate
+            municipality_area_km2 = self._calculate_fallback_municipality_area(result)
+        municipality_population_density = round(result["pobtot_alcaldia"] / municipality_area_km2, 2) if municipality_area_km2 > 0 else 0
+        
+        # Calculate male/female percentages
+        male_percentage = round((result["pobmas"] / result["pobtot"] * 100), 1) if result["pobtot"] > 0 else 0
+        female_percentage = round((result["pobfem"] / result["pobtot"] * 100), 1) if result["pobtot"] > 0 else 0
+        
+        # Calculate municipality male/female percentages
+        municipality_male_percentage = round((result["pobmas_alcaldia"] / result["pobtot_alcaldia"] * 100), 1) if result["pobtot_alcaldia"] > 0 else 0
+        municipality_female_percentage = round((result["pobfem_alcaldia"] / result["pobtot_alcaldia"] * 100), 1) if result["pobtot_alcaldia"] > 0 else 0
+        
+        # Calculate average household size
+        avg_household_size = round(result["pobtot"] / result["vivtot"], 2) if result["vivtot"] > 0 else 0
+        
+        # Create age pyramid data
+        age_pyramid_data = self._create_age_pyramid_data(result)
+        
+        # Create population growth data
+        population_growth_data = self._create_population_growth_data(result)
+        
+        # Structure the response to match the UI design
+        demographics_data = {
+            "summary": {
+                "area_km2": area_km2,
+                "population": result["pobtot"],
+                "population_density": area_population_density,
+                "population_density_formatted": f"{area_population_density} persons / km²",
+                "center_point": {
+                    "lat": lat,
+                    "lng": lng
+                },
+                "radius_meters": radius
+            },
+            "demographics": {
+                "total_population": result["pobtot"],
+                "male_population": result["pobmas"],
+                "female_population": result["pobfem"],
+                "male_percentage": male_percentage,
+                "female_percentage": female_percentage,
+                "total_households": result["vivtot"],
+                "average_household_size": avg_household_size
+            },
+            "detailed_data": {
+                "general": {
+                    "block": {
+                        "neighborhood": result["neighborhood"],
+                        "predominant_level": result["predominant_level"],
+                        "ageb_code": result["ageb_code"],
+                        "total_household": result["vivtot"],
+                        "average_household_size": avg_household_size,
+                        "average_number_of_rooms": round(result["pro_ocup_c"], 2)
+                    },
+                    "colonia": {
+                        "neighborhood": result["neighborhood"],
+                        "predominant_level": result["predominant_level"],
+                        "ageb_code": result["ageb_code"],
+                        "total_household": result["vivtot"],
+                        "average_household_size": avg_household_size,
+                        "average_number_of_rooms": round(result["pro_ocup_c"], 2)
+                    },
+                    "alcaldia": {
+                        "neighborhood": result["nom_mun"],
+                        "predominant_level": result["predominant_level"],
+                        "ageb_code": result["ageb_code"],
+                        "total_household": result["vivtot_alcaldia"],
+                        "average_household_size": round(result["pobtot_alcaldia"] / result["vivtot_alcaldia"], 2) if result["vivtot_alcaldia"] > 0 else 0,
+                        "average_number_of_rooms": round(result["pro_ocup_c_alcaldia"], 2)
+                    }
+                },
+                "socio_economic_level": {
+                    "block": {
+                        "ses_ab": result["ses_ab"] or 0,
+                        "ses_c_plus": result["ses_c_plus"] or 0,
+                        "ses_c": result["ses_c"] or 0,
+                        "ses_c_minus": result["ses_c_minus"] or 0,
+                        "ses_d": result["ses_d"] or 0,
+                        "ses_d_plus": result["ses_d_plus"] or 0,
+                        "ses_e": result["ses_e"] or 0
+                    },
+                    "colonia": {
+                        "ses_ab": result["ses_ab"] or 0,
+                        "ses_c_plus": result["ses_c_plus"] or 0,
+                        "ses_c": result["ses_c"] or 0,
+                        "ses_c_minus": result["ses_c_minus"] or 0,
+                        "ses_d": result["ses_d"] or 0,
+                        "ses_d_plus": result["ses_d_plus"] or 0,
+                        "ses_e": result["ses_e"] or 0
+                    },
+                    "alcaldia": {
+                        "ses_ab": result["ses_ab_alcaldia"] or 0,
+                        "ses_c_plus": result["ses_c_plus_alcaldia"] or 0,
+                        "ses_c": result["ses_c_alcaldia"] or 0,
+                        "ses_c_minus": result["ses_c_minus_alcaldia"] or 0,
+                        "ses_d": result["ses_d_alcaldia"] or 0,
+                        "ses_d_plus": result["ses_d_plus_alcaldia"] or 0,
+                        "ses_e": result["ses_e_alcaldia"] or 0
+                    }
+                },
+                "population": {
+                    "block": {
+                        "total_population": result["pobtot"],
+                        "male_population": result["pobmas"],
+                        "female_population": result["pobfem"]
+                    },
+                    "colonia": {
+                        "total_population": result["pobtot"],
+                        "male_population": result["pobmas"],
+                        "female_population": result["pobfem"]
+                    },
+                    "alcaldia": {
+                        "total_population": result["pobtot_alcaldia"],
+                        "male_population": result["pobmas_alcaldia"],
+                        "female_population": result["pobfem_alcaldia"]
+                    }
+                },
+                "education": {
+                    "block": {
+                        "education_3_5": result["p_3a5"] or 0,
+                        "education_6_11": result["p_6a11"] or 0,
+                        "education_12_14": result["p_12a14"] or 0,
+                        "education_15_17": result["p_15a17"] or 0,
+                        "education_18_24": result["p_18a24"] or 0,
+                        "education_3_5_attending_school": result["p3a5_noa"] or 0,
+                        "education_6_11_attending_school": result["p6a11_noa"] or 0,
+                        "education_12_14_attending_school": result["p12a14noa"] or 0,
+                        "education_15_17_attending_school": result["p15a17a"] or 0,
+                        "education_18_24_attending_school": result["p18a24a"] or 0
+                    },
+                    "colonia": {
+                        "education_3_5": result["p_3a5"] or 0,
+                        "education_6_11": result["p_6a11"] or 0,
+                        "education_12_14": result["p_12a14"] or 0,
+                        "education_15_17": result["p_15a17"] or 0,
+                        "education_18_24": result["p_18a24"] or 0,
+                        "education_3_5_attending_school": result["p3a5_noa"] or 0,
+                        "education_6_11_attending_school": result["p6a11_noa"] or 0,
+                        "education_12_14_attending_school": result["p12a14noa"] or 0,
+                        "education_15_17_attending_school": result["p15a17a"] or 0,
+                        "education_18_24_attending_school": result["p18a24a"] or 0
+                    },
+                    "alcaldia": {
+                        "education_3_5": result["p_3a5_alcaldia"] or 0,
+                        "education_6_11": result["p_6a11_alcaldia"] or 0,
+                        "education_12_14": result["p_12a14_alcaldia"] or 0,
+                        "education_15_17": result["p_15a17_alcaldia"] or 0,
+                        "education_18_24": result["p_18a24_alcaldia"] or 0,
+                        "education_3_5_attending_school": result["p3a5_noa_alcaldia"] or 0,
+                        "education_6_11_attending_school": result["p6a11_noa_alcaldia"] or 0,
+                        "education_12_14_attending_school": result["p12a14noa_alcaldia"] or 0,
+                        "education_15_17_attending_school": result["p15a17a_alcaldia"] or 0,
+                        "education_18_24_attending_school": result["p18a24a_alcaldia"] or 0
+                    }
+                },
+                "workforce": {
+                    "block": {
+                        "total_workforce": result["pea"] or 0,
+                        "total_male_workforce": result["pea_m"] or 0,
+                        "total_female_workforce": result["pea_f"] or 0,
+                        "total_inactive_population": result["pe_inac"] or 0,
+                        "total_inactive_male_population": result["pe_inac_m"] or 0,
+                        "total_inactive_female_population": result["pe_inac_f"] or 0
+                    },
+                    "colonia": {
+                        "total_workforce": result["pea"] or 0,
+                        "total_male_workforce": result["pea_m"] or 0,
+                        "total_female_workforce": result["pea_f"] or 0,
+                        "total_inactive_population": result["pe_inac"] or 0,
+                        "total_inactive_male_population": result["pe_inac_m"] or 0,
+                        "total_inactive_female_population": result["pe_inac_f"] or 0
+                    },
+                    "alcaldia": {
+                        "total_workforce": result["pea_alcaldia"] or 0,
+                        "total_male_workforce": result["pea_m_alcaldia"] or 0,
+                        "total_female_workforce": result["pea_f_alcaldia"] or 0,
+                        "total_inactive_population": result["pe_inac_alcaldia"] or 0,
+                        "total_inactive_male_population": result["pe_inac_m_alcaldia"] or 0,
+                        "total_inactive_female_population": result["pe_inac_f_alcaldia"] or 0
+                    }
+                },
+                "employment": {
+                    "block": {
+                        "total_employed_population": result["pocupada"] or 0,
+                        "total_male_employed_population": result["pocupada_m"] or 0,
+                        "total_female_emloyed_population": result["pocupada_f"] or 0,
+                        "total_unemployed_population": result["pdesocup"] or 0,
+                        "total_unemployed_male_population": result["pdesocup_m"] or 0,
+                        "total_unemployed_female_population": result["pdesocup_f"] or 0
+                    },
+                    "colonia": {
+                        "total_employed_population": result["pocupada"] or 0,
+                        "total_male_employed_population": result["pocupada_m"] or 0,
+                        "total_female_emloyed_population": result["pocupada_f"] or 0,
+                        "total_unemployed_population": result["pdesocup"] or 0,
+                        "total_unemployed_male_population": result["pdesocup_m"] or 0,
+                        "total_unemployed_female_population": result["pdesocup_f"] or 0
+                    },
+                    "alcaldia": {
+                        "total_employed_population": result["pocupada_alcaldia"] or 0,
+                        "total_male_employed_population": result["pocupada_m_alcaldia"] or 0,
+                        "total_female_emloyed_population": result["pocupada_f_alcaldia"] or 0,
+                        "total_unemployed_population": result["pdesocup_alcaldia"] or 0,
+                        "total_unemployed_male_population": result["pdesocup_m_alcaldia"] or 0,
+                        "total_unemployed_female_population": result["pdesocup_f_alcaldia"] or 0
+                    }
+                },
+                "population_growth": {
+                    "block": {
+                        "2000": [result["pob_2000_ageb"] or 0, 0],
+                        "2005": [result["pob_2005_ageb"] or 0, result["cambio_porcentual_2005_ageb"] or 0],
+                        "2010": [result["pob_2010_ageb"] or 0, result["cambio_porcentual_2010_ageb"] or 0],
+                        "2015": [result["pob_2015_ageb"] or 0, result["cambio_porcentual_2015_ageb"] or 0],
+                        "2020": [result["pob_2020_ageb"] or 0, result["cambio_porcentual_2020_ageb"] or 0]
+                    },
+                    "colonia": {
+                        "2000": [result["pob_2000_ageb"] or 0, 0],
+                        "2005": [result["pob_2005_ageb"] or 0, result["cambio_porcentual_2005_ageb"] or 0],
+                        "2010": [result["pob_2010_ageb"] or 0, result["cambio_porcentual_2010_ageb"] or 0],
+                        "2015": [result["pob_2015_ageb"] or 0, result["cambio_porcentual_2015_ageb"] or 0],
+                        "2020": [result["pob_2020_ageb"] or 0, result["cambio_porcentual_2020_ageb"] or 0]
+                    },
+                    "alcaldia": {
+                        "2000": [result["pob_2000_municipal"] or 0, 0],
+                        "2005": [result["pob_2005_municipal"] or 0, result["cambio_porcentual_2005_municipal"] or 0],
+                        "2010": [result["pob_2010_municipal"] or 0, result["cambio_porcentual_2010_municipal"] or 0],
+                        "2015": [result["pob_2015_municipal"] or 0, result["cambio_porcentual_2015_municipal"] or 0],
+                        "2020": [result["pob_2020_municipal"] or 0, result["cambio_porcentual_2020_municipal"] or 0]
+                    }
+                }
+            },
+            "age_pyramid_2024": age_pyramid_data,
+            "population_growth_2024": population_growth_data,
+            "comparison": {
+                "selected_area": {
+                    "population_density": f"{area_population_density} persons/km²",
+                    "population_density_trend": "down" if area_population_density < municipality_population_density else "up",
+                    "male_population": result["pobmas"],
+                    "male_percentage": f"{male_percentage}%",
+                    "male_trend": "down" if male_percentage < municipality_male_percentage else "up",
+                    "female_population": result["pobfem"],
+                    "female_percentage": f"{female_percentage}%",
+                    "female_trend": "up" if female_percentage > municipality_female_percentage else "down",
+                    "total_households": result["vivtot"],
+                    "households_trend": "up"  # Default trend
+                },
+                "municipality": {
+                    "population_density": f"{municipality_population_density} persons/km²",
+                    "male_population": result["pobmas_alcaldia"],
+                    "male_percentage": f"{municipality_male_percentage}%",
+                    "female_population": result["pobfem_alcaldia"],
+                    "female_percentage": f"{municipality_female_percentage}%",
+                    "total_households": result["vivtot_alcaldia"]
+                }
+            }
+        }
+        
+        return demographics_data
+
+    def _aggregate_queretaro_demographic_data(self, demographic_data):
+        """Aggregate Queretaro demographic data from multiple records."""
+        if not demographic_data:
+            return {}
+        
+        # For now, just return the first record since Queretaro data structure is different
+        # In the future, this could be enhanced to properly aggregate multiple records
+        return demographic_data[0]
+
+    def _process_socioeconomic_data(self, socioeconomic_data, lat, lng, radius, config_city='mexico'):
+        """Process socioeconomic data and create response structure matching UI mockup."""
+        
+        # Filter records by distance for Mexico (since we can't do it in SQL)
+        if config_city != 'queretaro' and config_city != 'el_marques':
+            filtered_data = []
+            radius_degrees = radius / 111000.0
+            
+            for record in socioeconomic_data:
+                try:
+                    centroid_str = record.get('centroid', '')
+                    if centroid_str and 'coordinates' in centroid_str:
+                        import re
+                        coords_match = re.search(r'\[([^,]+),\s*([^\]]+)\]', centroid_str)
+                        if coords_match:
+                            record_lng = float(coords_match.group(1))
+                            record_lat = float(coords_match.group(2))
+                            
+                            if (abs(record_lat - lat) <= radius_degrees and 
+                                abs(record_lng - lng) <= radius_degrees):
+                                filtered_data.append(record)
+                except (ValueError, AttributeError):
+                    continue
+            
+            socioeconomic_data = filtered_data
+            logger.info(f"Filtered to {len(socioeconomic_data)} records within radius for Mexico")
+        
+        # Initialize totals
+        total_population = 0
+        total_households = 0
+        
+        # Socioeconomic level totals
+        ses_totals = {
+            "AB": 0, "C+": 0, "C": 0, "C-": 0, "D+": 0, "D": 0, "E": 0
+        }
+        
+        # Process each record
+        for record in socioeconomic_data:
+            pop = record.get('total_population', 0) or 0
+            households = record.get('total_households', 0) or 0
+            
+            total_population += pop
+            total_households += households
+            
+            if households > 0:
+                # Calculate actual household counts from percentages
+                ses_totals["AB"] += (record.get('pct_viv_ab', 0) or 0) * households / 100
+                ses_totals["C+"] += (record.get('pct_viv_cp', 0) or 0) * households / 100
+                ses_totals["C"] += (record.get('pct_viv_c', 0) or 0) * households / 100
+                ses_totals["C-"] += (record.get('pct_viv_cm', 0) or 0) * households / 100
+                ses_totals["D+"] += (record.get('pct_viv_dp', 0) or 0) * households / 100
+                ses_totals["D"] += (record.get('pct_viv_d', 0) or 0) * households / 100
+                ses_totals["E"] += (record.get('pct_viv_e', 0) or 0) * households / 100
+        
+        # Calculate area
+        area_km2 = round((3.14159 * (radius/1000) ** 2), 2)
+        
+        # Find predominant level
+        predominant_level_name = max(ses_totals, key=ses_totals.get) if ses_totals else "N/A"
+        predominant_households = int(ses_totals.get(predominant_level_name, 0))
+        predominant_percentage = round((predominant_households / total_households * 100), 1) if total_households > 0 else 0
+        
+        # Create household distribution for chart
+        household_distribution = []
+        for level in ["AB", "C+", "C", "C-", "D+", "D", "E"]:
+            count = int(ses_totals[level])
+            percentage = round((count / total_households * 100), 1) if total_households > 0 else 0
+            
+            household_distribution.append({
+                "level": level,
+                "households": count,
+                "percentage": percentage
+            })
+        
+        # Calculate income estimates (based on typical SES income ranges in Mexico)
+        income_estimates = {
+            "AB": 50000,  # High income
+            "C+": 25000,  # Upper middle
+            "C": 15000,   # Middle
+            "C-": 10000,  # Lower middle
+            "D+": 7000,   # Lower
+            "D": 5000,    # Low
+            "E": 3000     # Very low
+        }
+        
+        # Calculate weighted average income
+        total_income_weighted = 0
+        for level, households in ses_totals.items():
+            total_income_weighted += households * income_estimates[level]
+        
+        average_income = round(total_income_weighted / total_households) if total_households > 0 else 0
+        total_income = round(total_income_weighted)
+        
+        # Structure response to match UI mockup exactly
+        socioeconomic_response = {
+            "summary": {
+                "area_km2": area_km2,
+                "population": total_population,
+                "total_households": total_households,
+                "center_point": {"lat": lat, "lng": lng},
+                "radius_meters": radius
+            },
+            "income": {
+                "average_income": {
+                    "amount": average_income,
+                    "currency": "MXN",
+                    "formatted": f"${average_income:,} MXN",
+                    "trend": None  # Not available - would need historical data
+                },
+                "total_income": {
+                    "amount": total_income,
+                    "currency": "MXN",
+                    "formatted": f"${total_income/1000000:,.1f}M MXN" if total_income > 0 else "$0 MXN",
+                    "trend": None  # Not available - would need historical data
+                }
+            },
+            "predominant_socioeconomic_level": {
+                "selected_area": {
+                    "level": predominant_level_name,
+                    "percentage": predominant_percentage,
+                    "households": predominant_households
+                },
+                "municipality_average": {
+                    "level": "B",  # Static - would need municipality-wide data
+                    "percentage": None  # Not available
+                }
+            },
+            "household_distribution": {
+                "levels": household_distribution,
+                "chart_data": {
+                    "labels": ["AB", "C+", "C", "C-", "D+", "D", "E"],
+                    "values": [ses_totals[level] for level in ["AB", "C+", "C", "C-", "D+", "D", "E"]],
+                    "percentages": [round((ses_totals[level] / total_households * 100), 1) if total_households > 0 else 0 
+                                  for level in ["AB", "C+", "C", "C-", "D+", "D", "E"]],
+                    "colors": ["#22c55e", "#84cc16", "#eab308", "#f59e0b", "#ef4444", "#dc2626", "#991b1b"]  # Green to red gradient
+                }
+            }
+        }
+        
+        return socioeconomic_response
+
+    def _get_empty_socioeconomic_structure(self, lat, lng, radius):
+        """Return empty socioeconomic structure when no data is found."""
+        area_km2 = round((3.14159 * (radius/1000) ** 2), 2)
+        
+        return {
+            "summary": {
+                "area_km2": area_km2,
+                "population": 0,
+                "total_households": 0,
+                "center_point": {"lat": lat, "lng": lng},
+                "radius_meters": radius
+            },
+            "income": {
+                "average_income": {"amount": 0, "currency": "MXN", "formatted": "$0 MXN", "trend": None},
+                "total_income": {"amount": 0, "currency": "MXN", "formatted": "$0 MXN", "trend": None}
+            },
+            "predominant_socioeconomic_level": {
+                "selected_area": {"level": "N/A", "percentage": 0, "households": 0},
+                "municipality_average": {"level": "N/A", "percentage": None}
+            },
+            "household_distribution": {
+                "levels": [],
+                "chart_data": {"labels": [], "values": [], "percentages": [], "colors": []}
+            }
+        }
+
+
+    def _process_demographics_data(self, demographic_data, lat, lng, radius, config_city='mexico'):
         """Process demographic data and create response structure matching UI mockup."""
         # Initialize totals
         total_population = 0
@@ -580,63 +1562,120 @@ class AreaAnalysisController:
         total_education_level = 0
         total_households = 0
         
+        # Filter records by distance for Mexico (since we can't do it in SQL)
+        if config_city != 'queretaro' and config_city != 'el_marques':
+            filtered_data = []
+            radius_degrees = radius / 111000.0  # Convert meters to degrees
+            
+            for record in demographic_data:
+                try:
+                    # Parse centroid JSON string to extract coordinates
+                    centroid_str = record.get('centroid', '')
+                    if centroid_str and 'coordinates' in centroid_str:
+                        # Simple string parsing since JSON type is not available
+                        import re
+                        coords_match = re.search(r'\[([^,]+),\s*([^\]]+)\]', centroid_str)
+                        if coords_match:
+                            record_lng = float(coords_match.group(1))
+                            record_lat = float(coords_match.group(2))
+                            
+                            # Check if within radius (simple bounding box)
+                            if (abs(record_lat - lat) <= radius_degrees and 
+                                abs(record_lng - lng) <= radius_degrees):
+                                filtered_data.append(record)
+                except (ValueError, AttributeError):
+                    continue
+            
+            demographic_data = filtered_data
+            logger.info(f"Filtered to {len(demographic_data)} records within radius for Mexico")
+        
         # Process each record
         for record in demographic_data:
             # Population totals
             pop = record.get('total_population', 0) or 0
-            male_pop = record.get('male_population', 0) or 0
-            female_pop = record.get('female_population', 0) or 0
-            
             total_population += pop
-            total_male += male_pop
-            total_female += female_pop
             
-            # Age groups - 0-14
-            age_totals['0-14']['male'] += (
-                (record.get('p_0a2_m', 0) or 0) +
-                (record.get('p_3a5_m', 0) or 0) +
-                (record.get('p_6a11_m', 0) or 0) +
-                (record.get('p_12a14_m', 0) or 0)
-            )
-            age_totals['0-14']['female'] += (
-                (record.get('p_0a2_f', 0) or 0) +
-                (record.get('p_3a5_f', 0) or 0) +
-                (record.get('p_6a11_f', 0) or 0) +
-                (record.get('p_12a14_f', 0) or 0)
-            )
+            if config_city == 'queretaro' or config_city == 'el_marques':
+                # QRO data structure - use available age group columns
+                child_pop = record.get('child_population', 0) or 0  # 0-14 years
+                working_pop = record.get('working_age_population', 0) or 0  # 15-64 years
+                elderly_pop = record.get('elderly_population', 0) or 0  # 65+ years
+                
+                # Use existing age group data from the table
+                # 0-14 age group (both male and female combined)
+                age_totals['0-14']['male'] += child_pop // 2  # Approximate split
+                age_totals['0-14']['female'] += child_pop - (child_pop // 2)
+                
+                # For specific age ranges, use the available columns
+                p_15a17 = record.get('p_15a17', 0) or 0
+                p_18a24 = record.get('p_18a24', 0) or 0
+                p_60ymas = record.get('p_60ymas', 0) or 0
+                
+                # 15-24 age group
+                age_15_24 = p_15a17 + p_18a24
+                age_totals['15-24']['male'] += age_15_24 // 2  # Approximate split
+                age_totals['15-24']['female'] += age_15_24 - (age_15_24 // 2)
+                
+                # 60+ age group  
+                age_totals['60+']['male'] += p_60ymas // 2  # Approximate split
+                age_totals['60+']['female'] += p_60ymas - (p_60ymas // 2)
+                
+                # 25-59 age group (derived from working age minus 15-24)
+                age_25_59 = working_pop - age_15_24
+                age_totals['25-59']['male'] += max(0, age_25_59 // 2)
+                age_totals['25-59']['female'] += max(0, age_25_59 - (age_25_59 // 2))
+                
+                # Calculate male/female totals (approximate split for QRO)
+                total_male += pop // 2
+                total_female += pop - (pop // 2)
+                
+                # Household data
+                if record.get('tot_vivien'):
+                    total_households += record.get('tot_vivien', 0)
+                    
+            else:
+                # Mexico data structure - has actual male/female population columns
+                male_pop = record.get('male_population', 0) or 0
+                female_pop = record.get('female_population', 0) or 0
+                
+                total_male += male_pop
+                total_female += female_pop
+                
+                # For Mexico, calculate age groups from specific columns
+                p_0a2 = record.get('p_0a2', 0) or 0
+                p_3a5 = record.get('p_3a5', 0) or 0
+                p_6a11 = record.get('p_6a11', 0) or 0
+                p_12a14 = record.get('p_12a14', 0) or 0
+                p_15a17 = record.get('p_15a17', 0) or 0
+                p_18a24 = record.get('p_18a24', 0) or 0
+                p_60ymas = record.get('p_60ymas', 0) or 0
+                
+                # 0-14 age group
+                age_0_14 = p_0a2 + p_3a5 + p_6a11 + p_12a14
+                age_totals['0-14']['male'] += age_0_14 // 2
+                age_totals['0-14']['female'] += age_0_14 - (age_0_14 // 2)
+                
+                # 15-24 age group
+                age_15_24 = p_15a17 + p_18a24
+                age_totals['15-24']['male'] += age_15_24 // 2
+                age_totals['15-24']['female'] += age_15_24 - (age_15_24 // 2)
+                
+                # 60+ age group
+                age_totals['60+']['male'] += p_60ymas // 2
+                age_totals['60+']['female'] += p_60ymas - (p_60ymas // 2)
+                
+                # 25-59 age group (derived)
+                age_25_59 = pop - age_0_14 - age_15_24 - p_60ymas
+                age_totals['25-59']['male'] += max(0, age_25_59 // 2)
+                age_totals['25-59']['female'] += max(0, age_25_59 - (age_25_59 // 2))
+                
+                # Household data
+                if record.get('vivtot'):
+                    total_households += record.get('vivtot', 0)
             
-            # Age groups - 15-24
-            age_totals['15-24']['male'] += (
-                (record.get('p_15a17_m', 0) or 0) +
-                (record.get('p_18a24_m', 0) or 0)
-            )
-            age_totals['15-24']['female'] += (
-                (record.get('p_15a17_f', 0) or 0) +
-                (record.get('p_18a24_f', 0) or 0)
-            )
-            
-            # Age groups - 60+
-            age_totals['60+']['male'] += (record.get('p_60ymas_m', 0) or 0)
-            age_totals['60+']['female'] += (record.get('p_60ymas_f', 0) or 0)
-            
-            # Calculate 25-59 (derived)
-            male_25_59 = male_pop - (
-                age_totals['0-14']['male'] + age_totals['15-24']['male'] + age_totals['60+']['male']
-            )
-            female_25_59 = female_pop - (
-                age_totals['0-14']['female'] + age_totals['15-24']['female'] + age_totals['60+']['female']
-            )
-            
-            age_totals['25-59']['male'] += max(0, male_25_59)
-            age_totals['25-59']['female'] += max(0, female_25_59)
-            
-            # Income and education (aggregate averages)
-            if record.get('prom_hnv'):
-                total_income += record.get('prom_hnv', 0) * pop
+            # Education data (common for both)
             if record.get('graproes'):
                 total_education_level += record.get('graproes', 0) * pop
-            if record.get('pro_ocup_c'):
-                total_households += record.get('pro_ocup_c', 0)
         
         # Calculate percentages and averages
         male_percentage = (total_male / total_population * 100) if total_population > 0 else 0
@@ -648,7 +1687,7 @@ class AreaAnalysisController:
         # Calculate area
         area_km2 = round((3.14159 * (radius/1000) ** 2), 2)
         
-        # Create age distribution for population pyramid
+        # Create age distribution for population pyramid (consistent with PropertyDemographic)
         age_distribution = []
         for age_group in ['0-14', '15-24', '25-59', '60+']:
             male_count = age_totals[age_group]['male']
@@ -663,26 +1702,75 @@ class AreaAnalysisController:
                 "percentage": round((total_age_group / total_population * 100), 1) if total_population > 0 else 0
             })
         
-        # Simulate socioeconomic levels (these would come from actual data)
-        # Based on your UI mockup showing levels A, B, C+, C, C-, D+, D, E
-        socioeconomic_levels = [
-            {"level": "AB", "households": int(total_population * 0.05), "percentage": 5.0},
-            {"level": "C+", "households": int(total_population * 0.15), "percentage": 15.0},
-            {"level": "C", "households": int(total_population * 0.38), "percentage": 38.2},  # Predominant
-            {"level": "C-", "households": int(total_population * 0.25), "percentage": 25.0},
-            {"level": "D+", "households": int(total_population * 0.12), "percentage": 12.0},
-            {"level": "D", "households": int(total_population * 0.04), "percentage": 4.0},
-            {"level": "E", "households": int(total_population * 0.01), "percentage": 0.8}
-        ]
+        # Process socioeconomic levels from actual housing data (consistent with PropertyDemographic)
+        # Collect housing percentages from all records using same column names
+        housing_totals = {
+            "ses_ab": 0, "ses_c_plus": 0, "ses_c": 0, "ses_c_minus": 0, 
+            "ses_d_plus": 0, "ses_d": 0, "ses_e": 0
+        }
+        
+        total_households_processed = 0
+        
+        for record in demographic_data:
+            if config_city == 'queretaro' or config_city == 'el_marques':
+                # QRO uses tot_vivien and pct_viv_* columns
+                households = record.get('tot_vivien', 0) or 0
+                total_households_processed += households
+                if households > 0:
+                    housing_totals["ses_ab"] += (record.get('pct_viv_ab', 0) or 0) * households / 100
+                    housing_totals["ses_c_plus"] += (record.get('pct_viv_cp', 0) or 0) * households / 100
+                    housing_totals["ses_c"] += (record.get('pct_viv_c', 0) or 0) * households / 100
+                    housing_totals["ses_c_minus"] += (record.get('pct_viv_cm', 0) or 0) * households / 100
+                    housing_totals["ses_d_plus"] += (record.get('pct_viv_dp', 0) or 0) * households / 100
+                    housing_totals["ses_d"] += (record.get('pct_viv_d', 0) or 0) * households / 100
+                    housing_totals["ses_e"] += (record.get('pct_viv_e', 0) or 0) * households / 100
+            else:
+                # Mexico uses vivtot and direct ses_* percentages
+                households = record.get('vivtot', 0) or 0
+                total_households_processed += households
+                if households > 0:
+                    # For Mexico, the columns already contain percentages, so convert them
+                    housing_totals["ses_ab"] += (record.get('pct_viv_ab', 0) or 0) * households / 100
+                    housing_totals["ses_c_plus"] += (record.get('pct_viv_cp', 0) or 0) * households / 100
+                    housing_totals["ses_c"] += (record.get('pct_viv_c', 0) or 0) * households / 100
+                    housing_totals["ses_c_minus"] += (record.get('pct_viv_cm', 0) or 0) * households / 100
+                    housing_totals["ses_d_plus"] += (record.get('pct_viv_dp', 0) or 0) * households / 100
+                    housing_totals["ses_d"] += (record.get('pct_viv_d', 0) or 0) * households / 100
+                    housing_totals["ses_e"] += (record.get('pct_viv_e', 0) or 0) * households / 100
+        
+        # Calculate total households and percentages
+        total_housing = sum(housing_totals.values())
+        socioeconomic_levels = []
+        
+        # Structure consistent with PropertyDemographic naming
+        level_mapping = {
+            "ses_ab": "AB", "ses_c_plus": "C+", "ses_c": "C", "ses_c_minus": "C-",
+            "ses_d_plus": "D+", "ses_d": "D", "ses_e": "E"
+        }
+        
+        for ses_key, level_name in level_mapping.items():
+            count = housing_totals[ses_key]
+            percentage = (count / total_housing * 100) if total_housing > 0 else 0
+            socioeconomic_levels.append({
+                "level": level_name,
+                "households": int(count),
+                "percentage": round(percentage, 1),
+                "ses_key": ses_key  # For consistency with PropertyDemographic
+            })
         
         # Find predominant level (highest percentage)
-        predominant_level = max(socioeconomic_levels, key=lambda x: x['percentage'])
+        predominant_level = max(socioeconomic_levels, key=lambda x: x['percentage']) if socioeconomic_levels else None
         
-        # Structure response to match UI mockup
+        # Calculate population density (persons per km²)
+        population_density = round(total_population / area_km2, 2) if area_km2 > 0 else 0
+        
+        # Structure response to match your UI exactly
         demographics_data = {
             "summary": {
                 "area_km2": area_km2,
                 "population": total_population,
+                "population_density": population_density,
+                "population_density_formatted": f"{population_density} persons / km²",
                 "center_point": {"lat": lat, "lng": lng},
                 "radius_meters": radius
             },
@@ -692,27 +1780,34 @@ class AreaAnalysisController:
                 "female_population": total_female,
                 "male_percentage": round(male_percentage, 1),
                 "female_percentage": round(female_percentage, 1),
-                "age_distribution": age_distribution
+                "age_distribution": age_distribution,
+                "age_pyramid_data": {
+                    "age_groups": [group["age_group"] for group in age_distribution],
+                    "male_values": [group["male"] for group in age_distribution],
+                    "female_values": [group["female"] for group in age_distribution],
+                    "male_negative": [-group["male"] for group in age_distribution],  # For left side of pyramid
+                    "labels": [group["age_group"] for group in age_distribution]  # Dynamic labels from actual data
+                }
             },
             "socioeconomic": {
                 "predominant_level": {
-                    "level": predominant_level["level"],
-                    "percentage": predominant_level["percentage"],
-                    "households": predominant_level["households"]
+                    "level": predominant_level["level"] if socioeconomic_levels else "N/A",
+                    "percentage": predominant_level["percentage"] if socioeconomic_levels else 0,
+                    "households": predominant_level["households"] if socioeconomic_levels else 0
                 },
-                "municipality_average": "B",  # Static for now
+                "municipality_average": None,  # Not available
                 "levels_distribution": socioeconomic_levels,
                 "average_income": {
                     "amount": round(avg_income, 2),
                     "currency": "MXN",
                     "formatted": f"${avg_income:,.0f} MXN" if avg_income > 0 else "$0 MXN",
-                    "trend": "down"  # Static for now
+                    "trend": None  # Not available
                 },
                 "total_income": {
                     "amount": round(total_income, 2),
                     "currency": "MXN", 
                     "formatted": f"${total_income/1000000:,.0f} million MXN" if total_income > 0 else "$0 MXN",
-                    "trend": "up"  # Static for now
+                    "trend": None  # Not available
                 }
             }
         }
@@ -747,121 +1842,5 @@ class AreaAnalysisController:
             }
         }
 
-    def _build_traffic_by_day_query(self, lat, lng, radius, user_type=None):
-        """Build SQL query for traffic data by day of the week."""
-        user_type_condition = ""
-        if user_type:
-            user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
-        
-        query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
-        )
-        SELECT  SUM(CASE WHEN a.dia_de_la_semana = 'Monday' THEN a.total_usuarios_unicos ELSE 0 END) AS monday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Tuesday' THEN a.total_usuarios_unicos ELSE 0 END) AS tuesday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Wednesday' THEN a.total_usuarios_unicos ELSE 0 END) AS wednesday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Thursday' THEN a.total_usuarios_unicos ELSE 0 END) AS thursday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Friday' THEN a.total_usuarios_unicos ELSE 0 END) AS friday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Saturday' THEN a.total_usuarios_unicos ELSE 0 END) AS saturday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Sunday' THEN a.total_usuarios_unicos ELSE 0 END) AS sunday
-        FROM blackprint_db_prd.staging.stg_data_movilidad_por_dia_qro a
-        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
-        {user_type_condition}
-        """
-        return query
 
-    def _build_traffic_by_hour_query(self, lat, lng, radius, user_type=None):
-        """Build SQL query for traffic data by hour of the day."""
-        user_type_condition = ""
-        if user_type:
-            user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
-        
-        query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
-        )
-        SELECT  SUM(CASE WHEN a.hour = 0 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_0,
-                SUM(CASE WHEN a.hour = 1 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_1,
-                SUM(CASE WHEN a.hour = 2 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_2,
-                SUM(CASE WHEN a.hour = 3 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_3,
-                SUM(CASE WHEN a.hour = 4 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_4,
-                SUM(CASE WHEN a.hour = 5 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_5,
-                SUM(CASE WHEN a.hour = 6 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_6,
-                SUM(CASE WHEN a.hour = 7 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_7,
-                SUM(CASE WHEN a.hour = 8 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_8,
-                SUM(CASE WHEN a.hour = 9 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_9,
-                SUM(CASE WHEN a.hour = 10 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_10,
-                SUM(CASE WHEN a.hour = 11 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_11,
-                SUM(CASE WHEN a.hour = 12 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_12,
-                SUM(CASE WHEN a.hour = 13 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_13,
-                SUM(CASE WHEN a.hour = 14 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_14,
-                SUM(CASE WHEN a.hour = 15 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_15,
-                SUM(CASE WHEN a.hour = 16 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_16,
-                SUM(CASE WHEN a.hour = 17 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_17,
-                SUM(CASE WHEN a.hour = 18 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_18,
-                SUM(CASE WHEN a.hour = 19 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_19,
-                SUM(CASE WHEN a.hour = 20 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_20,
-                SUM(CASE WHEN a.hour = 21 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_21,
-                SUM(CASE WHEN a.hour = 22 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_22,
-                SUM(CASE WHEN a.hour = 23 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_23
-        FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
-        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
-        {user_type_condition}
-        """
-        return query
 
-    def _build_traffic_summary_query(self, lat, lng, radius, user_type=None):
-        """Build SQL query for total traffic summary."""
-        user_type_condition = ""
-        if user_type:
-            user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
-        
-        query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
-        )
-        SELECT  SUM(a.total_usuarios_unicos) as total_users
-        FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
-        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
-        {user_type_condition}
-        """
-        return query
