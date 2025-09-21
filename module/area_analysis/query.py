@@ -333,6 +333,24 @@ class AreaAnalysisQuery:
             d.p15a17a,
             d.p18a24a,
             
+            -- Gender-specific age data for age pyramid
+            d.p_0a2,
+            d.p_0a2_f,
+            d.p_0a2_m,
+            d.p_3a5_f,
+            d.p_3a5_m,
+            d.p_6a11_f,
+            d.p_6a11_m,
+            d.p_12a14_f,
+            d.p_12a14_m,
+            d.p_15a17_f,
+            d.p_15a17_m,
+            d.p_18a24_f,
+            d.p_18a24_m,
+            d.p_60ymas,
+            d.p_60ymas_f,
+            d.p_60ymas_m,
+            
             -- Education data - Colonia level
             d.p_3a5_colonia,
             d.p_6a11_colonia,
@@ -439,7 +457,12 @@ class AreaAnalysisQuery:
             d.cambio_porcentual_2020_municipal,
             
             -- Centroid for distance filtering
-            d.centroid
+            d.centroid,
+            
+            -- Area data for municipality calculation
+            d.total_area,
+            d.municipality_code,
+            d.municipality_nm
             
         FROM blackprint_db_prd.data_product.v_parcel_v3 d
         WHERE d.centroid IS NOT NULL

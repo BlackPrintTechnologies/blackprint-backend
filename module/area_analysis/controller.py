@@ -507,7 +507,7 @@ class AreaAnalysisController:
             if res and len(res) > 0:
                 # Process demographic data
                 if config_city == 'mexico':
-                    demographics_data = self._process_mexico_demographics_data(res, lat, lng, radius)
+                    demographics_data = self._process_mexico_demographics_data(res, lat, lng, radius, connection)
                 else:
                     demographics_data = self._process_demographics_data(res, lat, lng, radius, config_city)
                 logger.info(f"Demographics analysis completed for {len(res)} records in {config_city}")
@@ -585,7 +585,7 @@ class AreaAnalysisController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    def _process_mexico_demographics_data(self, demographic_data, lat, lng, radius):
+    def _process_mexico_demographics_data(self, demographic_data, lat, lng, radius, connection=None):
         """
         Process Mexico City demographic data using the optimized structure from properties controller.
         This matches the demographic structure you provided for Mexico City.
@@ -817,9 +817,13 @@ class AreaAnalysisController:
         # Calculate population density for selected area
         area_population_density = round(result["pobtot"] / area_km2, 2) if area_km2 > 0 else 0
         
-        # Calculate municipality population density (need to get municipality area)
-        # For now, we'll use a reasonable estimate for Mexico City municipality area
-        municipality_area_km2 = 32.4  # Approximate area of Cuauhtémoc municipality in km²
+        # Calculate municipality population density dynamically from database
+        municipality_code = result.get("municipality_code")
+        if municipality_code and connection:
+            municipality_area_km2 = self._get_municipality_area_km2(municipality_code, connection)
+        else:
+            # Fallback to a reasonable default if no municipality code or connection
+            municipality_area_km2 = 32.44
         municipality_population_density = round(result["pobtot_alcaldia"] / municipality_area_km2, 2) if municipality_area_km2 > 0 else 0
         
         # Calculate male/female percentages
@@ -886,6 +890,9 @@ class AreaAnalysisController:
 
     def _create_age_pyramid_data(self, result):
         """Create age pyramid data structure for 2024 visualization."""
+        # Debug: Log available columns
+        logger.info(f"Available columns in result: {list(result.keys())}")
+        
         # Age groups for the pyramid (in years)
         age_groups = [
             {"range": "0-2", "male": result.get("p_0a2_m", 0) or 0, "female": result.get("p_0a2_f", 0) or 0},
@@ -900,6 +907,11 @@ class AreaAnalysisController:
             {"range": "55-64", "male": 0, "female": 0},  # Not available in data
             {"range": "65+", "male": result.get("p_60ymas_m", 0) or 0, "female": result.get("p_60ymas_f", 0) or 0}
         ]
+        
+        # Debug: Log the values we're getting
+        logger.info(f"Age pyramid data - p_0a2_m: {result.get('p_0a2_m')}, p_0a2_f: {result.get('p_0a2_f')}")
+        logger.info(f"Age pyramid data - p_3a5_m: {result.get('p_3a5_m')}, p_3a5_f: {result.get('p_3a5_f')}")
+        logger.info(f"Age pyramid data - p_6a11_m: {result.get('p_6a11_m')}, p_6a11_f: {result.get('p_6a11_f')}")
         
         # Calculate percentages for each age group
         total_population = result.get("pobtot", 1) or 1
@@ -966,6 +978,40 @@ class AreaAnalysisController:
             "municipality": municipality_data,
             "years": years
         }
+
+    def _get_municipality_area_km2(self, municipality_code, connection):
+        """Calculate municipality area in km² from database data."""
+        cursor = None
+        try:
+            cursor = connection.cursor()
+            
+            # Query to get total area of all parcels in the municipality
+            query = """
+            SELECT SUM(total_area) as total_area_m2
+            FROM blackprint_db_prd.data_product.v_parcel_v3 
+            WHERE municipality_code = %s
+            AND total_area IS NOT NULL
+            AND total_area > 0
+            """
+            
+            cursor.execute(query, (municipality_code,))
+            result = cursor.fetchone()
+            
+            if result and result[0]:
+                # Convert from square meters to square kilometers
+                total_area_m2 = float(result[0])
+                total_area_km2 = total_area_m2 / 1_000_000  # Convert m² to km²
+                return round(total_area_km2, 2)
+            else:
+                # Fallback to a reasonable default if no data found
+                return 32.44
+                
+        except Exception as e:
+            logger.error(f"Error calculating municipality area: {str(e)}")
+            return 32.44  # Fallback to Cuauhtémoc area
+        finally:
+            if cursor:
+                cursor.close()
 
     def _process_socioeconomic_data(self, socioeconomic_data, lat, lng, radius, config_city='mexico'):
         """Process socioeconomic data and create response structure matching UI mockup."""
