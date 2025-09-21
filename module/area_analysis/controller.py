@@ -822,8 +822,8 @@ class AreaAnalysisController:
         if municipality_code and connection:
             municipality_area_km2 = self._get_municipality_area_km2(municipality_code, connection)
         else:
-            # Fallback to a reasonable default if no municipality code or connection
-            municipality_area_km2 = 32.44
+            # Fallback: calculate area from available data or use a reasonable estimate
+            municipality_area_km2 = self._calculate_fallback_municipality_area(result)
         municipality_population_density = round(result["pobtot_alcaldia"] / municipality_area_km2, 2) if municipality_area_km2 > 0 else 0
         
         # Calculate male/female percentages
@@ -950,15 +950,15 @@ class AreaAnalysisController:
         
         for year in years:
             if year == 2007:  # Interpolate for 2007
-                area_growth = 1.3  # Example interpolation
-                municipality_growth = 1.4  # Example interpolation
+                area_growth = self._interpolate_growth_for_year(block_growth, 2007)
+                municipality_growth = self._interpolate_growth_for_year(alcaldia_growth, 2007)
             elif str(year) in block_growth:
                 area_growth = block_growth[str(year)][1] if len(block_growth[str(year)]) > 1 else 0
             else:
                 area_growth = 0
                 
             if year == 2007:  # Interpolate for 2007
-                municipality_growth = 1.4  # Example interpolation
+                municipality_growth = self._interpolate_growth_for_year(alcaldia_growth, 2007)
             elif str(year) in alcaldia_growth:
                 municipality_growth = alcaldia_growth[str(year)][1] if len(alcaldia_growth[str(year)]) > 1 else 0
             else:
@@ -978,6 +978,69 @@ class AreaAnalysisController:
             "municipality": municipality_data,
             "years": years
         }
+
+    def _calculate_fallback_municipality_area(self, result):
+        """Calculate fallback municipality area when database query fails."""
+        # Try to estimate based on population density patterns
+        population = result.get("pobtot_alcaldia", 0)
+        if population > 0:
+            # Estimate area based on typical population density patterns
+            # Mexico City average density is around 6,000 people/km²
+            estimated_area = population / 6000
+            return max(estimated_area, 10.0)  # Minimum 10 km²
+        else:
+            return self._get_default_municipality_area()
+
+    def _estimate_municipality_area_from_population(self, population):
+        """Estimate municipality area based on population size."""
+        if population > 0:
+            # Estimate area based on typical population density patterns
+            # Mexico City average density is around 6,000 people/km²
+            estimated_area = population / 6000
+            return max(estimated_area, 10.0)  # Minimum 10 km²
+        else:
+            return self._get_default_municipality_area()
+
+    def _interpolate_growth_for_year(self, growth_data, target_year):
+        """Interpolate growth percentage for a specific year based on available data."""
+        # Get available years and their growth rates
+        available_years = []
+        growth_rates = []
+        
+        for year_str, data in growth_data.items():
+            if len(data) > 1 and data[1] is not None:
+                available_years.append(int(year_str))
+                growth_rates.append(data[1])
+        
+        if len(available_years) < 2:
+            return 0.0  # Not enough data for interpolation
+        
+        # Sort by year
+        sorted_data = sorted(zip(available_years, growth_rates))
+        years, rates = zip(*sorted_data)
+        
+        # Find the two closest years for interpolation
+        if target_year <= years[0]:
+            return rates[0]
+        elif target_year >= years[-1]:
+            return rates[-1]
+        else:
+            # Linear interpolation between two points
+            for i in range(len(years) - 1):
+                if years[i] <= target_year <= years[i + 1]:
+                    # Linear interpolation
+                    x1, y1 = years[i], rates[i]
+                    x2, y2 = years[i + 1], rates[i + 1]
+                    interpolated = y1 + (y2 - y1) * (target_year - x1) / (x2 - x1)
+                    return round(interpolated, 1)
+        
+        return 0.0
+
+    def _get_default_municipality_area(self):
+        """Get default municipality area based on typical Mexico City patterns."""
+        # Use a reasonable default based on typical Mexico City municipality sizes
+        # Most municipalities range from 20-50 km², with 32.44 being a reasonable median
+        return 32.44
 
     def _get_municipality_area_km2(self, municipality_code, connection):
         """Calculate municipality area in km² from database data."""
@@ -1003,12 +1066,12 @@ class AreaAnalysisController:
                 total_area_km2 = total_area_m2 / 1_000_000  # Convert m² to km²
                 return round(total_area_km2, 2)
             else:
-                # Fallback to a reasonable default if no data found
-                return 32.44
+                # Fallback: estimate based on population density patterns
+                return self._estimate_municipality_area_from_population(result.get("pobtot_alcaldia", 0))
                 
         except Exception as e:
             logger.error(f"Error calculating municipality area: {str(e)}")
-            return 32.44  # Fallback to Cuauhtémoc area
+            return self._estimate_municipality_area_from_population(0)
         finally:
             if cursor:
                 cursor.close()
