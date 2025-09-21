@@ -127,74 +127,6 @@ class AreaAnalysisQuery:
         """
         return query
 
-    def build_demographics_query(self, lat, lng, radius, config_city='mexico'):
-        """Build SQL query to get demographic data within the specified area."""
-        # Convert radius from meters to degrees (approximate conversion for latitude)
-        # 1 degree ≈ 111,000 meters
-        radius_degrees = radius / 111000.0
-        
-        if config_city == 'queretaro' or config_city == 'el_marques':
-            # QRO demographic query - use stg_demographic_socioeconomic_qro table
-            query = f"""
-            SELECT 
-                d.pobtot as total_population,
-                d.pob15_64 as working_age_population,
-                d.pob0_14 as child_population,
-                d.pob65_mas as elderly_population,
-                d.p_0a2,
-                d.p_3a5,
-                d.p_6a11,
-                d.p_12a14,
-                d.p_15a17,
-                d.p_18a24,
-                d.p_60ymas,
-                d.graproes,
-                d.niv_predom,
-                d.tot_vivien as total_households,
-                d.pct_viv_ab, d.pct_viv_cp, d.pct_viv_c, d.pct_viv_cm, 
-                d.pct_viv_dp, d.pct_viv_d, d.pct_viv_e
-            FROM blackprint_db_prd.staging.stg_demographic_socioeconomic_qro d
-            WHERE d.geometry_coords IS NOT NULL
-            AND ST_DWithin(
-                ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326),
-                CASE 
-                    WHEN ST_SRID(d.geometry_coords) = 0 THEN ST_SetSRID(d.geometry_coords, 4326)
-                    ELSE d.geometry_coords 
-                END,
-                {radius_degrees}
-            )
-            """
-        else:
-            # CDMX demographic query - use v_parcel_v3 table (similar to PropertyDemographic)
-            query = f"""
-            SELECT 
-                d.pobtot as total_population,
-                d.pobmas as male_population,
-                d.pobfem as female_population,
-                d.p_0a2,
-                d.p_3a5,
-                d.p_6a11,
-                d.p_12a14,
-                d.p_15a17,
-                d.p_18a24,
-                d.p_60ymas,
-                d.graproes,
-                d.predominant_level,
-                d.vivtot as total_households,
-                d.ses_ab as pct_viv_ab, 
-                d.ses_c_plus as pct_viv_cp, 
-                d.ses_c as pct_viv_c, 
-                d.ses_c_minus as pct_viv_cm,
-                d.ses_d_plus as pct_viv_dp, 
-                d.ses_d as pct_viv_d, 
-                d.ses_e as pct_viv_e
-            FROM blackprint_db_prd.data_product.v_parcel_v3 d
-            WHERE d.centroid IS NOT NULL
-            AND d.centroid != ''
-            AND d.centroid LIKE '%coordinates%'
-            LIMIT 1000
-            """
-        return query
 
     def build_socioeconomic_query(self, lat, lng, radius, config_city='mexico'):
         """Build SQL query to get socioeconomic data within the specified area."""
@@ -202,7 +134,7 @@ class AreaAnalysisQuery:
         # 1 degree ≈ 111,000 meters
         radius_degrees = radius / 111000.0
         
-        if config_city == 'queretaro' or config_city == 'el_marques':
+        if config_city == 'queretaro':
             # QRO socioeconomic query - use stg_demographic_socioeconomic_qro table
             query = f"""
             SELECT 
@@ -528,13 +460,13 @@ class AreaAnalysisQuery:
             -- Population data - Block level
             d.pobtot,
             -- Note: pobmas and pobfem don't exist in Queretaro table, using calculated values
-            ROUND(d.pobtot * 0.49) as pobmas,  -- Approximate 49% male
-            ROUND(d.pobtot * 0.51) as pobfem,  -- Approximate 51% female
+            d.pobtot * 0.49 as pobmas,  -- Approximate 49% male
+            d.pobtot * 0.51 as pobfem,  -- Approximate 51% female
             
             -- Population data - Municipality level (using same values for now)
             d.pobtot as pobtot_alcaldia,
-            ROUND(d.pobtot * 0.49) as pobmas_alcaldia,
-            ROUND(d.pobtot * 0.51) as pobfem_alcaldia,
+            d.pobtot * 0.49 as pobmas_alcaldia,
+            d.pobtot * 0.51 as pobfem_alcaldia,
             
             -- Education data - Block level
             d.p_3a5,
@@ -550,21 +482,21 @@ class AreaAnalysisQuery:
             
             -- Gender-specific age data for age pyramid (using calculated values)
             d.p_0a2,
-            ROUND(d.p_0a2 * 0.49) as p_0a2_f,
-            ROUND(d.p_0a2 * 0.51) as p_0a2_m,
-            ROUND(d.p_3a5 * 0.49) as p_3a5_f,
-            ROUND(d.p_3a5 * 0.51) as p_3a5_m,
-            ROUND(d.p_6a11 * 0.49) as p_6a11_f,
-            ROUND(d.p_6a11 * 0.51) as p_6a11_m,
-            ROUND(d.p_12a14 * 0.49) as p_12a14_f,
-            ROUND(d.p_12a14 * 0.51) as p_12a14_m,
-            ROUND(d.p_15a17 * 0.49) as p_15a17_f,
-            ROUND(d.p_15a17 * 0.51) as p_15a17_m,
-            ROUND(d.p_18a24 * 0.49) as p_18a24_f,
-            ROUND(d.p_18a24 * 0.51) as p_18a24_m,
+            d.p_0a2 * 0.49 as p_0a2_f,
+            d.p_0a2 * 0.51 as p_0a2_m,
+            d.p_3a5 * 0.49 as p_3a5_f,
+            d.p_3a5 * 0.51 as p_3a5_m,
+            d.p_6a11 * 0.49 as p_6a11_f,
+            d.p_6a11 * 0.51 as p_6a11_m,
+            d.p_12a14 * 0.49 as p_12a14_f,
+            d.p_12a14 * 0.51 as p_12a14_m,
+            d.p_15a17 * 0.49 as p_15a17_f,
+            d.p_15a17 * 0.51 as p_15a17_m,
+            d.p_18a24 * 0.49 as p_18a24_f,
+            d.p_18a24 * 0.51 as p_18a24_m,
             d.p_60ymas,
-            ROUND(d.p_60ymas * 0.49) as p_60ymas_f,
-            ROUND(d.p_60ymas * 0.51) as p_60ymas_m,
+            d.p_60ymas * 0.49 as p_60ymas_f,
+            d.p_60ymas * 0.51 as p_60ymas_m,
             
             -- Education data - Municipality level (using same values)
             d.p_3a5 as p_3a5_alcaldia,
@@ -641,9 +573,11 @@ class AreaAnalysisQuery:
             d.nom_mun as municipality_nm
             
         FROM staging.stg_demographic_socioeconomic_qro d
-        WHERE d.geometry_coords_json IS NOT NULL
-        AND d.geometry_coords_json != ''
-        AND d.geometry_coords_json LIKE '%coordinates%'
-        LIMIT 10
+        WHERE d.geometry_coords IS NOT NULL
+        AND ST_DWithin(
+            ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326),
+            ST_SetSRID(d.geometry_coords, 4326),
+            {radius_degrees}
+        )
         """
         return query

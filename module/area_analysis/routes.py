@@ -71,7 +71,7 @@ class AreaAnalysisDemographics(Resource):
     post_parser.add_argument('lng', type=float, required=True, help='Longitude is required', location='json')
     post_parser.add_argument('radius', type=int, default=2000, required=False, location='json')
     post_parser.add_argument('config_city', type=str, default='mexico', required=False, location='json',
-                           help='City configuration - mexico, queretaro, or el_marques')
+                           help='City configuration - mexico or queretaro')
     
     @authenticate
     def post(self, current_user):
@@ -103,7 +103,7 @@ class AreaAnalysisSocioeconomic(Resource):
     post_parser.add_argument('lng', type=float, required=True, help='Longitude is required', location='json')
     post_parser.add_argument('radius', type=int, default=2000, required=False, location='json')
     post_parser.add_argument('config_city', type=str, default='mexico', required=False, location='json',
-                           help='City configuration - mexico, queretaro, or el_marques')
+                           help='City configuration - mexico or queretaro')
     
     @authenticate
     def post(self, current_user):
