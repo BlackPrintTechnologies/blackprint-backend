@@ -184,13 +184,22 @@ class AreaAnalysisQuery:
 
     def build_mexico_demographics_query(self, lat, lng, radius):
         """
-        Build optimized Mexico City demographics query using the structure from properties controller.
-        This query matches the demographic structure you provided for Mexico City.
+        Build optimized Mexico City demographics query using accurate spatial filtering.
+        Uses PostGIS ST_Buffer with proper coordinate system transformations for precise radius filtering.
         """
-        # Convert radius from meters to degrees (approximate conversion for latitude)
-        radius_degrees = radius / 111000.0
-        
         query = f"""
+        WITH point_geom AS (
+          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+        ),
+        point_projected AS (
+          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+        ),
+        buffered AS (
+          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+        ),
+        buffered_4326 AS (
+          SELECT ST_Transform(geom, 4326) AS geom FROM buffered
+        )
         SELECT 
             -- General demographic data
             d.neighborhood,
@@ -397,11 +406,11 @@ class AreaAnalysisQuery:
             d.municipality_nm
             
         FROM blackprint_db_prd.data_product.v_parcel_v3 d
+        CROSS JOIN buffered_4326 b
         WHERE d.centroid IS NOT NULL
         AND d.centroid != ''
         AND d.centroid LIKE '%coordinates%'
-        AND ST_DWithin(
-            ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326),
+        AND ST_Intersects(
             ST_SetSRID(
                 ST_MakePoint(
                     CAST(SPLIT_PART(REPLACE(REPLACE(d.centroid, '{{"type":"Point","coordinates":[', ''), ']}}', ''), ',', 1) AS FLOAT),
@@ -409,20 +418,29 @@ class AreaAnalysisQuery:
                 ), 
                 4326
             ),
-            {radius_degrees}
+            b.geom
         )
         """
         return query
 
     def build_queretaro_demographics_query(self, lat, lng, radius):
         """
-        Build Queretaro demographics query using the staging table structure.
-        This query matches the demographic structure for Queretaro city.
+        Build Queretaro demographics query using accurate spatial filtering.
+        Uses PostGIS ST_Buffer with proper coordinate system transformations for precise radius filtering.
         """
-        # Convert radius from meters to degrees (approximate conversion for latitude)
-        radius_degrees = radius / 111000.0
-        
         query = f"""
+        WITH point_geom AS (
+          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+        ),
+        point_projected AS (
+          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+        ),
+        buffered AS (
+          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+        ),
+        buffered_4326 AS (
+          SELECT ST_Transform(geom, 4326) AS geom FROM buffered
+        )
         SELECT 
             -- General demographic data
             d.nom_loc as neighborhood,
@@ -573,11 +591,11 @@ class AreaAnalysisQuery:
             d.nom_mun as municipality_nm
             
         FROM staging.stg_demographic_socioeconomic_qro d
+        CROSS JOIN buffered_4326 b
         WHERE d.geometry_coords IS NOT NULL
-        AND ST_DWithin(
-            ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326),
+        AND ST_Intersects(
             ST_SetSRID(d.geometry_coords, 4326),
-            {radius_degrees}
+            b.geom
         )
         """
         return query
