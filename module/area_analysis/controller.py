@@ -605,8 +605,8 @@ class AreaAnalysisController:
         # Initialize aggregated data
         aggregated = {}
         
-        # Sum numeric fields (population, households, etc.)
-        numeric_fields = [
+        # Sum numeric fields for selected area (block level) - these should be summed
+        selected_area_fields = [
             'pobtot', 'pobmas', 'pobfem', 'vivtot', 'p_0a2', 'p_3a5', 'p_6a11', 'p_12a14', 
             'p_15a17', 'p_18a24', 'p_60ymas', 'p_0a2_f', 'p_0a2_m', 'p_3a5_f', 'p_3a5_m',
             'p_6a11_f', 'p_6a11_m', 'p_12a14_f', 'p_12a14_m', 'p_15a17_f', 'p_15a17_m',
@@ -618,25 +618,36 @@ class AreaAnalysisController:
             'pob_2015_ageb', 'pob_2020_ageb', 'pob_2000_entidad', 'pob_2005_entidad', 
             'pob_2010_entidad', 'pob_2015_entidad', 'pob_2020_entidad', 'pob_2000_municipal',
             'pob_2005_municipal', 'pob_2010_municipal', 'pob_2015_municipal', 'pob_2020_municipal',
-            # Add missing colonia and alcaldia level fields
-            'vivtot_colonia', 'vivtot_alcaldia', 'pobtot_colonia', 'pobmas_colonia', 'pobfem_colonia',
-            'pobtot_alcaldia', 'pobmas_alcaldia', 'pobfem_alcaldia', 'ses_ab_colonia', 'ses_c_plus_colonia',
+            # Colonia level fields (summed)
+            'vivtot_colonia', 'pobtot_colonia', 'pobmas_colonia', 'pobfem_colonia', 'ses_ab_colonia', 'ses_c_plus_colonia',
             'ses_c_colonia', 'ses_c_minus_colonia', 'ses_d_colonia', 'ses_d_plus_colonia', 'ses_e_colonia',
-            'ses_ab_alcaldia', 'ses_c_plus_alcaldia', 'ses_c_alcaldia', 'ses_c_minus_alcaldia',
-            'ses_d_alcaldia', 'ses_d_plus_alcaldia', 'ses_e_alcaldia', 'p_3a5_colonia', 'p_6a11_colonia',
-            'p_12a14_colonia', 'p_15a17_colonia', 'p_18a24_colonia', 'p3a5_noa_colonia', 'p6a11_noa_colonia',
-            'p12a14noa_colonia', 'p15a17a_colonia', 'p18a24a_colonia', 'p_3a5_alcaldia', 'p_6a11_alcaldia',
-            'p_12a14_alcaldia', 'p_15a17_alcaldia', 'p_18a24_alcaldia', 'p3a5_noa_alcaldia', 'p6a11_noa_alcaldia',
-            'p12a14noa_alcaldia', 'p15a17a_alcaldia', 'p18a24a_alcaldia', 'pea_colonia', 'pea_m_colonia',
-            'pea_f_colonia', 'pe_inac_colonia', 'pe_inac_m_colonia', 'pe_inac_f_colonia', 'pocupada_colonia',
-            'pocupada_m_colonia', 'pocupada_f_colonia', 'pdesocup_colonia', 'pdesocup_m_colonia',
-            'pdesocup_f_colonia', 'pea_alcaldia', 'pea_m_alcaldia', 'pea_f_alcaldia', 'pe_inac_alcaldia',
-            'pe_inac_m_alcaldia', 'pe_inac_f_alcaldia', 'pocupada_alcaldia', 'pocupada_m_alcaldia',
-            'pocupada_f_alcaldia', 'pdesocup_alcaldia', 'pdesocup_m_alcaldia', 'pdesocup_f_alcaldia'
+            'p_3a5_colonia', 'p_6a11_colonia', 'p_12a14_colonia', 'p_15a17_colonia', 'p_18a24_colonia', 
+            'p3a5_noa_colonia', 'p6a11_noa_colonia', 'p12a14noa_colonia', 'p15a17a_colonia', 'p18a24a_colonia', 
+            'pea_colonia', 'pea_m_colonia', 'pea_f_colonia', 'pe_inac_colonia', 'pe_inac_m_colonia', 'pe_inac_f_colonia', 
+            'pocupada_colonia', 'pocupada_m_colonia', 'pocupada_f_colonia', 'pdesocup_colonia', 'pdesocup_m_colonia',
+            'pdesocup_f_colonia'
         ]
         
-        for field in numeric_fields:
+        # Municipality level fields (should NOT be summed - use single record)
+        municipality_fields = [
+            'vivtot_alcaldia', 'pobtot_alcaldia', 'pobmas_alcaldia', 'pobfem_alcaldia', 
+            'ses_ab_alcaldia', 'ses_c_plus_alcaldia', 'ses_c_alcaldia', 'ses_c_minus_alcaldia',
+            'ses_d_alcaldia', 'ses_d_plus_alcaldia', 'ses_e_alcaldia', 'p_3a5_alcaldia', 'p_6a11_alcaldia',
+            'p_12a14_alcaldia', 'p_15a17_alcaldia', 'p_18a24_alcaldia', 'p3a5_noa_alcaldia', 'p6a11_noa_alcaldia',
+            'p12a14noa_alcaldia', 'p15a17a_alcaldia', 'p18a24a_alcaldia', 'pea_alcaldia', 'pea_m_alcaldia', 
+            'pea_f_alcaldia', 'pe_inac_alcaldia', 'pe_inac_m_alcaldia', 'pe_inac_f_alcaldia', 
+            'pocupada_alcaldia', 'pocupada_m_alcaldia', 'pocupada_f_alcaldia', 'pdesocup_alcaldia', 
+            'pdesocup_m_alcaldia', 'pdesocup_f_alcaldia'
+        ]
+        
+        # Sum selected area fields (block and colonia level)
+        for field in selected_area_fields:
             aggregated[field] = sum(record.get(field, 0) or 0 for record in demographic_data)
+        
+        # Get municipality data from first record (not summed)
+        first_record = demographic_data[0]
+        for field in municipality_fields:
+            aggregated[field] = first_record.get(field, 0) or 0
         
         # Calculate weighted averages for percentage fields
         # For socioeconomic levels, we need to calculate weighted averages based on household counts
@@ -684,10 +695,10 @@ class AreaAnalysisController:
         for field in non_numeric_fields:
             aggregated[field] = first_record.get(field)
         
-        # Calculate colonia and alcaldia level data
+        # Calculate colonia level data (copy from selected area fields)
         # Note: Municipality-level data should come from the database query, not copied from block level
         # This ensures we get the actual municipality data instead of fallback values
-        for field in numeric_fields:
+        for field in selected_area_fields:
             if field not in ['pob_2000_municipal', 'pob_2005_municipal', 'pob_2010_municipal', 
                            'pob_2015_municipal', 'pob_2020_municipal']:
                 # Only copy to colonia level, not alcaldia level
