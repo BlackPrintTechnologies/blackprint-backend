@@ -4,7 +4,7 @@ from utils.responseUtils import Response
 from datetime import datetime
 from decimal import Decimal
 import logging
-from module.search.query import QueryController
+from module.area_analysis.query import AreaAnalysisQuery
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ class ActiveSearchController:
         logger.debug("Initializing ActiveSearchController")
         self.db = Database()
         self.redshift_db = RedshiftDatabase()
-        self.qc = QueryController()
+        self.qc = AreaAnalysisQuery()
     
     def get_active_search(self, user_id):
         """Get active search data for a user."""
@@ -67,10 +67,6 @@ class ActiveSearchController:
         try:
             logger.info(f"Getting mobility data - lat: {lat}, lng: {lng}, radius: {radius}, city: {city}")
             
-            # Set the city for the query controller
-            self.qc.city = city
-
-            
             query = self.qc._get_mobility_query(lat, lng, radius)
                         
             connection = self.redshift_db.connect()
@@ -115,9 +111,7 @@ class ActiveSearchController:
         try:
             logger.info(f"Getting socioeconomic data - lat: {lat}, lng: {lng}, radius: {radius}, city: {city}")
             
-            # Set the city for the query controller
-            self.qc.city = city
-            query = self.qc._get_mobility_query(lat, lng, radius)
+            query = self.qc._get_socioeconomic_query(lat, lng, radius)
 
         except Exception as e:
             logger.error(f"Error in get_socioeconomic_data: {str(e)}", exc_info=True)
@@ -139,9 +133,7 @@ class ActiveSearchController:
         try:
             logger.info(f"Getting POIs data - lat: {lat}, lng: {lng}, radius: {radius}, city: {city}")
             
-            # Set the city for the query controller
-            qc = QueryController(city)
-            query = qc._get_pois_query(lat, lng, radius)
+            query = self.qc._get_pois_query(lat, lng, radius)
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             logger.info(f"POIs query: {query}")

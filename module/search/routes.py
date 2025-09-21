@@ -2,7 +2,6 @@ from flask_restful import Resource, reqparse
 from flask import request, jsonify
 from utils.responseUtils import Response
 from module.search.controller import SavedSearchesController
-from module.search.active_search import ActiveSearchController
 from utils.commonUtil import authenticate
 import logging
 
@@ -10,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 # Initialize Controllers
 saved_searches_controller = SavedSearchesController()
-active_search_controller = ActiveSearchController()
 
 # {
 #     "search_name" : "test",
@@ -205,79 +203,4 @@ class SavedSearches(Resource):
         data = self.update_parser.parse_args()
         search_id = data.get('id')
         response = saved_searches_controller.delete_saved_search(id=search_id)
-        return response
-
-
-class ActiveSearch(Resource):
-    """Resource to get active search data for a user."""
-    
-    @authenticate
-    def get(self, current_user):
-        """GET /search/active - Get active search data for the current user."""
-        try:
-            logger.info("User %s requesting active search data", current_user)
-            
-            response = active_search_controller.get_active_search(current_user)
-            
-            return response
-            
-        except Exception as e:
-            logger.error("Error in ActiveSearch GET: %s", str(e))
-            return {'message': 'Internal server error', 'status_code': 500}, 500
-
-
-class MobilityData(Resource):
-    """Resource to get mobility data within specified radius from coordinates."""
-    
-    post_parser = reqparse.RequestParser()
-    post_parser.add_argument('lat', type=float, required=True, help='Latitude is required', location='json')
-    post_parser.add_argument('lng', type=float, required=True, help='Longitude is required', location='json')
-    post_parser.add_argument('radius', type=int, default=1000, required=False, help='Radius in meters (default: 1000)', location='json')
-    post_parser.add_argument('city', type=str, default='queretaro', required=False, help='City configuration (default: queretaro)', location='json')
-    
-    @authenticate
-    def post(self, current_user):
-        """POST /search/mobility - Get mobility data within specified radius from coordinates."""
-        try:
-            args = self.post_parser.parse_args()
-            lat = args.get('lat')
-            lng = args.get('lng')
-            radius = args.get('radius', 1000)
-            city = args.get('city', 'queretaro')
-            
-            logger.info("User %s requesting mobility data for lat=%s, lng=%s, radius=%s, city=%s", 
-                       current_user, lat, lng, radius, city)
-            
-            response = active_search_controller.get_mobility_data(lat, lng, radius, city)
-            
-            return response
-            
-        except Exception as e:
-            logger.error("Error in MobilityData POST: %s", str(e))
-            return {'message': 'Internal server error', 'status_code': 500}, 500
-
-
-class POIsData(Resource):
-    """Resource to get POIs data within specified radius from coordinates with comprehensive area analysis."""
-    
-    post_parser = reqparse.RequestParser()
-    post_parser.add_argument('lat', type=float, required=True, help='Latitude is required', location='json')
-    post_parser.add_argument('lng', type=float, required=True, help='Longitude is required', location='json')
-    post_parser.add_argument('radius', type=int, default=1000, required=False, help='Radius in meters (default: 1000)', location='json')
-    post_parser.add_argument('city', type=str, default='queretaro', required=False, help='City configuration (default: queretaro)', location='json')
-    
-    @authenticate
-    def post(self, current_user):
-        """POST /search/pois - Get POIs data within specified radius from coordinates with comprehensive area analysis."""
-        args = self.post_parser.parse_args()
-        lat = args.get('lat')
-        lng = args.get('lng')
-        radius = args.get('radius', 1000)
-        city = args.get('city', 'queretaro')
-        
-        logger.info("User %s requesting POIs data for lat=%s, lng=%s, radius=%s, city=%s", 
-                    current_user, lat, lng, radius, city)
-        
-        response = active_search_controller.get_pois_data(lat, lng, radius, city)
-        
         return response
