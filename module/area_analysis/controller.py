@@ -1494,7 +1494,8 @@ class AreaAnalysisController:
                     "female_percentage": f"{municipality_female_percentage}%",
                     "total_households": aggregated_result["vivtot_alcaldia"]
                 }
-            }
+            },
+            "socioeconomic_analysis": self._create_queretaro_socioeconomic_analysis(aggregated_result)
         }
         
         return demographics_data
@@ -1625,6 +1626,68 @@ class AreaAnalysisController:
             aggregated[field] = first_record.get(field)
 
         return aggregated
+
+    def _create_queretaro_socioeconomic_analysis(self, aggregated_result):
+        """Create socioeconomic analysis for Queretaro demographics API."""
+        # Calculate total households for selected area
+        total_households = aggregated_result.get('vivtot', 0) or 0
+        
+        # SES levels mapping
+        ses_levels = [
+            {'key': 'ses_ab', 'level': 'AB'},
+            {'key': 'ses_c_plus', 'level': 'C+'},
+            {'key': 'ses_c', 'level': 'C'},
+            {'key': 'ses_c_minus', 'level': 'C-'},
+            {'key': 'ses_d_plus', 'level': 'D+'},
+            {'key': 'ses_d', 'level': 'D'},
+            {'key': 'ses_e', 'level': 'E'}
+        ]
+        
+        # Calculate household distribution for selected area
+        household_distribution = []
+        predominant_level = None
+        max_percentage = 0
+        
+        for ses in ses_levels:
+            percentage = aggregated_result.get(ses['key'], 0) or 0
+            households = round((percentage * total_households) / 100) if total_households > 0 else 0
+            
+            household_distribution.append({
+                'level': ses['level'],
+                'households': households,
+                'percentage': round(percentage, 1)
+            })
+            
+            if percentage > max_percentage:
+                max_percentage = percentage
+                predominant_level = ses['level']
+        
+        # Municipality level data
+        municipality_total_households = aggregated_result.get('vivtot_alcaldia', 0) or 0
+        municipality_predominant_level = None
+        municipality_max_percentage = 0
+        
+        # Find municipality predominant level
+        for ses in ses_levels:
+            municipality_percentage = aggregated_result.get(f"{ses['key']}_alcaldia", 0) or 0
+            if municipality_percentage > municipality_max_percentage:
+                municipality_max_percentage = municipality_percentage
+                municipality_predominant_level = ses['level']
+        
+        return {
+            'predominant_socioeconomic_level': {
+                'selected_area': {
+                    'level': predominant_level or 'N/A',
+                    'percentage': round(max_percentage, 1)
+                },
+                'municipality': {
+                    'level': municipality_predominant_level or 'N/A',
+                    'percentage': round(municipality_max_percentage, 1)
+                }
+            },
+            'households_per_level': household_distribution
+        }
+
 
     def _process_socioeconomic_data(self, socioeconomic_data, lat, lng, radius, config_city='mexico'):
         
