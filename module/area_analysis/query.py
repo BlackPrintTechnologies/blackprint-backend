@@ -127,74 +127,6 @@ class AreaAnalysisQuery:
         """
         return query
 
-    def build_demographics_query(self, lat, lng, radius, config_city='mexico'):
-        """Build SQL query to get demographic data within the specified area."""
-        # Convert radius from meters to degrees (approximate conversion for latitude)
-        # 1 degree ≈ 111,000 meters
-        radius_degrees = radius / 111000.0
-        
-        if config_city == 'queretaro' or config_city == 'el_marques':
-            # QRO demographic query - use stg_demographic_socioeconomic_qro table
-            query = f"""
-            SELECT 
-                d.pobtot as total_population,
-                d.pob15_64 as working_age_population,
-                d.pob0_14 as child_population,
-                d.pob65_mas as elderly_population,
-                d.p_0a2,
-                d.p_3a5,
-                d.p_6a11,
-                d.p_12a14,
-                d.p_15a17,
-                d.p_18a24,
-                d.p_60ymas,
-                d.graproes,
-                d.niv_predom,
-                d.tot_vivien as total_households,
-                d.pct_viv_ab, d.pct_viv_cp, d.pct_viv_c, d.pct_viv_cm, 
-                d.pct_viv_dp, d.pct_viv_d, d.pct_viv_e
-            FROM blackprint_db_prd.staging.stg_demographic_socioeconomic_qro d
-            WHERE d.geometry_coords IS NOT NULL
-            AND ST_DWithin(
-                ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326),
-                CASE 
-                    WHEN ST_SRID(d.geometry_coords) = 0 THEN ST_SetSRID(d.geometry_coords, 4326)
-                    ELSE d.geometry_coords 
-                END,
-                {radius_degrees}
-            )
-            """
-        else:
-            # CDMX demographic query - use v_parcel_v3 table (similar to PropertyDemographic)
-            query = f"""
-            SELECT 
-                d.pobtot as total_population,
-                d.pobmas as male_population,
-                d.pobfem as female_population,
-                d.p_0a2,
-                d.p_3a5,
-                d.p_6a11,
-                d.p_12a14,
-                d.p_15a17,
-                d.p_18a24,
-                d.p_60ymas,
-                d.graproes,
-                d.predominant_level,
-                d.vivtot as total_households,
-                d.ses_ab as pct_viv_ab, 
-                d.ses_c_plus as pct_viv_cp, 
-                d.ses_c as pct_viv_c, 
-                d.ses_c_minus as pct_viv_cm,
-                d.ses_d_plus as pct_viv_dp, 
-                d.ses_d as pct_viv_d, 
-                d.ses_e as pct_viv_e
-            FROM blackprint_db_prd.data_product.v_parcel_v3 d
-            WHERE d.centroid IS NOT NULL
-            AND d.centroid != ''
-            AND d.centroid LIKE '%coordinates%'
-            LIMIT 1000
-            """
-        return query
 
     def build_socioeconomic_query(self, lat, lng, radius, config_city='mexico'):
         """Build SQL query to get socioeconomic data within the specified area."""
@@ -202,7 +134,7 @@ class AreaAnalysisQuery:
         # 1 degree ≈ 111,000 meters
         radius_degrees = radius / 111000.0
         
-        if config_city == 'queretaro' or config_city == 'el_marques':
+        if config_city == 'queretaro':
             # QRO socioeconomic query - use stg_demographic_socioeconomic_qro table
             query = f"""
             SELECT 

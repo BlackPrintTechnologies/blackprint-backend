@@ -480,7 +480,7 @@ class AreaAnalysisController:
             lat (float): Latitude of the center point
             lng (float): Longitude of the center point
             radius (int): Radius in meters (default: 2000)
-            config_city (str): City configuration - 'mexico', 'queretaro', or 'el_marques'
+            config_city (str): City configuration - 'mexico' or 'queretaro'
             
         Returns:
             dict: Response with demographic analysis data matching UI structure
@@ -499,7 +499,8 @@ class AreaAnalysisController:
             elif config_city == 'queretaro':
                 query = self.query_builder.build_queretaro_demographics_query(lat, lng, radius)
             else:
-                query = self.query_builder.build_demographics_query(lat, lng, radius, config_city)
+                logger.error(f"Unsupported city configuration: {config_city}. Supported cities: mexico, queretaro")
+                return Response.error("Unsupported city configuration. Supported cities: mexico, queretaro")
             logger.info(f"Executing demographics query for city={config_city}: {query}")
             
             cursor.execute(query)
@@ -513,7 +514,8 @@ class AreaAnalysisController:
                 elif config_city == 'queretaro':
                     demographics_data = self._process_queretaro_demographics_data(res, lat, lng, radius, connection)
                 else:
-                    demographics_data = self._process_demographics_data(res, lat, lng, radius, config_city)
+                    logger.error(f"Unsupported city configuration for processing: {config_city}")
+                    return Response.error("Unsupported city configuration. Supported cities: mexico, queretaro")
                 logger.info(f"Demographics analysis completed for {len(res)} records in {config_city}")
                 resp = Response.success(data=demographics_data)
             else:
@@ -544,7 +546,7 @@ class AreaAnalysisController:
             lat (float): Latitude of the center point
             lng (float): Longitude of the center point
             radius (int): Radius in meters (default: 2000)
-            config_city (str): City configuration - 'mexico', 'queretaro', or 'el_marques'
+            config_city (str): City configuration - 'mexico' or 'queretaro'
             
         Returns:
             dict: Response with socioeconomic analysis data matching UI structure
@@ -1378,7 +1380,7 @@ class AreaAnalysisController:
         """Process socioeconomic data and create response structure matching UI mockup."""
         
         # Filter records by distance for Mexico (since we can't do it in SQL)
-        if config_city != 'queretaro' and config_city != 'el_marques':
+        if config_city != 'queretaro':
             filtered_data = []
             radius_degrees = radius / 111000.0
             
@@ -1542,7 +1544,7 @@ class AreaAnalysisController:
         }
 
 
-    def _process_demographics_data(self, demographic_data, lat, lng, radius, config_city='mexico'):
+    # def _process_demographics_data(self, demographic_data, lat, lng, radius, config_city='mexico'):
         """Process demographic data and create response structure matching UI mockup."""
         # Initialize totals
         total_population = 0
@@ -1563,7 +1565,7 @@ class AreaAnalysisController:
         total_households = 0
         
         # Filter records by distance for Mexico (since we can't do it in SQL)
-        if config_city != 'queretaro' and config_city != 'el_marques':
+        if config_city != 'queretaro':
             filtered_data = []
             radius_degrees = radius / 111000.0  # Convert meters to degrees
             
@@ -1595,7 +1597,7 @@ class AreaAnalysisController:
             pop = record.get('total_population', 0) or 0
             total_population += pop
             
-            if config_city == 'queretaro' or config_city == 'el_marques':
+            if config_city == 'queretaro':
                 # QRO data structure - use available age group columns
                 child_pop = record.get('child_population', 0) or 0  # 0-14 years
                 working_pop = record.get('working_age_population', 0) or 0  # 15-64 years
@@ -1712,7 +1714,7 @@ class AreaAnalysisController:
         total_households_processed = 0
         
         for record in demographic_data:
-            if config_city == 'queretaro' or config_city == 'el_marques':
+            if config_city == 'queretaro':
                 # QRO uses tot_vivien and pct_viv_* columns
                 households = record.get('tot_vivien', 0) or 0
                 total_households_processed += households
