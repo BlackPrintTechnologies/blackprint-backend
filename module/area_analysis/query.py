@@ -248,7 +248,7 @@ class AreaAnalysisQuery:
             d.ses_e_alcaldia,
             
             -- Population data - Block level
-            d.pobtot,
+            (d.pobmas_alcaldia + d.pobfem_alcaldia) as pobtot,
             d.pobmas,
             d.pobfem,
             
@@ -425,8 +425,9 @@ class AreaAnalysisQuery:
 
     def build_queretaro_demographics_query(self, lat, lng, radius):
         """
-        Build Queretaro demographics query using accurate spatial filtering.
-        Uses PostGIS ST_Buffer with proper coordinate system transformations for precise radius filtering.
+        Build Queretaro demographics query using data_product.v_qro table.
+        This table provides comprehensive demographic data including gender-specific age groups,
+        complete population data at all levels, and proper SES data without hardcoding.
         """
         query = f"""
         WITH point_geom AS (
@@ -447,17 +448,16 @@ class AreaAnalysisQuery:
             d.niv_predom as predominant_level,
             d.cve_ageb as ageb_code,
             d.tot_vivien as vivtot,
-            -- Note: prom_ocup and pro_ocup_c don't exist in Queretaro table, using defaults
-            0 as prom_ocup,
-            0 as pro_ocup_c,
+            d.prom_ocup_alcaldia as prom_ocup,
+            d.pro_ocup_c_alcaldia as pro_ocup_c,
             
-            -- Municipality level data (using same values for now)
+            -- Municipality level data
             d.nom_mun,
-            d.tot_vivien as vivtot_alcaldia,
-            0 as prom_ocup_alcaldia,
-            0 as pro_ocup_c_alcaldia,
+            d.vivtot_alcaldia,
+            d.prom_ocup_alcaldia,
+            d.pro_ocup_c_alcaldia,
             
-            -- Socioeconomic data - Block level
+            -- Socioeconomic data - Block level (percentages)
             d.pct_viv_ab as ses_ab,
             d.pct_viv_cp as ses_c_plus,
             d.pct_viv_c as ses_c,
@@ -466,25 +466,38 @@ class AreaAnalysisQuery:
             d.pct_viv_d as ses_d,
             d.pct_viv_e as ses_e,
             
-            -- Socioeconomic data - Municipality level (using same values)
-            d.pct_viv_ab as ses_ab_alcaldia,
-            d.pct_viv_cp as ses_c_plus_alcaldia,
-            d.pct_viv_c as ses_c_alcaldia,
-            d.pct_viv_cm as ses_c_minus_alcaldia,
-            d.pct_viv_dp as ses_d_plus_alcaldia,
-            d.pct_viv_d as ses_d_alcaldia,
-            d.pct_viv_e as ses_e_alcaldia,
+            -- Socioeconomic data - Municipality level
+            d.pct_ses_ab_alcaldia as ses_ab_alcaldia,
+            d.pct_ses_c_plus_alcaldia as ses_c_plus_alcaldia,
+            d.pct_ses_c_alcaldia as ses_c_alcaldia,
+            d.pct_ses_c_minus_alcaldia as ses_c_minus_alcaldia,
+            d.pct_ses_d_plus_alcaldia as ses_d_plus_alcaldia,
+            d.pct_ses_d_alcaldia as ses_d_alcaldia,
+            d.pct_ses_e_alcaldia as ses_e_alcaldia,
+            
+            -- Socioeconomic data - Colonia level
+            d.pct_ses_ab_colonia as ses_ab_colonia,
+            d.pct_ses_c_plus_colonia as ses_c_plus_colonia,
+            d.pct_ses_c_colonia as ses_c_colonia,
+            d.pct_ses_c_minus_colonia as ses_c_minus_colonia,
+            d.pct_ses_d_plus_colonia as ses_d_plus_colonia,
+            d.pct_ses_d_colonia as ses_d_colonia,
+            d.pct_ses_e_colonia as ses_e_colonia,
             
             -- Population data - Block level
-            d.pobtot,
-            -- Note: pobmas and pobfem don't exist in Queretaro table, using calculated values
-            d.pobtot * 0.49 as pobmas,  -- Approximate 49% male
-            d.pobtot * 0.51 as pobfem,  -- Approximate 51% female
+            (d.pobmas_alcaldia + d.pobfem_alcaldia) as pobtot,
+            d.pobmas_alcaldia as pobmas,
+            d.pobfem_alcaldia as pobfem,
             
-            -- Population data - Municipality level (using same values for now)
-            d.pobtot as pobtot_alcaldia,
-            d.pobtot * 0.49 as pobmas_alcaldia,
-            d.pobtot * 0.51 as pobfem_alcaldia,
+            -- Population data - Municipality level
+            d.pobtot_alcaldia,
+            d.pobmas_alcaldia,
+            d.pobfem_alcaldia,
+            
+            -- Population data - Colonia level
+            d.pobtot_colonia,
+            d.pobmas_colonia,
+            d.pobfem_colonia,
             
             -- Education data - Block level
             d.p_3a5,
@@ -498,35 +511,83 @@ class AreaAnalysisQuery:
             d.p15a17a,
             d.p18a24a,
             
-            -- Gender-specific age data for age pyramid (using calculated values)
+            -- Gender-specific age data for age pyramid - Block level
             d.p_0a2,
-            d.p_0a2 * 0.49 as p_0a2_f,
-            d.p_0a2 * 0.51 as p_0a2_m,
-            d.p_3a5 * 0.49 as p_3a5_f,
-            d.p_3a5 * 0.51 as p_3a5_m,
-            d.p_6a11 * 0.49 as p_6a11_f,
-            d.p_6a11 * 0.51 as p_6a11_m,
-            d.p_12a14 * 0.49 as p_12a14_f,
-            d.p_12a14 * 0.51 as p_12a14_m,
-            d.p_15a17 * 0.49 as p_15a17_f,
-            d.p_15a17 * 0.51 as p_15a17_m,
-            d.p_18a24 * 0.49 as p_18a24_f,
-            d.p_18a24 * 0.51 as p_18a24_m,
+            d.p_0a2_m_alcaldia as p_0a2_m,
+            d.p_0a2_f_alcaldia as p_0a2_f,
+            d.p_3a5_m_alcaldia as p_3a5_m,
+            d.p_3a5_f_alcaldia as p_3a5_f,
+            d.p_6a11_m_alcaldia as p_6a11_m,
+            d.p_6a11_f_alcaldia as p_6a11_f,
+            d.p_12a14_m_alcaldia as p_12a14_m,
+            d.p_12a14_f_alcaldia as p_12a14_f,
+            d.p_15a17_m_alcaldia as p_15a17_m,
+            d.p_15a17_f_alcaldia as p_15a17_f,
+            d.p_18a24_m_alcaldia as p_18a24_m,
+            d.p_18a24_f_alcaldia as p_18a24_f,
             d.p_60ymas,
-            d.p_60ymas * 0.49 as p_60ymas_f,
-            d.p_60ymas * 0.51 as p_60ymas_m,
+            d.p_60ymas_m_alcaldia as p_60ymas_m,
+            d.p_60ymas_f_alcaldia as p_60ymas_f,
             
-            -- Education data - Municipality level (using same values)
-            d.p_3a5 as p_3a5_alcaldia,
-            d.p_6a11 as p_6a11_alcaldia,
-            d.p_12a14 as p_12a14_alcaldia,
-            d.p_15a17 as p_15a17_alcaldia,
-            d.p_18a24 as p_18a24_alcaldia,
-            d.p3a5_noa as p3a5_noa_alcaldia,
-            d.p6a11_noa as p6a11_noa_alcaldia,
-            d.p12a14noa as p12a14noa_alcaldia,
-            d.p15a17a as p15a17a_alcaldia,
-            d.p18a24a as p18a24a_alcaldia,
+            -- Gender-specific age data for age pyramid - Municipality level
+            d.p_0a2_alcaldia,
+            d.p_0a2_m_alcaldia,
+            d.p_0a2_f_alcaldia,
+            d.p_3a5_m_alcaldia,
+            d.p_3a5_f_alcaldia,
+            d.p_6a11_m_alcaldia,
+            d.p_6a11_f_alcaldia,
+            d.p_12a14_m_alcaldia,
+            d.p_12a14_f_alcaldia,
+            d.p_15a17_m_alcaldia,
+            d.p_15a17_f_alcaldia,
+            d.p_18a24_m_alcaldia,
+            d.p_18a24_f_alcaldia,
+            d.p_60ymas_alcaldia,
+            d.p_60ymas_m_alcaldia,
+            d.p_60ymas_f_alcaldia,
+            
+            -- Gender-specific age data for age pyramid - Colonia level
+            d.p_0a2_colonia,
+            d.p_0a2_m_colonia,
+            d.p_0a2_f_colonia,
+            d.p_3a5_m_colonia,
+            d.p_3a5_f_colonia,
+            d.p_6a11_m_colonia,
+            d.p_6a11_f_colonia,
+            d.p_12a14_m_colonia,
+            d.p_12a14_f_colonia,
+            d.p_15a17_m_colonia,
+            d.p_15a17_f_colonia,
+            d.p_18a24_m_colonia,
+            d.p_18a24_f_colonia,
+            d.p_60ymas_colonia,
+            d.p_60ymas_m_colonia,
+            d.p_60ymas_f_colonia,
+            
+            -- Education data - Municipality level
+            d.p_3a5_alcaldia,
+            d.p_6a11_alcaldia,
+            d.p_12a14_alcaldia,
+            d.p_15a17_alcaldia,
+            d.p_18a24_alcaldia,
+            d.p3a5_noa_alcaldia,
+            d.p6a11_noa_alcaldia,
+            d.p12a14noa_alcaldia,
+            d.p15a17a_alcaldia,
+            d.p18a24a_alcaldia,
+            
+            -- Education data - Colonia level
+            d.p_3a5_colonia,
+            d.p_6a11_colonia,
+            d.p_12a14_colonia,
+            d.p_15a17_colonia,
+            d.p_18a24_colonia,
+            d.p3a5_noa_colonia,
+            d.p6a11_noa_colonia,
+            d.p12a14noa_colonia,
+            d.p15a17a_colonia,
+            d.p18a24a_colonia,
             
             -- Workforce data - Block level
             d.pea,
@@ -536,13 +597,21 @@ class AreaAnalysisQuery:
             d.pe_inac_m,
             d.pe_inac_f,
             
-            -- Workforce data - Municipality level (using same values)
-            d.pea as pea_alcaldia,
-            d.pea_m as pea_m_alcaldia,
-            d.pea_f as pea_f_alcaldia,
-            d.pe_inac as pe_inac_alcaldia,
-            d.pe_inac_m as pe_inac_m_alcaldia,
-            d.pe_inac_f as pe_inac_f_alcaldia,
+            -- Workforce data - Municipality level
+            d.pea_alcaldia,
+            d.pea_m_alcaldia,
+            d.pea_f_alcaldia,
+            d.pe_inac_alcaldia,
+            d.pe_inac_m_alcaldia,
+            d.pe_inac_f_alcaldia,
+            
+            -- Workforce data - Colonia level
+            d.pea_colonia,
+            d.pea_m_colonia,
+            d.pea_f_colonia,
+            d.pe_inac_colonia,
+            d.pe_inac_m_colonia,
+            d.pe_inac_f_colonia,
             
             -- Employment data - Block level
             d.pocupada,
@@ -552,49 +621,67 @@ class AreaAnalysisQuery:
             d.pdesocup_m,
             d.pdesocup_f,
             
-            -- Employment data - Municipality level (using same values)
-            d.pocupada as pocupada_alcaldia,
-            d.pocupada_m as pocupada_m_alcaldia,
-            d.pocupada_f as pocupada_f_alcaldia,
-            d.pdesocup as pdesocup_alcaldia,
-            d.pdesocup_m as pdesocup_m_alcaldia,
-            d.pdesocup_f as pdesocup_f_alcaldia,
+            -- Employment data - Municipality level
+            d.pocupada_alcaldia,
+            d.pocupada_m_alcaldia,
+            d.pocupada_f_alcaldia,
+            d.pdesocup_alcaldia,
+            d.pdesocup_m_alcaldia,
+            d.pdesocup_f_alcaldia,
             
-            -- Population growth data - Block level (using default values since not available)
-            0 as pob_2000_ageb,
-            0 as pob_2005_ageb,
-            0 as pob_2010_ageb,
-            0 as pob_2015_ageb,
-            d.pobtot as pob_2020_ageb,
-            0 as cambio_porcentual_2005_ageb,
-            0 as cambio_porcentual_2010_ageb,
-            0 as cambio_porcentual_2015_ageb,
-            0 as cambio_porcentual_2020_ageb,
+            -- Employment data - Colonia level
+            d.pocupada_colonia,
+            d.pocupada_m_colonia,
+            d.pocupada_f_colonia,
+            d.pdesocup_colonia,
+            d.pdesocup_m_colonia,
+            d.pdesocup_f_colonia,
             
-            -- Population growth data - Municipality level (using same values for now)
-            0 as pob_2000_municipal,
-            0 as pob_2005_municipal,
-            0 as pob_2010_municipal,
-            0 as pob_2015_municipal,
-            d.pobtot as pob_2020_municipal,
-            0 as cambio_porcentual_2005_municipal,
-            0 as cambio_porcentual_2010_municipal,
-            0 as cambio_porcentual_2015_municipal,
-            0 as cambio_porcentual_2020_municipal,
+            -- Population growth data - Block level
+            d.pob_2000_ageb,
+            d.pob_2005_ageb,
+            d.cambio_porcentual_2005_ageb,
+            d.pob_2010_ageb,
+            d.cambio_porcentual_2010_ageb,
+            d.pob_2020_ageb,
+            d.cambio_porcentual_2020_ageb,
+            
+            -- Population growth data - Municipality level
+            d.pob_2000_municipal,
+            d.pob_2005_municipal,
+            d.cambio_porcentual_2005_municipal,
+            d.pob_2010_municipal,
+            d.cambio_porcentual_2010_municipal,
+            d.pob_2020_municipal,
+            d.cambio_porcentual_2020_municipal,
+            
+            -- Population growth data - State level
+            d.pob_2000_entidad,
+            d.pob_2005_entidad,
+            d.cambio_porcentual_2005_entidad,
+            d.pob_2010_entidad,
+            d.cambio_porcentual_2010_entidad,
+            d.pob_2020_entidad,
+            d.cambio_porcentual_2020_entidad,
             
             -- Centroid for distance filtering
-            d.geometry_coords_json as centroid,
+            d.centroid,
             
-            -- Area data for municipality calculation (using default values)
-            1.0 as total_area,
+            -- Area data for municipality calculation
             d.cve_mun as municipality_code,
             d.nom_mun as municipality_nm
             
-        FROM staging.stg_demographic_socioeconomic_qro d
+        FROM data_product.v_qro d
         CROSS JOIN buffered_4326 b
-        WHERE d.geometry_coords IS NOT NULL
+        WHERE d.centroid IS NOT NULL
         AND ST_Intersects(
-            ST_SetSRID(d.geometry_coords, 4326),
+            ST_SetSRID(
+                ST_MakePoint(
+                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '0') AS FLOAT),
+                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '1') AS FLOAT)
+                ), 
+                4326
+            ),
             b.geom
         )
         """

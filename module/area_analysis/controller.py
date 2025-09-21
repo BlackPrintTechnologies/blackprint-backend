@@ -1020,7 +1020,19 @@ class AreaAnalysisController:
         # Debug: Log available columns
         logger.info(f"Available columns in aggregated_result: {list(aggregated_result.keys())}")
         
-        # Age groups for the pyramid (in years)
+        # Check if we have gender-specific age data
+        has_gender_data = any(
+            aggregated_result.get(f"p_{age}_m") is not None or 
+            aggregated_result.get(f"p_{age}_f") is not None
+            for age in ["0a2", "3a5", "6a11", "12a14", "15a17", "18a24", "60ymas"]
+        )
+        
+        if not has_gender_data:
+            # For Queretaro, gender-specific age data is not available
+            logger.info("Gender-specific age data not available for age pyramid")
+            return None
+        
+        # Age groups for the pyramid (in years) - only if gender data exists
         age_groups = [
             {"range": "0-2", "male": aggregated_result.get("p_0a2_m", 0) or 0, "female": aggregated_result.get("p_0a2_f", 0) or 0},
             {"range": "3-5", "male": aggregated_result.get("p_3a5_m", 0) or 0, "female": aggregated_result.get("p_3a5_f", 0) or 0},
@@ -1229,15 +1241,17 @@ class AreaAnalysisController:
         else:
             # Fallback: calculate area from available data or use a reasonable estimate
             municipality_area_km2 = self._calculate_fallback_municipality_area(aggregated_result)
+        
+        # For Queretaro, use municipality-level data for comparison
         municipality_population_density = round(aggregated_result["pobtot_alcaldia"] / municipality_area_km2, 2) if municipality_area_km2 > 0 else 0
         
-        # Calculate male/female percentages
-        male_percentage = round((aggregated_result["pobmas"] / aggregated_result["pobtot"] * 100), 1) if aggregated_result["pobtot"] > 0 else 0
-        female_percentage = round((aggregated_result["pobfem"] / aggregated_result["pobtot"] * 100), 1) if aggregated_result["pobtot"] > 0 else 0
+        # Calculate male/female percentages (only if data is available)
+        male_percentage = round((aggregated_result["pobmas"] / aggregated_result["pobtot"] * 100), 1) if aggregated_result["pobtot"] > 0 and aggregated_result["pobmas"] is not None else None
+        female_percentage = round((aggregated_result["pobfem"] / aggregated_result["pobtot"] * 100), 1) if aggregated_result["pobtot"] > 0 and aggregated_result["pobfem"] is not None else None
         
-        # Calculate municipality male/female percentages
-        municipality_male_percentage = round((aggregated_result["pobmas_alcaldia"] / aggregated_result["pobtot_alcaldia"] * 100), 1) if aggregated_result["pobtot_alcaldia"] > 0 else 0
-        municipality_female_percentage = round((aggregated_result["pobfem_alcaldia"] / aggregated_result["pobtot_alcaldia"] * 100), 1) if aggregated_result["pobtot_alcaldia"] > 0 else 0
+        # For Queretaro, use municipality-level data for comparison
+        municipality_male_percentage = round((aggregated_result["pobmas_alcaldia"] / aggregated_result["pobtot_alcaldia"] * 100), 1) if aggregated_result["pobtot_alcaldia"] > 0 and aggregated_result["pobmas_alcaldia"] is not None else None
+        municipality_female_percentage = round((aggregated_result["pobfem_alcaldia"] / aggregated_result["pobtot_alcaldia"] * 100), 1) if aggregated_result["pobtot_alcaldia"] > 0 and aggregated_result["pobfem_alcaldia"] is not None else None
         
         # Calculate average household size
         avg_household_size = round(aggregated_result["pobtot"] / aggregated_result["vivtot"], 2) if aggregated_result["vivtot"] > 0 else 0
@@ -1278,7 +1292,7 @@ class AreaAnalysisController:
                         "ageb_code": aggregated_result["ageb_code"],
                         "total_household": aggregated_result["vivtot"],
                         "average_household_size": avg_household_size,
-                        "average_number_of_rooms": round(aggregated_result["pro_ocup_c"], 2)
+                        "average_number_of_rooms": aggregated_result.get("pro_ocup_c")  # Use actual data if available
                     },
                     "colonia": {
                         "neighborhood": aggregated_result["neighborhood"],
@@ -1286,15 +1300,15 @@ class AreaAnalysisController:
                         "ageb_code": aggregated_result["ageb_code"],
                         "total_household": aggregated_result["vivtot"],
                         "average_household_size": avg_household_size,
-                        "average_number_of_rooms": round(aggregated_result["pro_ocup_c"], 2)
+                        "average_number_of_rooms": aggregated_result.get("pro_ocup_c")  # Use actual data if available
                     },
                     "alcaldia": {
                         "neighborhood": aggregated_result["nom_mun"],
                         "predominant_level": aggregated_result["predominant_level"],
                         "ageb_code": aggregated_result["ageb_code"],
-                        "total_household": aggregated_result["vivtot_alcaldia"],
-                        "average_household_size": round(aggregated_result["pobtot_alcaldia"] / aggregated_result["vivtot_alcaldia"], 2) if aggregated_result["vivtot_alcaldia"] > 0 else 0,
-                        "average_number_of_rooms": round(aggregated_result["pro_ocup_c_alcaldia"], 2)
+                        "total_household": aggregated_result["vivtot"],  # Use same as selected area for Queretaro
+                        "average_household_size": avg_household_size,  # Use same as selected area
+                        "average_number_of_rooms": aggregated_result.get("pro_ocup_c")  # Use actual data if available
                     }
                 },
                 "socio_economic_level": {
@@ -1317,13 +1331,13 @@ class AreaAnalysisController:
                         "ses_e": aggregated_result["ses_e"] or 0
                     },
                     "alcaldia": {
-                        "ses_ab": aggregated_result["ses_ab_alcaldia"] or 0,
-                        "ses_c_plus": aggregated_result["ses_c_plus_alcaldia"] or 0,
-                        "ses_c": aggregated_result["ses_c_alcaldia"] or 0,
-                        "ses_c_minus": aggregated_result["ses_c_minus_alcaldia"] or 0,
-                        "ses_d": aggregated_result["ses_d_alcaldia"] or 0,
-                        "ses_d_plus": aggregated_result["ses_d_plus_alcaldia"] or 0,
-                        "ses_e": aggregated_result["ses_e_alcaldia"] or 0
+                        "ses_ab": aggregated_result["ses_ab"] or 0,  # Use same as selected area for Queretaro
+                        "ses_c_plus": aggregated_result["ses_c_plus"] or 0,
+                        "ses_c": aggregated_result["ses_c"] or 0,
+                        "ses_c_minus": aggregated_result["ses_c_minus"] or 0,
+                        "ses_d": aggregated_result["ses_d"] or 0,
+                        "ses_d_plus": aggregated_result["ses_d_plus"] or 0,
+                        "ses_e": aggregated_result["ses_e"] or 0
                     }
                 },
                 "population": {
@@ -1338,9 +1352,9 @@ class AreaAnalysisController:
                         "female_population": aggregated_result["pobfem"]
                     },
                     "alcaldia": {
-                        "total_population": aggregated_result["pobtot_alcaldia"],
-                        "male_population": aggregated_result.get("pobmas_alcaldia", 0) or 0,
-                        "female_population": aggregated_result["pobfem_alcaldia"]
+                        "total_population": aggregated_result["pobtot"],  # Use same as selected area for Queretaro
+                        "male_population": aggregated_result["pobmas"],
+                        "female_population": aggregated_result["pobfem"]
                     }
                 },
                 "education": {
@@ -1369,16 +1383,16 @@ class AreaAnalysisController:
                         "education_18_24_attending_school": aggregated_result["p18a24a"] or 0
                     },
                     "alcaldia": {
-                        "education_3_5": aggregated_result["p_3a5_alcaldia"] or 0,
-                        "education_6_11": aggregated_result["p_6a11_alcaldia"] or 0,
-                        "education_12_14": aggregated_result["p_12a14_alcaldia"] or 0,
-                        "education_15_17": aggregated_result["p_15a17_alcaldia"] or 0,
-                        "education_18_24": aggregated_result["p_18a24_alcaldia"] or 0,
-                        "education_3_5_attending_school": aggregated_result["p3a5_noa_alcaldia"] or 0,
-                        "education_6_11_attending_school": aggregated_result["p6a11_noa_alcaldia"] or 0,
-                        "education_12_14_attending_school": aggregated_result["p12a14noa_alcaldia"] or 0,
-                        "education_15_17_attending_school": aggregated_result["p15a17a_alcaldia"] or 0,
-                        "education_18_24_attending_school": aggregated_result["p18a24a_alcaldia"] or 0
+                        "education_3_5": aggregated_result.get("p_3a5"),
+                        "education_6_11": aggregated_result.get("p_6a11"),
+                        "education_12_14": aggregated_result.get("p_12a14"),
+                        "education_15_17": aggregated_result.get("p_15a17"),
+                        "education_18_24": aggregated_result.get("p_18a24"),
+                        "education_3_5_attending_school": aggregated_result.get("p3a5_noa"),
+                        "education_6_11_attending_school": aggregated_result.get("p6a11_noa"),
+                        "education_12_14_attending_school": aggregated_result.get("p12a14noa"),
+                        "education_15_17_attending_school": aggregated_result.get("p15a17a"),
+                        "education_18_24_attending_school": aggregated_result.get("p18a24a")
                     }
                 },
                 "workforce": {
@@ -1399,12 +1413,12 @@ class AreaAnalysisController:
                         "total_inactive_female_population": aggregated_result["pe_inac_f"] or 0
                     },
                     "alcaldia": {
-                        "total_workforce": aggregated_result["pea_alcaldia"] or 0,
-                        "total_male_workforce": aggregated_result["pea_m_alcaldia"] or 0,
-                        "total_female_workforce": aggregated_result["pea_f_alcaldia"] or 0,
-                        "total_inactive_population": aggregated_result["pe_inac_alcaldia"] or 0,
-                        "total_inactive_male_population": aggregated_result["pe_inac_m_alcaldia"] or 0,
-                        "total_inactive_female_population": aggregated_result["pe_inac_f_alcaldia"] or 0
+                        "total_workforce": aggregated_result.get("pea"),
+                        "total_male_workforce": aggregated_result.get("pea_m"),
+                        "total_female_workforce": aggregated_result.get("pea_f"),
+                        "total_inactive_population": aggregated_result.get("pe_inac"),
+                        "total_inactive_male_population": aggregated_result.get("pe_inac_m"),
+                        "total_inactive_female_population": aggregated_result.get("pe_inac_f")
                     }
                 },
                 "employment": {
@@ -1425,35 +1439,35 @@ class AreaAnalysisController:
                         "total_unemployed_female_population": aggregated_result["pdesocup_f"] or 0
                     },
                     "alcaldia": {
-                        "total_employed_population": aggregated_result["pocupada_alcaldia"] or 0,
-                        "total_male_employed_population": aggregated_result["pocupada_m_alcaldia"] or 0,
-                        "total_female_emloyed_population": aggregated_result["pocupada_f_alcaldia"] or 0,
-                        "total_unemployed_population": aggregated_result["pdesocup_alcaldia"] or 0,
-                        "total_unemployed_male_population": aggregated_result["pdesocup_m_alcaldia"] or 0,
-                        "total_unemployed_female_population": aggregated_result["pdesocup_f_alcaldia"] or 0
+                        "total_employed_population": aggregated_result.get("pocupada"),
+                        "total_male_employed_population": aggregated_result.get("pocupada_m"),
+                        "total_female_emloyed_population": aggregated_result.get("pocupada_f"),
+                        "total_unemployed_population": aggregated_result.get("pdesocup"),
+                        "total_unemployed_male_population": aggregated_result.get("pdesocup_m"),
+                        "total_unemployed_female_population": aggregated_result.get("pdesocup_f")
                     }
                 },
                 "population_growth": {
                     "block": {
-                        "2000": [aggregated_result["pob_2000_ageb"] or 0, 0],
-                        "2005": [aggregated_result["pob_2005_ageb"] or 0, aggregated_result["cambio_porcentual_2005_ageb"] or 0],
-                        "2010": [aggregated_result["pob_2010_ageb"] or 0, aggregated_result["cambio_porcentual_2010_ageb"] or 0],
-                        "2015": [aggregated_result["pob_2015_ageb"] or 0, aggregated_result["cambio_porcentual_2015_ageb"] or 0],
-                        "2020": [aggregated_result["pob_2020_ageb"] or 0, aggregated_result["cambio_porcentual_2020_ageb"] or 0]
+                        "2000": [aggregated_result.get("pob_2000_ageb"), 0],
+                        "2005": [aggregated_result.get("pob_2005_ageb"), aggregated_result.get("cambio_porcentual_2005_ageb")],
+                        "2010": [aggregated_result.get("pob_2010_ageb"), aggregated_result.get("cambio_porcentual_2010_ageb")],
+                        "2015": [aggregated_result.get("pob_2015_ageb"), aggregated_result.get("cambio_porcentual_2015_ageb")],
+                        "2020": [aggregated_result.get("pob_2020_ageb"), aggregated_result.get("cambio_porcentual_2020_ageb")]
                     },
                     "colonia": {
-                        "2000": [aggregated_result["pob_2000_ageb"] or 0, 0],
-                        "2005": [aggregated_result["pob_2005_ageb"] or 0, aggregated_result["cambio_porcentual_2005_ageb"] or 0],
-                        "2010": [aggregated_result["pob_2010_ageb"] or 0, aggregated_result["cambio_porcentual_2010_ageb"] or 0],
-                        "2015": [aggregated_result["pob_2015_ageb"] or 0, aggregated_result["cambio_porcentual_2015_ageb"] or 0],
-                        "2020": [aggregated_result["pob_2020_ageb"] or 0, aggregated_result["cambio_porcentual_2020_ageb"] or 0]
+                        "2000": [aggregated_result.get("pob_2000_ageb"), 0],
+                        "2005": [aggregated_result.get("pob_2005_ageb"), aggregated_result.get("cambio_porcentual_2005_ageb")],
+                        "2010": [aggregated_result.get("pob_2010_ageb"), aggregated_result.get("cambio_porcentual_2010_ageb")],
+                        "2015": [aggregated_result.get("pob_2015_ageb"), aggregated_result.get("cambio_porcentual_2015_ageb")],
+                        "2020": [aggregated_result.get("pob_2020_ageb"), aggregated_result.get("cambio_porcentual_2020_ageb")]
                     },
                     "alcaldia": {
-                        "2000": [aggregated_result["pob_2000_municipal"] or 0, 0],
-                        "2005": [aggregated_result["pob_2005_municipal"] or 0, aggregated_result["cambio_porcentual_2005_municipal"] or 0],
-                        "2010": [aggregated_result["pob_2010_municipal"] or 0, aggregated_result["cambio_porcentual_2010_municipal"] or 0],
-                        "2015": [aggregated_result["pob_2015_municipal"] or 0, aggregated_result["cambio_porcentual_2015_municipal"] or 0],
-                        "2020": [aggregated_result["pob_2020_municipal"] or 0, aggregated_result["cambio_porcentual_2020_municipal"] or 0]
+                        "2000": [aggregated_result.get("pob_2000_municipal"), 0],
+                        "2005": [aggregated_result.get("pob_2005_municipal"), aggregated_result.get("cambio_porcentual_2005_municipal")],
+                        "2010": [aggregated_result.get("pob_2010_municipal"), aggregated_result.get("cambio_porcentual_2010_municipal")],
+                        "2015": [aggregated_result.get("pob_2015_municipal"), aggregated_result.get("cambio_porcentual_2015_municipal")],
+                        "2020": [aggregated_result.get("pob_2020_municipal"), aggregated_result.get("cambio_porcentual_2020_municipal")]
                     }
                 }
             },
@@ -1474,11 +1488,11 @@ class AreaAnalysisController:
                 },
                 "municipality": {
                     "population_density": f"{municipality_population_density} persons/km²",
-                    "male_population": aggregated_result.get("pobmas_alcaldia", 0) or 0,
+                    "male_population": aggregated_result["pobmas_alcaldia"],
                     "male_percentage": f"{municipality_male_percentage}%",
-                    "female_population": aggregated_result.get("pobfem_alcaldia", 0) or 0,
+                    "female_population": aggregated_result["pobfem_alcaldia"],
                     "female_percentage": f"{municipality_female_percentage}%",
-                    "total_households": aggregated_result.get("vivtot_alcaldia", 0) or 0
+                    "total_households": aggregated_result["vivtot_alcaldia"]
                 }
             }
         }
@@ -1486,7 +1500,7 @@ class AreaAnalysisController:
         return demographics_data
 
     def _aggregate_queretaro_demographic_data(self, demographic_data):
-        """Aggregate Queretaro demographic data from multiple records."""
+        """Aggregate Queretaro demographic data from multiple records using data_product.v_qro table."""
         if not demographic_data:
             return {}
         
@@ -1496,40 +1510,123 @@ class AreaAnalysisController:
         # Aggregate multiple records
         aggregated = {}
         
-        # Sum numeric fields
-        numeric_fields = [
-            'pobtot', 'pobmas', 'pobfem', 'vivtot', 'p_0a2', 'p_3a5', 'p_6a11', 'p_12a14', 
-            'p_15a17', 'p_18a24', 'p_60ymas', 'p_0a2_f', 'p_0a2_m', 'p_3a5_f', 'p_3a5_m',
-            'p_6a11_f', 'p_6a11_m', 'p_12a14_f', 'p_12a14_m', 'p_15a17_f', 'p_15a17_m',
-            'p_18a24_f', 'p_18a24_m', 'p_60ymas_f', 'p_60ymas_m', 'pea', 'pea_m', 'pea_f',
-            'pe_inac', 'pe_inac_m', 'pe_inac_f', 'pocupada', 'pocupada_m', 'pocupada_f',
-            'pdesocup', 'pdesocup_m', 'pdesocup_f', 'p3a5_noa', 'p6a11_noa', 'p12a14noa',
-            'p15a17a', 'p18a24a', 'ses_ab', 'ses_c_plus', 'ses_c', 'ses_c_minus', 
-            'ses_d_plus', 'ses_d', 'ses_e'
+        # Fields that should be summed (counts) - Block level only
+        count_fields = [
+            'pea', 'pea_m', 'pea_f', 
+            'pe_inac', 'pe_inac_m', 'pe_inac_f', 'pocupada', 'pocupada_m', 
+            'pocupada_f', 'pdesocup', 'pdesocup_m', 'pdesocup_f',
+            'p_3a5', 'p_6a11', 'p_12a14', 'p_15a17', 'p_18a24', 'p_60ymas',
+            'p3a5_noa', 'p6a11_noa', 'p12a14noa', 'p15a17a', 'p18a24a',
+            'p_0a2', 'p_0a2_m', 'p_0a2_f', 'p_3a5_m', 'p_3a5_f', 'p_6a11_m', 
+            'p_6a11_f', 'p_12a14_m', 'p_12a14_f', 'p_15a17_m', 'p_15a17_f', 
+            'p_18a24_m', 'p_18a24_f', 'p_60ymas_m', 'p_60ymas_f',
+            'pob_2000_ageb', 'pob_2005_ageb', 'pob_2010_ageb', 'pob_2015_ageb', 'pob_2020_ageb'
         ]
         
-        for field in numeric_fields:
+        # Fields that should be averaged (percentages) - Block level
+        ses_fields = [
+            'ses_ab', 'ses_c_plus', 'ses_c', 'ses_c_minus', 'ses_d_plus', 'ses_d', 'ses_e',
+            'cambio_porcentual_2005_ageb', 'cambio_porcentual_2010_ageb', 'cambio_porcentual_2015_ageb', 'cambio_porcentual_2020_ageb'
+        ]
+        
+        # Sum count fields
+        for field in count_fields:
             aggregated[field] = sum(record.get(field, 0) or 0 for record in demographic_data)
         
-        # Take first values for non-numeric fields
-        first_record = demographic_data[0]
+        # Calculate male/female population and households for selected area (sum across records)
+        # The query maps pobmas_alcaldia as pobmas and pobfem_alcaldia as pobfem
+        aggregated['pobmas'] = sum(record.get('pobmas', 0) or 0 for record in demographic_data)
+        aggregated['pobfem'] = sum(record.get('pobfem', 0) or 0 for record in demographic_data)
+        # Calculate total population as sum of male + female
+        aggregated['pobtot'] = aggregated['pobmas'] + aggregated['pobfem']
+        # The query maps tot_vivien as vivtot
+        aggregated['vivtot'] = sum(record.get('vivtot', 0) or 0 for record in demographic_data)
+        
+        # Average SES fields
+        for field in ses_fields:
+            values = [record.get(field, 0) or 0 for record in demographic_data if record.get(field) is not None]
+            aggregated[field] = sum(values) / len(values) if values else 0
+        
+        # Non-numeric fields (take from first record)
         non_numeric_fields = [
-            'neighborhood', 'predominant_level', 'ageb_code', 'nom_mun', 'municipality_code', 
-            'municipality_nm', 'centroid'
+            'neighborhood', 'predominant_level', 'ageb_code', 'nom_mun', 
+            'municipality_code', 'municipality_nm', 'centroid', 'total_area'
         ]
         
+        first_record = demographic_data[0]
         for field in non_numeric_fields:
             aggregated[field] = first_record.get(field)
         
-        # Municipality level data should come from actual database columns
-        # Removed fallback that was copying block level data to municipality level
-        # for field in numeric_fields:
-        #     aggregated[f"{field}_alcaldia"] = aggregated[field]  # REMOVED FALLBACK
+        # Municipality level data - use actual data from v_qro table
+        municipality_fields = [
+            'pobtot_alcaldia', 'pobmas_alcaldia', 'pobfem_alcaldia', 'vivtot_alcaldia',
+            'pea_alcaldia', 'pea_m_alcaldia', 'pea_f_alcaldia', 'pe_inac_alcaldia', 
+            'pe_inac_m_alcaldia', 'pe_inac_f_alcaldia', 'pocupada_alcaldia', 'pocupada_m_alcaldia', 
+            'pocupada_f_alcaldia', 'pdesocup_alcaldia', 'pdesocup_m_alcaldia', 'pdesocup_f_alcaldia',
+            'p_3a5_alcaldia', 'p_6a11_alcaldia', 'p_12a14_alcaldia', 'p_15a17_alcaldia', 'p_18a24_alcaldia',
+            'p3a5_noa_alcaldia', 'p6a11_noa_alcaldia', 'p12a14noa_alcaldia', 'p15a17a_alcaldia', 'p18a24a_alcaldia',
+            'p_0a2_alcaldia', 'p_0a2_m_alcaldia', 'p_0a2_f_alcaldia', 'p_3a5_m_alcaldia', 'p_3a5_f_alcaldia',
+            'p_6a11_m_alcaldia', 'p_6a11_f_alcaldia', 'p_12a14_m_alcaldia', 'p_12a14_f_alcaldia',
+            'p_15a17_m_alcaldia', 'p_15a17_f_alcaldia', 'p_18a24_m_alcaldia', 'p_18a24_f_alcaldia',
+            'p_60ymas_alcaldia', 'p_60ymas_m_alcaldia', 'p_60ymas_f_alcaldia',
+            'pob_2000_municipal', 'pob_2005_municipal', 'pob_2010_municipal', 'pob_2015_municipal', 'pob_2020_municipal',
+            'prom_ocup_alcaldia', 'pro_ocup_c_alcaldia'
+        ]
         
+        for field in municipality_fields:
+            aggregated[field] = first_record.get(field)
+        
+        # Municipality level SES data (percentages)
+        municipality_ses_fields = [
+            'ses_ab_alcaldia', 'ses_c_plus_alcaldia', 'ses_c_alcaldia', 'ses_c_minus_alcaldia',
+            'ses_d_plus_alcaldia', 'ses_d_alcaldia', 'ses_e_alcaldia',
+            'cambio_porcentual_2005_municipal', 'cambio_porcentual_2010_municipal', 
+            'cambio_porcentual_2015_municipal', 'cambio_porcentual_2020_municipal'
+        ]
+        
+        for field in municipality_ses_fields:
+            aggregated[field] = first_record.get(field)
+        
+        # Colonia level data - use actual data from v_qro table
+        colonia_fields = [
+            'pobtot_colonia', 'pobmas_colonia', 'pobfem_colonia', 'vivtot_colonia',
+            'pea_colonia', 'pea_m_colonia', 'pea_f_colonia', 'pe_inac_colonia', 
+            'pe_inac_m_colonia', 'pe_inac_f_colonia', 'pocupada_colonia', 'pocupada_m_colonia', 
+            'pocupada_f_colonia', 'pdesocup_colonia', 'pdesocup_m_colonia', 'pdesocup_f_colonia',
+            'p_3a5_colonia', 'p_6a11_colonia', 'p_12a14_colonia', 'p_15a17_colonia', 'p_18a24_colonia',
+            'p3a5_noa_colonia', 'p6a11_noa_colonia', 'p12a14noa_colonia', 'p15a17a_colonia', 'p18a24a_colonia',
+            'p_0a2_colonia', 'p_0a2_m_colonia', 'p_0a2_f_colonia', 'p_3a5_m_colonia', 'p_3a5_f_colonia',
+            'p_6a11_m_colonia', 'p_6a11_f_colonia', 'p_12a14_m_colonia', 'p_12a14_f_colonia',
+            'p_15a17_m_colonia', 'p_15a17_f_colonia', 'p_18a24_m_colonia', 'p_18a24_f_colonia',
+            'p_60ymas_colonia', 'p_60ymas_m_colonia', 'p_60ymas_f_colonia',
+            'prom_ocup_colonia', 'pro_ocup_c_colonia'
+        ]
+        
+        for field in colonia_fields:
+            aggregated[field] = first_record.get(field)
+        
+        # Colonia level SES data (percentages)
+        colonia_ses_fields = [
+            'ses_ab_colonia', 'ses_c_plus_colonia', 'ses_c_colonia', 'ses_c_minus_colonia',
+            'ses_d_plus_colonia', 'ses_d_colonia', 'ses_e_colonia'
+        ]
+        
+        for field in colonia_ses_fields:
+            aggregated[field] = first_record.get(field)
+        
+        # State level population growth data
+        state_fields = [
+            'pob_2000_entidad', 'pob_2005_entidad', 'pob_2010_entidad', 'pob_2015_entidad', 'pob_2020_entidad',
+            'cambio_porcentual_2005_entidad', 'cambio_porcentual_2010_entidad', 
+            'cambio_porcentual_2015_entidad', 'cambio_porcentual_2020_entidad'
+        ]
+        
+        for field in state_fields:
+            aggregated[field] = first_record.get(field)
+
         return aggregated
 
     def _process_socioeconomic_data(self, socioeconomic_data, lat, lng, radius, config_city='mexico'):
-        """Process socioeconomic data and create response structure matching UI mockup."""
         
         # Filter records by distance for Mexico (since we can't do it in SQL)
         if config_city != 'queretaro':
