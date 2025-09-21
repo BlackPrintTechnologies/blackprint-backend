@@ -184,13 +184,22 @@ class AreaAnalysisQuery:
 
     def build_mexico_demographics_query(self, lat, lng, radius):
         """
-        Build optimized Mexico City demographics query using the structure from properties controller.
-        This query matches the demographic structure you provided for Mexico City.
+        Build optimized Mexico City demographics query using accurate spatial filtering.
+        Uses PostGIS ST_Buffer with proper coordinate system transformations for precise radius filtering.
         """
-        # Convert radius from meters to degrees (approximate conversion for latitude)
-        radius_degrees = radius / 111000.0
-        
         query = f"""
+        WITH point_geom AS (
+          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+        ),
+        point_projected AS (
+          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+        ),
+        buffered AS (
+          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+        ),
+        buffered_4326 AS (
+          SELECT ST_Transform(geom, 4326) AS geom FROM buffered
+        )
         SELECT 
             -- General demographic data
             d.neighborhood,
@@ -397,11 +406,11 @@ class AreaAnalysisQuery:
             d.municipality_nm
             
         FROM blackprint_db_prd.data_product.v_parcel_v3 d
+        CROSS JOIN buffered_4326 b
         WHERE d.centroid IS NOT NULL
         AND d.centroid != ''
         AND d.centroid LIKE '%coordinates%'
-        AND ST_DWithin(
-            ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326),
+        AND ST_Intersects(
             ST_SetSRID(
                 ST_MakePoint(
                     CAST(SPLIT_PART(REPLACE(REPLACE(d.centroid, '{{"type":"Point","coordinates":[', ''), ']}}', ''), ',', 1) AS FLOAT),
@@ -409,20 +418,29 @@ class AreaAnalysisQuery:
                 ), 
                 4326
             ),
-            {radius_degrees}
+            b.geom
         )
         """
         return query
 
     def build_queretaro_demographics_query(self, lat, lng, radius):
         """
-        Build Queretaro demographics query using the staging table structure.
-        This query matches the demographic structure for Queretaro city.
+        Build Queretaro demographics query using accurate spatial filtering.
+        Uses PostGIS ST_Buffer with proper coordinate system transformations for precise radius filtering.
         """
-        # Convert radius from meters to degrees (approximate conversion for latitude)
-        radius_degrees = radius / 111000.0
-        
         query = f"""
+        WITH point_geom AS (
+          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+        ),
+        point_projected AS (
+          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+        ),
+        buffered AS (
+          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+        ),
+        buffered_4326 AS (
+          SELECT ST_Transform(geom, 4326) AS geom FROM buffered
+        )
         SELECT 
             -- General demographic data
             d.nom_loc as neighborhood,
@@ -573,11 +591,109 @@ class AreaAnalysisQuery:
             d.nom_mun as municipality_nm
             
         FROM staging.stg_demographic_socioeconomic_qro d
+        CROSS JOIN buffered_4326 b
         WHERE d.geometry_coords IS NOT NULL
-        AND ST_DWithin(
-            ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326),
+        AND ST_Intersects(
             ST_SetSRID(d.geometry_coords, 4326),
-            {radius_degrees}
+            b.geom
         )
+        """
+        return query
+
+    def get_active_search_query(self, user_id):
+        """Get active search query for a specific user."""
+        query = f"""
+            SELECT * FROM active_search WHERE user_id = {user_id}
+        """
+        return query
+
+    def _get_mobility_query(self, lat, lng, radius):
+        """Get mobility data query within specified radius from coordinates."""
+        query = f"""
+            WITH point_geom AS (
+                SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+                SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+                -- radius in meters
+                SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+                SELECT H3_Polyfill(ST_Transform(geom, 4326), 10) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT 
+                    o::VARCHAR AS h3_value,
+                    LENGTH(o::VARCHAR) AS varchar_length,
+                    o::BIGINT AS bigint_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT * 
+            FROM blackprint_db_prd.presentation.dataset_mobility_data_h3_qro a
+            INNER JOIN h3_index b ON a.h3_index = b.h3_value
+        """
+        return query
+
+    def _get_pois_query(self, lat, lng, radius):
+        """Get POIs data query within specified radius from coordinates."""
+        query = f"""
+            WITH point_geom AS (
+                SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+                ),
+                point_projected AS (
+                SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+                ),
+                buffered AS (
+                -- radius n meters
+                SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+                ),
+                h3_values AS (
+                SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
+                ),
+                h3_index AS (
+                    SELECT o AS h3_value
+                    FROM h3_values i, i.h3_indexes o
+                )
+                SELECT case when chain_id != 'None' then chain_id else null end as brand, name as names_pri, geometry_wkt, main_category ,
+                         sub_category , sub_sub_category, business_category, open_closed_status, popularity_score, average_stars, number_of_reviews, sentiment_score
+                FROM blackprint_db_prd.presentation.dim_pois_qro a
+                INNER JOIN h3_index b ON a.h3_value = b.h3_value
+        """
+        return query
+
+    def _get_socioeconomic_query(self, lat, lng, radius):
+        """Get socioeconomic data query within specified radius from coordinates."""
+        query = f"""
+            SELECT
+            id_ses_ageb AS "id_ses_ageb",
+            state_code AS "state_code",
+            municipality_code AS "municipality_code",
+            locality_code AS "locality_code",
+            ageb_code AS "ageb_code",
+            ses_ab AS "ses_ab",
+            ses_c_plus AS "ses_c_plus",
+            ses_c AS "ses_c",
+            ses_c_minus AS "ses_c_minus",
+            ses_d_plus AS "ses_d_plus",
+            ses_d AS "ses_d",
+            ses_e AS "ses_e",
+            predominant_level AS "predominant_level",
+            total_houses AS "total_houses",
+            locality_size AS "locality_size"
+            FROM
+            blackprint_db_prd.presentation.dim_ses_ageb_qro
+            INNER JOIN blackprint_db_prd.data_product.v_qro ON blackprint_db_prd.presentation.dim_ses_ageb_qro.id_ses_ageb = blackprint_db_prd.data_product.v_qro.id_ses_ageb
+            WHERE 
+            ST_Distance(
+                ST_GeomFromText(
+                    'POINT(' || 
+                    CAST(JSON_EXTRACT(centroid, '$.coordinates[0]') AS VARCHAR) || ' ' || 
+                    CAST(JSON_EXTRACT(centroid, '$.coordinates[1]') AS VARCHAR) || 
+                    ')', 4326
+                ),
+                ST_GeomFromText('POINT({lng} {lat})', 4326)
+            ) <= {radius}
         """
         return query
