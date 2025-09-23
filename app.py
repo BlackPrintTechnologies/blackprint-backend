@@ -114,7 +114,7 @@ api.add_resource(MarketInfo, '/property/marketinfo')  # Catchment and fid as par
 api.add_resource(PropertyTypes, '/market/propertytypes')
 
 # Area Analysis routes
-api.add_resource(AreaAnalysisSummary, '/area-analysis/summary')
+api.add_resource(AreaAnalysisSummary, '/area-analysis/traffic-summary')
 api.add_resource(AreaAnalysisTrafficPatterns, '/area-analysis/traffic-patterns')
 api.add_resource(AreaAnalysisDemographics, '/area-analysis/demographics')
 api.add_resource(AreaAnalysisSocioeconomic, '/area-analysis/socioeconomic')
