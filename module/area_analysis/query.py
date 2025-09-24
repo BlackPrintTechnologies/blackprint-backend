@@ -487,7 +487,7 @@ class AreaAnalysisQuery:
               -- ===== CURRENT POPULATION AND HOUSEHOLDS (Direct sum from colonia level) =====
               -- Sum population directly from all colonias that intersect with the radius
               SUM(d.tot_vivien) as vivtot,                    -- Total households in selected area
-              SUM(COALESCE(d.pobtot_colonia, 0)) as pobtot,   -- Total population from all intersecting colonias
+              SUM(COALESCE(d.pobtot, 0)) as pobtot,   -- Total population from all intersecting colonias
               SUM(COALESCE(d.pobmas_colonia, 0)) as pobmas,   -- Total male population from all intersecting colonias
               SUM(COALESCE(d.pobfem_colonia, 0)) as pobfem,   -- Total female population from all intersecting colonias
               
