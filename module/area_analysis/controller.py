@@ -994,7 +994,7 @@ class AreaAnalysisController:
             "population_growth_2024": population_growth_data,
             "comparison": {
                 "selected_area": {
-                    "population_density": f"{area_population_density} persons/km²",
+                    "population_density": area_population_density,
                     "population_density_trend": "down" if area_population_density < municipality_population_density else "up",
                     "male_population": aggregated_result["pobmas"],
                     "male_percentage": f"{male_percentage}%",
@@ -1006,7 +1006,7 @@ class AreaAnalysisController:
                     "households_trend": "up"  # Default trend
                 },
                 "municipality": {
-                    "population_density": f"{municipality_population_density} persons/km²",
+                    "population_density": municipality_population_density,
                     "male_population": aggregated_result.get("pobmas_alcaldia", 0) or 0,
                     "male_percentage": f"{municipality_male_percentage}%",
                     "female_population": aggregated_result.get("pobfem_alcaldia", 0) or 0,
@@ -1463,7 +1463,7 @@ class AreaAnalysisController:
             "population_growth_2024": population_growth_data,
             "comparison": {
                 "selected_area": {
-                    "population_density": f"{area_population_density} persons/km²",
+                    "population_density": area_population_density,
                     "population_density_trend": "down" if area_population_density < municipality_population_density else "up",
                     "male_population": aggregated_result["pobmas"],
                     "male_percentage": f"{male_percentage}%",
@@ -1475,7 +1475,7 @@ class AreaAnalysisController:
                     "households_trend": "up"  # Default trend
                 },
                 "municipality": {
-                    "population_density": f"{municipality_population_density} persons/km²",
+                    "population_density": municipality_population_density,
                     "male_population": aggregated_result["pobmas_alcaldia"],
                     "male_percentage": f"{municipality_male_percentage}%",
                     "female_population": aggregated_result["pobfem_alcaldia"],
