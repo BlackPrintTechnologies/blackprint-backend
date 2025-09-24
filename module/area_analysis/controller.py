@@ -516,7 +516,10 @@ class AreaAnalysisController:
                 else:
                     logger.error(f"Unsupported city configuration for processing: {config_city}")
                     return Response.error("Unsupported city configuration. Supported cities: mexico, queretaro")
-                logger.info(f"Demographics analysis completed for {len(res)} records in {config_city}")
+                if config_city == 'queretaro':
+                    logger.info(f"Demographics analysis completed for pre-aggregated query result in {config_city}")
+                else:
+                    logger.info(f"Demographics analysis completed for {len(res)} records in {config_city}")
                 resp = Response.success(data=demographics_data)
             else:
                 # Return empty demographics structure
@@ -1064,42 +1067,37 @@ class AreaAnalysisController:
         }
 
     def _create_population_growth_data(self, aggregated_result):
-        """Create population growth data structure for 2000-2020 visualization."""
-        # Use the population growth data from the aggregated_result
+        """Create population growth data structure using only years available from database."""
+        # Only use years that actually exist in the database
+        # Based on the query: 2000, 2005, 2010, 2020 (no 2015, no interpolated 2007)
         block_growth = {
-            "2000": [aggregated_result.get('pob_2000_ageb', 0), 0],
+            "2000": [aggregated_result.get('pob_2000_ageb', 0), 0],  # Base year, 0% growth
             "2005": [aggregated_result.get('pob_2005_ageb', 0), float(aggregated_result.get('cambio_porcentual_2005_ageb', 0) or 0)],
             "2010": [aggregated_result.get('pob_2010_ageb', 0), float(aggregated_result.get('cambio_porcentual_2010_ageb', 0) or 0)],
-            "2015": [aggregated_result.get('pob_2015_ageb', 0), float(aggregated_result.get('cambio_porcentual_2015_ageb', 0) or 0)],
             "2020": [aggregated_result.get('pob_2020_ageb', 0), float(aggregated_result.get('cambio_porcentual_2020_ageb', 0) or 0)]
         }
         
         alcaldia_growth = {
-            "2000": [aggregated_result.get('pob_2000_municipal', 0), 0],
+            "2000": [aggregated_result.get('pob_2000_municipal', 0), 0],  # Base year, 0% growth
             "2005": [aggregated_result.get('pob_2005_municipal', 0), float(aggregated_result.get('cambio_porcentual_2005_municipal', 0) or 0)],
             "2010": [aggregated_result.get('pob_2010_municipal', 0), float(aggregated_result.get('cambio_porcentual_2010_municipal', 0) or 0)],
-            "2015": [aggregated_result.get('pob_2015_municipal', 0), float(aggregated_result.get('cambio_porcentual_2015_municipal', 0) or 0)],
             "2020": [aggregated_result.get('pob_2020_municipal', 0), float(aggregated_result.get('cambio_porcentual_2020_municipal', 0) or 0)]
         }
         
-        # Create data points for the chart
-        years = [2000, 2005, 2007, 2010, 2015, 2020]
+        # Only use years that exist in the database (no hardcoded 2007 or missing 2015)
+        years = [2000, 2005, 2010, 2020]
         area_data = []
         municipality_data = []
         
         for year in years:
-            if year == 2007:  # Interpolate for 2007
-                area_growth = self._interpolate_growth_for_year(block_growth, 2007)
-                municipality_growth = self._interpolate_growth_for_year(alcaldia_growth, 2007)
-            elif str(year) in block_growth:
-                area_growth = block_growth[str(year)][1] if len(block_growth[str(year)]) > 1 else 0
+            year_str = str(year)
+            if year_str in block_growth:
+                area_growth = block_growth[year_str][1] if len(block_growth[year_str]) > 1 else 0
             else:
                 area_growth = 0
                 
-            if year == 2007:  # Interpolate for 2007
-                municipality_growth = self._interpolate_growth_for_year(alcaldia_growth, 2007)
-            elif str(year) in alcaldia_growth:
-                municipality_growth = alcaldia_growth[str(year)][1] if len(alcaldia_growth[str(year)]) > 1 else 0
+            if year_str in alcaldia_growth:
+                municipality_growth = alcaldia_growth[year_str][1] if len(alcaldia_growth[year_str]) > 1 else 0
             else:
                 municipality_growth = 0
             
@@ -1217,44 +1215,34 @@ class AreaAnalysisController:
 
     def _process_queretaro_demographics_data(self, demographic_data, lat, lng, radius, connection=None):
         """
-        Process Queretaro demographic data using the staging table structure.
-        This matches the demographic structure for Queretaro city.
+        Process Queretaro demographic data from the new aggregated query.
+        The query now returns a single pre-aggregated record with all calculations already done.
         """
-        # Spatial filtering is now handled in the SQL query
+        # Spatial filtering and aggregation are now handled in the SQL query
         if not demographic_data:
             logger.warning("No Queretaro demographic data found")
             return self._get_empty_demographics_structure(lat, lng, radius)
         
-        # Aggregate data from all records
-        aggregated_result = self._aggregate_queretaro_demographic_data(demographic_data)
+        # Get the single aggregated result (no need for aggregation since query does it)
+        aggregated_result = demographic_data[0]  # Query returns single pre-aggregated record
         
-        # Calculate area in km² (approximate)
-        area_km2 = round((radius / 1000) ** 2 * 3.14159, 2)
+        # All calculations are now done in the SQL query, just extract the values
+        area_km2 = aggregated_result.get("area_km2", 0)
+        area_population_density = aggregated_result.get("population_density", 0)
+        male_percentage = aggregated_result.get("male_percentage")
+        female_percentage = aggregated_result.get("female_percentage")
+        municipality_male_percentage = aggregated_result.get("municipality_male_percentage")
+        municipality_female_percentage = aggregated_result.get("municipality_female_percentage")
+        avg_household_size = aggregated_result.get("average_household_size", 0)
         
-        # Calculate population density
-        area_population_density = round(aggregated_result["pobtot"] / area_km2, 2) if area_km2 > 0 else 0
-        
-        # Calculate municipality population density dynamically from database
+        # Calculate municipality population density if needed (fallback for older data)
         municipality_code = aggregated_result.get("municipality_code")
         if municipality_code and connection:
             municipality_area_km2 = self._get_municipality_area_km2(municipality_code, connection)
+            municipality_population_density = round(aggregated_result["pobtot_alcaldia"] / municipality_area_km2, 2) if municipality_area_km2 > 0 and aggregated_result.get("pobtot_alcaldia") else 0
         else:
-            # Fallback: calculate area from available data or use a reasonable estimate
-            municipality_area_km2 = self._calculate_fallback_municipality_area(aggregated_result)
-        
-        # For Queretaro, use municipality-level data for comparison
-        municipality_population_density = round(aggregated_result["pobtot_alcaldia"] / municipality_area_km2, 2) if municipality_area_km2 > 0 else 0
-        
-        # Calculate male/female percentages (only if data is available)
-        male_percentage = round((aggregated_result["pobmas"] / aggregated_result["pobtot"] * 100), 1) if aggregated_result["pobtot"] > 0 and aggregated_result["pobmas"] is not None else None
-        female_percentage = round((aggregated_result["pobfem"] / aggregated_result["pobtot"] * 100), 1) if aggregated_result["pobtot"] > 0 and aggregated_result["pobfem"] is not None else None
-        
-        # For Queretaro, use municipality-level data for comparison
-        municipality_male_percentage = round((aggregated_result["pobmas_alcaldia"] / aggregated_result["pobtot_alcaldia"] * 100), 1) if aggregated_result["pobtot_alcaldia"] > 0 and aggregated_result["pobmas_alcaldia"] is not None else None
-        municipality_female_percentage = round((aggregated_result["pobfem_alcaldia"] / aggregated_result["pobtot_alcaldia"] * 100), 1) if aggregated_result["pobtot_alcaldia"] > 0 and aggregated_result["pobfem_alcaldia"] is not None else None
-        
-        # Calculate average household size
-        avg_household_size = round(aggregated_result["pobtot"] / aggregated_result["vivtot"], 2) if aggregated_result["vivtot"] > 0 else 0
+            # Use a reasonable estimate for municipality density
+            municipality_population_density = area_population_density * 0.8  # Approximate fallback
         
         # Create age pyramid data
         age_pyramid_data = self._create_age_pyramid_data(aggregated_result)
