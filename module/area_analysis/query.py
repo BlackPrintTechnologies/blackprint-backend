@@ -430,19 +430,7 @@ class AreaAnalysisQuery:
         providing better control and performance by doing calculations at the database level.
         """
         query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        buffered_4326 AS (
-          SELECT ST_Transform(geom, 4326) AS geom FROM buffered
-        ),
-        demographic_data AS (
+        WITH demographic_data AS (
         SELECT 
               -- ===== WORKFORCE DATA (SUM across all records in radius) =====
               SUM(d.pea) as pea,                    -- Total economically active population
@@ -496,11 +484,22 @@ class AreaAnalysisQuery:
               SUM(d.pob_2010_ageb) as pob_2010_ageb, -- Population in 2010 (block level)
               SUM(d.pob_2020_ageb) as pob_2020_ageb, -- Population in 2020 (block level)
               
-              -- ===== CURRENT POPULATION AND HOUSEHOLDS (SUM across all records) =====
-              SUM(d.pobmas_alcaldia) as pobmas,     -- Total male population in selected area
-              SUM(d.pobfem_alcaldia) as pobfem,     -- Total female population in selected area
-              SUM(d.tot_vivien) as vivtot,          -- Total households in selected area
-              SUM(d.pobmas_alcaldia + d.pobfem_alcaldia) as pobtot, -- Total population (male + female)
+              -- ===== CURRENT POPULATION AND HOUSEHOLDS (Use smallest available geographic unit) =====
+              -- Note: No block-level population data available, using proportional calculation
+              -- Calculate population based on household proportion within the radius
+              SUM(d.tot_vivien) as vivtot,                    -- Total households in selected area
+              ROUND(
+                  SUM(d.tot_vivien) * 
+                  (MAX(d.pobtot_colonia) / NULLIF(MAX(d.vivtot_colonia), 0))
+              ) as pobtot,                                    -- Estimated total population based on household ratio
+              ROUND(
+                  SUM(d.tot_vivien) * 
+                  (MAX(d.pobmas_colonia) / NULLIF(MAX(d.vivtot_colonia), 0))
+              ) as pobmas,                                    -- Estimated male population based on household ratio
+              ROUND(
+                  SUM(d.tot_vivien) * 
+                  (MAX(d.pobfem_colonia) / NULLIF(MAX(d.vivtot_colonia), 0))
+              ) as pobfem,                                    -- Estimated female population based on household ratio
               
               -- ===== SOCIOECONOMIC LEVELS (AVERAGE across all records) =====
               AVG(d.pct_viv_ab) as ses_ab,          -- Percentage of households in socioeconomic level AB (highest)
@@ -661,19 +660,18 @@ class AreaAnalysisQuery:
               MAX(d.cambio_porcentual_2010_entidad) as cambio_porcentual_2010_entidad, -- Population growth rate 2005-2010 (state)
               MAX(d.cambio_porcentual_2020_entidad) as cambio_porcentual_2020_entidad  -- Population growth rate 2010-2020 (state)
             
-        FROM data_product.v_qro d
-        CROSS JOIN buffered_4326 b
-        WHERE d.centroid IS NOT NULL
-        AND ST_Intersects(
-            ST_SetSRID(
-                ST_MakePoint(
-                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '0') AS FLOAT),
-                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '1') AS FLOAT)
-                ), 
-                4326
-            ),
-            b.geom
-        )
+          FROM data_product.v_qro d
+          WHERE d.centroid IS NOT NULL
+          AND ST_Intersects(
+              ST_SetSRID(
+                  ST_MakePoint(
+                      CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '0') AS FLOAT),
+                      CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '1') AS FLOAT)
+                  ), 
+                  4326
+              ),
+              ST_Transform(ST_Buffer(ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857), {radius}), 4326)
+          )
         )
         SELECT 
             *,
