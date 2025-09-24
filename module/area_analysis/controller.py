@@ -1067,42 +1067,37 @@ class AreaAnalysisController:
         }
 
     def _create_population_growth_data(self, aggregated_result):
-        """Create population growth data structure for 2000-2020 visualization."""
-        # Use the population growth data from the aggregated_result
+        """Create population growth data structure using only years available from database."""
+        # Only use years that actually exist in the database
+        # Based on the query: 2000, 2005, 2010, 2020 (no 2015, no interpolated 2007)
         block_growth = {
-            "2000": [aggregated_result.get('pob_2000_ageb', 0), 0],
+            "2000": [aggregated_result.get('pob_2000_ageb', 0), 0],  # Base year, 0% growth
             "2005": [aggregated_result.get('pob_2005_ageb', 0), float(aggregated_result.get('cambio_porcentual_2005_ageb', 0) or 0)],
             "2010": [aggregated_result.get('pob_2010_ageb', 0), float(aggregated_result.get('cambio_porcentual_2010_ageb', 0) or 0)],
-            "2015": [aggregated_result.get('pob_2015_ageb', 0), float(aggregated_result.get('cambio_porcentual_2015_ageb', 0) or 0)],
             "2020": [aggregated_result.get('pob_2020_ageb', 0), float(aggregated_result.get('cambio_porcentual_2020_ageb', 0) or 0)]
         }
         
         alcaldia_growth = {
-            "2000": [aggregated_result.get('pob_2000_municipal', 0), 0],
+            "2000": [aggregated_result.get('pob_2000_municipal', 0), 0],  # Base year, 0% growth
             "2005": [aggregated_result.get('pob_2005_municipal', 0), float(aggregated_result.get('cambio_porcentual_2005_municipal', 0) or 0)],
             "2010": [aggregated_result.get('pob_2010_municipal', 0), float(aggregated_result.get('cambio_porcentual_2010_municipal', 0) or 0)],
-            "2015": [aggregated_result.get('pob_2015_municipal', 0), float(aggregated_result.get('cambio_porcentual_2015_municipal', 0) or 0)],
             "2020": [aggregated_result.get('pob_2020_municipal', 0), float(aggregated_result.get('cambio_porcentual_2020_municipal', 0) or 0)]
         }
         
-        # Create data points for the chart
-        years = [2000, 2005, 2007, 2010, 2015, 2020]
+        # Only use years that exist in the database (no hardcoded 2007 or missing 2015)
+        years = [2000, 2005, 2010, 2020]
         area_data = []
         municipality_data = []
         
         for year in years:
-            if year == 2007:  # Interpolate for 2007
-                area_growth = self._interpolate_growth_for_year(block_growth, 2007)
-                municipality_growth = self._interpolate_growth_for_year(alcaldia_growth, 2007)
-            elif str(year) in block_growth:
-                area_growth = block_growth[str(year)][1] if len(block_growth[str(year)]) > 1 else 0
+            year_str = str(year)
+            if year_str in block_growth:
+                area_growth = block_growth[year_str][1] if len(block_growth[year_str]) > 1 else 0
             else:
                 area_growth = 0
                 
-            if year == 2007:  # Interpolate for 2007
-                municipality_growth = self._interpolate_growth_for_year(alcaldia_growth, 2007)
-            elif str(year) in alcaldia_growth:
-                municipality_growth = alcaldia_growth[str(year)][1] if len(alcaldia_growth[str(year)]) > 1 else 0
+            if year_str in alcaldia_growth:
+                municipality_growth = alcaldia_growth[year_str][1] if len(alcaldia_growth[year_str]) > 1 else 0
             else:
                 municipality_growth = 0
             
