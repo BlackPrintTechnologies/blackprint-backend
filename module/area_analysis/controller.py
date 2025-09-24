@@ -1019,41 +1019,97 @@ class AreaAnalysisController:
         return demographics_data
 
     def _create_age_pyramid_data(self, aggregated_result):
-        """Create age pyramid data structure for 2024 visualization."""
+        """Create age pyramid data structure for 2024 visualization using proportional scaling."""
         # Debug: Log available columns
         logger.info(f"Available columns in aggregated_result: {list(aggregated_result.keys())}")
         
-        # Check if we have gender-specific age data
-        has_gender_data = any(
-            aggregated_result.get(f"p_{age}_m") is not None or 
-            aggregated_result.get(f"p_{age}_f") is not None
-            for age in ["0a2", "3a5", "6a11", "12a14", "15a17", "18a24", "60ymas"]
-        )
+        # Get block-level age totals and municipality-level gender ratios
+        block_age_totals = {
+            "0a2": aggregated_result.get("p_0a2", 0) or 0,
+            "3a5": aggregated_result.get("p_3a5", 0) or 0,
+            "6a11": aggregated_result.get("p_6a11", 0) or 0,
+            "12a14": aggregated_result.get("p_12a14", 0) or 0,
+            "15a17": aggregated_result.get("p_15a17", 0) or 0,
+            "18a24": aggregated_result.get("p_18a24", 0) or 0,
+            "60ymas": aggregated_result.get("p_60ymas", 0) or 0
+        }
         
-        if not has_gender_data:
-            # For Queretaro, gender-specific age data is not available
-            logger.info("Gender-specific age data not available for age pyramid")
-            return None
+        # Get municipality-level gender data for ratios
+        municipality_gender_data = {
+            "0a2": {
+                "male": aggregated_result.get("p_0a2_m_alcaldia", 0) or 0,
+                "female": aggregated_result.get("p_0a2_f_alcaldia", 0) or 0,
+                "total": aggregated_result.get("p_0a2_alcaldia", 1) or 1
+            },
+            "3a5": {
+                "male": aggregated_result.get("p_3a5_m_alcaldia", 0) or 0,
+                "female": aggregated_result.get("p_3a5_f_alcaldia", 0) or 0,
+                "total": aggregated_result.get("p_3a5_alcaldia", 1) or 1
+            },
+            "6a11": {
+                "male": aggregated_result.get("p_6a11_m_alcaldia", 0) or 0,
+                "female": aggregated_result.get("p_6a11_f_alcaldia", 0) or 0,
+                "total": aggregated_result.get("p_6a11_alcaldia", 1) or 1
+            },
+            "12a14": {
+                "male": aggregated_result.get("p_12a14_m_alcaldia", 0) or 0,
+                "female": aggregated_result.get("p_12a14_f_alcaldia", 0) or 0,
+                "total": aggregated_result.get("p_12a14_alcaldia", 1) or 1
+            },
+            "15a17": {
+                "male": aggregated_result.get("p_15a17_m_alcaldia", 0) or 0,
+                "female": aggregated_result.get("p_15a17_f_alcaldia", 0) or 0,
+                "total": aggregated_result.get("p_15a17_alcaldia", 1) or 1
+            },
+            "18a24": {
+                "male": aggregated_result.get("p_18a24_m_alcaldia", 0) or 0,
+                "female": aggregated_result.get("p_18a24_f_alcaldia", 0) or 0,
+                "total": aggregated_result.get("p_18a24_alcaldia", 1) or 1
+            },
+            "60ymas": {
+                "male": aggregated_result.get("p_60ymas_m_alcaldia", 0) or 0,
+                "female": aggregated_result.get("p_60ymas_f_alcaldia", 0) or 0,
+                "total": aggregated_result.get("p_60ymas_alcaldia", 1) or 1
+            }
+        }
         
-        # Age groups for the pyramid (in years) - only if gender data exists
-        age_groups = [
-            {"range": "0-2", "male": aggregated_result.get("p_0a2_m", 0) or 0, "female": aggregated_result.get("p_0a2_f", 0) or 0},
-            {"range": "3-5", "male": aggregated_result.get("p_3a5_m", 0) or 0, "female": aggregated_result.get("p_3a5_f", 0) or 0},
-            {"range": "6-11", "male": aggregated_result.get("p_6a11_m", 0) or 0, "female": aggregated_result.get("p_6a11_f", 0) or 0},
-            {"range": "12-14", "male": aggregated_result.get("p_12a14_m", 0) or 0, "female": aggregated_result.get("p_12a14_f", 0) or 0},
-            {"range": "15-17", "male": aggregated_result.get("p_15a17_m", 0) or 0, "female": aggregated_result.get("p_15a17_f", 0) or 0},
-            {"range": "18-24", "male": aggregated_result.get("p_18a24_m", 0) or 0, "female": aggregated_result.get("p_18a24_f", 0) or 0},
-            {"range": "25-34", "male": 0, "female": 0},  # Not available in data
-            {"range": "35-44", "male": 0, "female": 0},  # Not available in data
-            {"range": "45-54", "male": 0, "female": 0},  # Not available in data
-            {"range": "55-64", "male": 0, "female": 0},  # Not available in data
-            {"range": "65+", "male": aggregated_result.get("p_60ymas_m", 0) or 0, "female": aggregated_result.get("p_60ymas_f", 0) or 0}
-        ]
+        # Age groups for the pyramid with proportional scaling
+        age_groups = []
+        for age_key, age_range in [("0a2", "0-2"), ("3a5", "3-5"), ("6a11", "6-11"), ("12a14", "12-14"), 
+                                   ("15a17", "15-17"), ("18a24", "18-24"), ("60ymas", "65+")]:
+            
+            block_total = block_age_totals[age_key]
+            muni_data = municipality_gender_data[age_key]
+            
+            # Calculate gender ratios from municipality data
+            if muni_data["total"] > 0:
+                male_ratio = muni_data["male"] / muni_data["total"]
+                female_ratio = muni_data["female"] / muni_data["total"]
+            else:
+                male_ratio = 0.5  # Default 50/50 split if no data
+                female_ratio = 0.5
+            
+            # Apply ratios to block-level totals
+            male_count = round(block_total * male_ratio)
+            female_count = round(block_total * female_ratio)
+            
+            age_groups.append({
+                "range": age_range,
+                "male": male_count,
+                "female": female_count
+            })
         
-        # Debug: Log the values we're getting
-        logger.info(f"Age pyramid data - p_0a2_m: {aggregated_result.get('p_0a2_m')}, p_0a2_f: {aggregated_result.get('p_0a2_f')}")
-        logger.info(f"Age pyramid data - p_3a5_m: {aggregated_result.get('p_3a5_m')}, p_3a5_f: {aggregated_result.get('p_3a5_f')}")
-        logger.info(f"Age pyramid data - p_6a11_m: {aggregated_result.get('p_6a11_m')}, p_6a11_f: {aggregated_result.get('p_6a11_f')}")
+        # Add missing age groups (not available in data)
+        age_groups.extend([
+            {"range": "25-34", "male": 0, "female": 0},
+            {"range": "35-44", "male": 0, "female": 0},
+            {"range": "45-54", "male": 0, "female": 0},
+            {"range": "55-64", "male": 0, "female": 0}
+        ])
+        
+        # Debug: Log the calculated values
+        logger.info(f"Age pyramid - Block totals: {block_age_totals}")
+        logger.info(f"Age pyramid - Calculated groups: {[(g['range'], g['male'], g['female']) for g in age_groups[:7]]}")
         
         # Calculate percentages for each age group
         total_population = aggregated_result.get("pobtot", 1) or 1
