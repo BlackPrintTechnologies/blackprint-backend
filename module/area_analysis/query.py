@@ -484,22 +484,12 @@ class AreaAnalysisQuery:
               SUM(d.pob_2010_ageb) as pob_2010_ageb, -- Population in 2010 (block level)
               SUM(d.pob_2020_ageb) as pob_2020_ageb, -- Population in 2020 (block level)
               
-              -- ===== CURRENT POPULATION AND HOUSEHOLDS (Use smallest available geographic unit) =====
-              -- Note: No block-level population data available, using proportional calculation
-              -- Calculate population based on household proportion within the radius
+              -- ===== CURRENT POPULATION AND HOUSEHOLDS (Direct sum from colonia level) =====
+              -- Sum population directly from all colonias that intersect with the radius
               SUM(d.tot_vivien) as vivtot,                    -- Total households in selected area
-              ROUND(
-                  SUM(d.tot_vivien) * 
-                  (MAX(d.pobtot_colonia) / NULLIF(MAX(d.vivtot_colonia), 0))
-              ) as pobtot,                                    -- Estimated total population based on household ratio
-              ROUND(
-                  SUM(d.tot_vivien) * 
-                  (MAX(d.pobmas_colonia) / NULLIF(MAX(d.vivtot_colonia), 0))
-              ) as pobmas,                                    -- Estimated male population based on household ratio
-              ROUND(
-                  SUM(d.tot_vivien) * 
-                  (MAX(d.pobfem_colonia) / NULLIF(MAX(d.vivtot_colonia), 0))
-              ) as pobfem,                                    -- Estimated female population based on household ratio
+              SUM(COALESCE(d.pobtot_colonia, 0)) as pobtot,   -- Total population from all intersecting colonias
+              SUM(COALESCE(d.pobmas_colonia, 0)) as pobmas,   -- Total male population from all intersecting colonias
+              SUM(COALESCE(d.pobfem_colonia, 0)) as pobfem,   -- Total female population from all intersecting colonias
               
               -- ===== SOCIOECONOMIC LEVELS (AVERAGE across all records) =====
               AVG(d.pct_viv_ab) as ses_ab,          -- Percentage of households in socioeconomic level AB (highest)
