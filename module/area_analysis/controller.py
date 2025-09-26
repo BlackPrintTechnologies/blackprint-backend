@@ -383,7 +383,14 @@ class AreaAnalysisController:
                         if dia_de_la_semana not in municipalities[cve_mun]["weekly_traffic"]:
                             municipalities[cve_mun]["weekly_traffic"][dia_de_la_semana] = {}
                         
-                        municipalities[cve_mun]["weekly_traffic"][dia_de_la_semana][tipo_usuario] = total_users
+                        # Translate Spanish field names to English
+                        user_type_english = {
+                            'estacionario': 'stationary_devices',
+                            'peaton': 'pedestrians', 
+                            'vehiculo': 'vehicles'
+                        }.get(tipo_usuario, tipo_usuario)
+                        
+                        municipalities[cve_mun]["weekly_traffic"][dia_de_la_semana][user_type_english] = total_users
                     
                     weekly_traffic_data = {
                         "total_municipalities": len(municipalities),
