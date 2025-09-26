@@ -186,7 +186,7 @@ class AreaAnalysisQuery:
             WHERE cve_mun = '{municipality_code}'
             AND geometry_geojson IS NOT NULL
             AND geometry_geojson != ''
-            LIMIT 10
+            
         ),
         h3_values AS (
             SELECT H3_Polyfill(geom, 10) AS h3_indexes 
