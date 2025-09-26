@@ -2265,5 +2265,91 @@ class AreaAnalysisController:
             }
         }
 
+    def get_weekly_traffic_by_municipality(self, lat, lng, radius=2000):
+        """
+        Get weekly traffic distribution by municipality for a given location.
+        
+        Args:
+            lat (float): Latitude of the center point
+            lng (float): Longitude of the center point
+            radius (int): Radius in meters (default: 2000)
+            
+        Returns:
+            dict: Response with weekly traffic data by municipality
+        """
+        connection = None
+        cursor = None
+        resp = None
+        
+        try:
+            connection = self.redshift_db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            query = self.query_builder.build_weekly_traffic_by_municipality_query(lat, lng, radius)
+            logger.info(f"Weekly traffic by municipality query: {query}")
+            
+            cursor.execute(query)
+            connection.commit()
+            res = cursor.fetchall()
+            
+            # Process the results
+            if res and len(res) > 0:
+                # Group data by municipality
+                municipalities = {}
+                for row in res:
+                    cve_mun = row.get('cve_mun')
+                    nom_mun = row.get('nom_mun')
+                    dia_de_la_semana = row.get('dia_de_la_semana')
+                    tipo_usuario = row.get('tipo_usuario')
+                    total_users = row.get('total_users', 0)
+                    
+                    if cve_mun not in municipalities:
+                        municipalities[cve_mun] = {
+                            "municipality_code": cve_mun,
+                            "municipality_name": nom_mun,
+                            "weekly_traffic": {}
+                        }
+                    
+                    if dia_de_la_semana not in municipalities[cve_mun]["weekly_traffic"]:
+                        municipalities[cve_mun]["weekly_traffic"][dia_de_la_semana] = {}
+                    
+                    municipalities[cve_mun]["weekly_traffic"][dia_de_la_semana][tipo_usuario] = total_users
+                
+                # Convert to list format
+                municipalities_list = list(municipalities.values())
+                
+                traffic_data = {
+                    "summary": {
+                        "center_point": {"lat": lat, "lng": lng},
+                        "radius_meters": radius,
+                        "total_municipalities": len(municipalities_list)
+                    },
+                    "municipalities": municipalities_list
+                }
+            else:
+                traffic_data = {
+                    "summary": {
+                        "center_point": {"lat": lat, "lng": lng},
+                        "radius_meters": radius,
+                        "total_municipalities": 0
+                    },
+                    "municipalities": []
+                }
+            
+            logger.info(f"Weekly traffic by municipality: {len(municipalities_list) if res else 0} municipalities found")
+            resp = Response.success(data=traffic_data)
+            
+        except Exception as e:
+            logger.error(f"Error in get_weekly_traffic_by_municipality: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            if connection:
+                connection.rollback()
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_db.disconnect(connection)
+            return resp
 
 
