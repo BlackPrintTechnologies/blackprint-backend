@@ -16,6 +16,7 @@ class AreaAnalysisSummary(Resource):
     post_parser.add_argument('lat', type=float, required=True, help='Latitude is required', location='json')
     post_parser.add_argument('lng', type=float, required=True, help='Longitude is required', location='json')
     post_parser.add_argument('radius', type=int, default=2000, required=False, location='json')
+    post_parser.add_argument('config_city', type=str, default='queretaro', required=False, location='json')
     
     @authenticate
     def post(self, current_user):
@@ -25,12 +26,13 @@ class AreaAnalysisSummary(Resource):
             lat = args.get('lat')
             lng = args.get('lng')
             radius = args.get('radius', 2000)
+            config_city = args.get('config_city', 'queretaro')
             
-            logger.info("User %s requesting area analysis summary for lat=%s, lng=%s, radius=%s", 
-                       current_user, lat, lng, radius)
+            logger.info("User %s requesting area analysis summary for lat=%s, lng=%s, radius=%s, city=%s", 
+                       current_user, lat, lng, radius, config_city)
             
             controller = AreaAnalysisController()
-            response = controller.get_area_summary(lat, lng, radius)
+            response = controller.get_area_summary(lat, lng, radius, config_city)
             
             return response
             
@@ -45,6 +47,7 @@ class AreaAnalysisTrafficPatterns(Resource):
     post_parser.add_argument('lat', type=float, required=True, help='Latitude is required', location='json')
     post_parser.add_argument('lng', type=float, required=True, help='Longitude is required', location='json')
     post_parser.add_argument('radius', type=int, default=2000, required=False, location='json')
+    post_parser.add_argument('config_city', type=str, default='queretaro', required=False, location='json')
     
     @authenticate
     def post(self, current_user):
@@ -54,12 +57,13 @@ class AreaAnalysisTrafficPatterns(Resource):
             lat = args.get('lat')
             lng = args.get('lng')
             radius = args.get('radius', 2000)
+            config_city = args.get('config_city', 'queretaro')
             
-            logger.info("User %s requesting traffic patterns for lat=%s, lng=%s, radius=%s", 
-                       current_user, lat, lng, radius)
+            logger.info("User %s requesting traffic patterns for lat=%s, lng=%s, radius=%s, city=%s", 
+                       current_user, lat, lng, radius, config_city)
             
             controller = AreaAnalysisController()
-            response = controller.get_traffic_patterns(lat, lng, radius)
+            response = controller.get_traffic_patterns(lat, lng, radius, config_city)
             
             return response
             
@@ -205,4 +209,36 @@ class POIsData(Resource):
         response = active_search_controller.get_pois_data(lat, lng, radius, city)
         
         return response
+
+
+class AreaAnalysisWeeklyTraffic(Resource):
+    """Resource to get weekly traffic distribution by municipality."""
+    
+    post_parser = reqparse.RequestParser()
+    post_parser.add_argument('lat', type=float, required=True, help='Latitude is required', location='json')
+    post_parser.add_argument('lng', type=float, required=True, help='Longitude is required', location='json')
+    post_parser.add_argument('radius', type=int, default=2000, required=False, location='json')
+    post_parser.add_argument('config_city', type=str, default='queretaro', required=False, location='json')
+    
+    @authenticate
+    def post(self, current_user):
+        """POST /area-analysis/weekly-traffic - Get weekly traffic distribution by municipality."""
+        try:
+            args = self.post_parser.parse_args()
+            lat = args.get('lat')
+            lng = args.get('lng')
+            radius = args.get('radius', 2000)
+            config_city = args.get('config_city', 'queretaro')
+            
+            logger.info("User %s requesting weekly traffic by municipality for lat=%s, lng=%s, radius=%s, city=%s", 
+                       current_user, lat, lng, radius, config_city)
+            
+            controller = AreaAnalysisController()
+            response = controller.get_weekly_traffic_by_municipality(lat, lng, radius)
+            
+            return response
+            
+        except Exception as e:
+            logger.error("Error in AreaAnalysisWeeklyTraffic POST: %s", str(e))
+            return {'message': 'Internal server error', 'status_code': 500}, 500
 

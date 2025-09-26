@@ -127,6 +127,81 @@ class AreaAnalysisQuery:
         """
         return query
 
+    def build_population_query(self, lat, lng, radius, config_city='queretaro'):
+        """Build SQL query to get population data within the specified area using proper spatial calculations."""
+        
+        if config_city == 'queretaro':
+            query = f"""
+            SELECT 
+                SUM(d.pobtot) as total_population,
+                MAX(d.pobtot_alcaldia) as municipality_population,
+                MAX(d.cve_mun) as municipality_code,
+                MAX(d.nom_mun) as municipality_name
+            FROM blackprint_db_prd.data_product.v_qro d
+            WHERE d.centroid IS NOT NULL
+            AND d.centroid != ''
+            AND ST_DWithin(
+                ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857),
+                ST_Transform(ST_SetSRID(ST_MakePoint(
+                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '0') AS FLOAT),
+                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '1') AS FLOAT)
+                ), 4326), 3857),
+                {radius}
+            )
+            """
+        else:
+            # For Mexico City (CDMX)
+            query = f"""
+            SELECT 
+                SUM(d.pobtot) as total_population,
+                MAX(d.pobtot_alcaldia) as municipality_population,
+                MAX(d.cve_mun) as municipality_code,
+                MAX(d.nom_mun) as municipality_name
+            FROM blackprint_db_prd.data_product.v_parcel_v3 d
+            WHERE d.centroid IS NOT NULL
+            AND d.centroid != ''
+            AND ST_DWithin(
+                ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857),
+                ST_Transform(ST_SetSRID(ST_MakePoint(
+                    CAST(SPLIT_PART(d.centroid, ',', 2) AS FLOAT),
+                    CAST(SPLIT_PART(d.centroid, ',', 1) AS FLOAT)
+                ), 4326), 3857),
+                {radius}
+            )
+            """
+        return query
+
+    def build_municipality_traffic_query(self, municipality_code, user_type=None):
+        """Build SQL query for municipality-level traffic data using dynamic H3 generation."""
+        user_type_condition = ""
+        if user_type:
+            user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
+        
+        # Use the working approach - generate H3 hexagons dynamically from municipality polygons
+        # This ensures H3 values match the traffic data region
+        query = f"""
+        WITH municipality_polygons AS (
+            SELECT ST_GeomFromGeoJSON(geometry_geojson) as geom
+            FROM blackprint_db_prd.data_product.v_qro 
+            WHERE cve_mun = '{municipality_code}'
+            AND geometry_geojson IS NOT NULL
+            AND geometry_geojson != ''
+            LIMIT 10
+        ),
+        h3_values AS (
+            SELECT H3_Polyfill(geom, 10) AS h3_indexes 
+            FROM municipality_polygons
+        ),
+        h3_index AS (
+            SELECT DISTINCT o AS h3_value
+            FROM h3_values i, i.h3_indexes o
+        )
+        SELECT SUM(a.total_usuarios_unicos) as total_users
+        FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
+        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+        {user_type_condition}
+        """
+        return query
 
     def build_socioeconomic_query(self, lat, lng, radius, config_city='mexico'):
         """Build SQL query to get socioeconomic data within the specified area."""
@@ -798,5 +873,52 @@ class AreaAnalysisQuery:
                 ),
                 ST_GeomFromText('POINT({lng} {lat})', 4326)
             ) <= {radius}
+        """
+        return query
+
+    def build_weekly_traffic_by_municipality_query(self, lat, lng, radius):
+        """Build SQL query for weekly traffic distribution by municipality."""
+        query = f"""
+        WITH point_geom AS (
+            SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+        ),
+        point_projected AS (
+            SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+        ),
+        buffered AS (
+            SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+        ),
+        h3_values AS (
+            SELECT H3_Polyfill(ST_Transform(geom, 4326), 10) AS h3_indexes FROM buffered
+        ),
+        h3_index AS (
+            SELECT o AS h3_value
+            FROM h3_values i, i.h3_indexes o
+        ),
+        municipality_mapping AS (
+            SELECT DISTINCT 
+                h.h3_value,
+                v.cve_mun,
+                v.nom_mun
+            FROM h3_index h
+            INNER JOIN blackprint_db_prd.data_product.v_qro v 
+                ON ST_Intersects(
+                    ST_SetSRID(ST_MakePoint(
+                        CAST(JSON_EXTRACT_PATH_TEXT(v.centroid, 'coordinates', '0') AS FLOAT),
+                        CAST(JSON_EXTRACT_PATH_TEXT(v.centroid, 'coordinates', '1') AS FLOAT)
+                    ), 4326),
+                    ST_Transform(ST_Buffer(ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857), {radius}), 4326)
+                )
+        )
+        SELECT 
+            m.cve_mun,
+            m.nom_mun,
+            t.dia_de_la_semana,
+            t.tipo_usuario,
+            SUM(t.total_usuarios_unicos) as total_users
+        FROM blackprint_db_prd.staging.stg_data_movilidad_por_dia_qro t
+        INNER JOIN municipality_mapping m ON t.h3_index::VARCHAR = m.h3_value::VARCHAR
+        GROUP BY m.cve_mun, m.nom_mun, t.dia_de_la_semana, t.tipo_usuario
+        ORDER BY m.cve_mun, t.dia_de_la_semana, t.tipo_usuario
         """
         return query
