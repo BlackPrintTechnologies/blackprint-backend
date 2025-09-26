@@ -238,7 +238,7 @@ class AreaAnalysisController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    def get_area_summary(self, lat, lng, radius=2000):
+    def get_area_summary(self, lat, lng, radius=2000, config_city='queretaro'):
         """
         Get area analysis summary matching the UI mockup exactly.
         Returns all the summary data needed for the main UI panel.
@@ -247,6 +247,7 @@ class AreaAnalysisController:
             lat (float): Latitude of the center point
             lng (float): Longitude of the center point
             radius (int): Radius in meters (default: 2000)
+            config_city (str): City configuration - 'queretaro' or 'mexico'
             
         Returns:
             dict: Response with area summary data matching UI structure
@@ -258,6 +259,25 @@ class AreaAnalysisController:
         try:
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            # Get population data first
+            population_query = self.query_builder.build_population_query(lat, lng, radius, config_city)
+            logger.info(f"Executing population query: {population_query}")
+            
+            cursor.execute(population_query)
+            connection.commit()
+            population_res = cursor.fetchall()
+            
+            total_population = 0
+            municipality_population = 0
+            municipality_code = None
+            
+            if population_res and len(population_res) > 0:
+                pop_data = population_res[0]
+                total_population = pop_data.get('total_population', 0) or 0
+                municipality_population = pop_data.get('municipality_population', 0) or 0
+                municipality_code = pop_data.get('municipality_code')
+                logger.info(f"Found population: {total_population} in area, {municipality_population} in municipality")
             
             user_types = ['vehiculo', 'peaton', 'estacionario']
             traffic_data = {}
@@ -273,13 +293,37 @@ class AreaAnalysisController:
                 res = cursor.fetchall()
                 
                 if res and len(res) > 0:
-                    user_total = res[0].get('total_users', 0)
+                    user_total = res[0].get('total_users', 0) or 0
                     traffic_data[user_type] = user_total
                     total_all_users += user_total
                     logger.info(f"Found {user_total} users for {user_type}")
                 else:
                     traffic_data[user_type] = 0
                     logger.info(f"No data found for {user_type}")
+            
+            # Get municipality-level traffic data if municipality_code is available
+            municipality_traffic_data = {}
+            municipality_total_users = 0
+            
+            if municipality_code:
+                logger.info(f"Getting municipality traffic data for municipality_code: {municipality_code}")
+                for user_type in user_types:
+                    query = self.query_builder.build_municipality_traffic_query(municipality_code, user_type)
+                    logger.info(f"Executing municipality query for {user_type}: {query}")
+                    cursor.execute(query)
+                    connection.commit()
+                    res = cursor.fetchall()
+                    
+                    if res and len(res) > 0:
+                        municipality_user_total = res[0].get('total_users', 0) or 0
+                        municipality_traffic_data[user_type] = municipality_user_total
+                        municipality_total_users += municipality_user_total
+                        logger.info(f"Found {municipality_user_total} municipality users for {user_type}")
+                    else:
+                        municipality_traffic_data[user_type] = 0
+                        logger.info(f"No municipality data found for {user_type}")
+            else:
+                logger.warning("No municipality_code found, skipping municipality traffic calculations")
             
             # Calculate area in km²
             area_km2 = round((3.14159 * (radius/1000) ** 2), 2)
@@ -289,37 +333,57 @@ class AreaAnalysisController:
             pedestrian_pct = round((traffic_data.get('peaton', 0) / total_all_users * 100), 0) if total_all_users > 0 else 0
             stationary_pct = round((traffic_data.get('estacionario', 0) / total_all_users * 100), 0) if total_all_users > 0 else 0
             
-            # Structure response with real data only, null for unavailable data
+            # Calculate municipality percentages
+            municipality_vehicle_pct = None
+            municipality_pedestrian_pct = None
+            municipality_stationary_pct = None
+            
+            if municipality_total_users > 0:
+                municipality_vehicle_pct = round((municipality_traffic_data.get('vehiculo', 0) / municipality_total_users * 100), 0)
+                municipality_pedestrian_pct = round((municipality_traffic_data.get('peaton', 0) / municipality_total_users * 100), 0)
+                municipality_stationary_pct = round((municipality_traffic_data.get('estacionario', 0) / municipality_total_users * 100), 0)
+            
+            # Calculate devices per person
+            devices_per_person = None
+            if total_population > 0:
+                devices_per_person = round(total_all_users / total_population, 2)
+            
+            # Calculate municipality average devices per person
+            municipality_average_devices_per_person = None
+            if municipality_population > 0 and municipality_total_users > 0:
+                municipality_average_devices_per_person = round(municipality_total_users / municipality_population, 2)
+            
+            # Structure response with calculated data
             summary_data = {
                 "summary": {
                     "num_parcels": None,  # Not available - would need parcels/cadastral data
-                    "population": None,   # Not available - would need census data
+                    "population": total_population,   # Now calculated from population data
                     "area_km2": area_km2,
                     "center_point": {"lat": lat, "lng": lng},
                     "radius_meters": radius
                 },
                 "socioeconomic": {
                     "total_unique_devices": total_all_users,
-                    "devices_per_person": None,  # Cannot calculate without population data
-                    "municipality_average": None  # Not available - would need municipality-wide stats
+                    "devices_per_person": devices_per_person,  # Now calculated
+                    "municipality_average": municipality_average_devices_per_person  # Now calculated
                 },
                 "traffic": {
                     "vehicles": {
                         "count": traffic_data.get('vehiculo', 0),
                         "percentage": int(vehicle_pct),
-                        "municipality_percentage": None,  # Not available - would need municipality-wide data
+                        "municipality_percentage": municipality_vehicle_pct,  # Now calculated
                         "trend": None  # Not available - would need historical data
                     },
                     "pedestrians": {
                         "count": traffic_data.get('peaton', 0), 
                         "percentage": int(pedestrian_pct),
-                        "municipality_percentage": None,  # Not available - would need municipality-wide data
+                        "municipality_percentage": municipality_pedestrian_pct,  # Now calculated
                         "trend": None  # Not available - would need historical data
                     },
                     "stationary_devices": {
                         "count": traffic_data.get('estacionario', 0),
                         "percentage": int(stationary_pct), 
-                        "municipality_percentage": None,  # Not available - would need municipality-wide data
+                        "municipality_percentage": municipality_stationary_pct,  # Now calculated
                         "trend": None  # Not available - would need historical data
                     }
                 }
@@ -341,7 +405,7 @@ class AreaAnalysisController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    def get_traffic_patterns(self, lat, lng, radius=2000):
+    def get_traffic_patterns(self, lat, lng, radius=2000, config_city='queretaro'):
         """
         Get detailed traffic patterns for charts (both hourly and daily).
         
@@ -349,6 +413,7 @@ class AreaAnalysisController:
             lat (float): Latitude of the center point
             lng (float): Longitude of the center point
             radius (int): Radius in meters (default: 2000)
+            config_city (str): City configuration - 'queretaro' or 'mexico'
             
         Returns:
             dict: Response with traffic pattern data for charts
