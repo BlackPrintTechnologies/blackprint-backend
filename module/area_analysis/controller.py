@@ -523,10 +523,10 @@ class AreaAnalysisController:
                     total_hourly_visits = sum(hourly_array)
                     avg_visits_per_hour = round(total_hourly_visits / 24) if total_hourly_visits > 0 else 0
                     
-                    # Convert to percentages (0-40% as shown in UI)
+                    # Convert to percentages based on sum of all values (0-100%)
                     hourly_percentages = []
                     for value in hourly_array:
-                        percentage = (value / max_value * 40) if max_value > 0 else 0
+                        percentage = (value / total_hourly_visits * 100) if total_hourly_visits > 0 else 0
                         hourly_percentages.append(round(percentage, 1))
                     
                     # Create time labels for x-axis (0-23 hours)
@@ -581,10 +581,10 @@ class AreaAnalysisController:
                     total_daily_visits = sum(daily_array)
                     avg_visits_per_day = round(total_daily_visits / 7) if total_daily_visits > 0 else 0
                     
-                    # Convert to percentages (0-40% as shown in UI)
+                    # Convert to percentages based on sum of all values (0-100%)
                     daily_percentages = []
                     for value in daily_array:
-                        percentage = (value / max_value * 40) if max_value > 0 else 0
+                        percentage = (value / total_daily_visits * 100) if total_daily_visits > 0 else 0
                         daily_percentages.append(round(percentage, 1))
                     
                     # Create day labels for x-axis
@@ -615,16 +615,6 @@ class AreaAnalysisController:
                     }
             
             patterns_data["daily_traffic"] = daily_traffic
-            
-            # Calculate totals across all user types
-            total_hourly_visits = sum(traffic["total_visits"] for traffic in hourly_traffic.values())
-            total_daily_visits = sum(traffic["total_visits"] for traffic in daily_traffic.values())
-            
-            patterns_data["summary"] = {
-                "total_hourly_visits": total_hourly_visits,
-                "total_daily_visits": total_daily_visits,
-                "user_types_analyzed": list(user_types.values())
-            }
             
             logger.info("Traffic patterns completed with all user types")
             resp = Response.success(data=patterns_data)
