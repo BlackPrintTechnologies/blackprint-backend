@@ -45,25 +45,31 @@ class Brands(Resource):
             return {'message': 'Internal server error', 'status_code': 500}, 500
 
 class BrandSearch(Resource):
-    """Resource to search brands by name pattern."""
+    """Resource to search brands by name pattern and/or chain_id."""
     
     get_parser = reqparse.RequestParser()
-    get_parser.add_argument('brand_name', type=str, required=True, help='Brand name is required', location='args')
+    get_parser.add_argument('brand_name', type=str, required=False, help='Brand name to search for', location='args')
+    get_parser.add_argument('chain_id', type=str, required=False, help='Chain ID to search for', location='args')
     get_parser.add_argument('config_city', type=str, default='mexico', required=False, location='args')
     
     @authenticate
     def get(self, current_user):
-        """GET /pois/brands/search - Search brands by name pattern."""
+        """GET /pois/brands/search - Search brands by name pattern and/or chain_id."""
         try:
             args = self.get_parser.parse_args()
             brand_name = args.get('brand_name')
+            chain_id = args.get('chain_id')
             config_city = args.get('config_city', 'mexico')
             
-            logger.info("User %s searching brands for name=%s, config_city=%s", 
-                       current_user, brand_name, config_city)
+            # Validate that at least one search parameter is provided
+            if not brand_name and not chain_id:
+                return {'message': 'Either brand_name or chain_id must be provided', 'status_code': 400}, 400
+            
+            logger.info("User %s searching brands for name=%s, chain_id=%s, config_city=%s", 
+                       current_user, brand_name, chain_id, config_city)
             
             poi_controller = POIsController()
-            response = poi_controller.search_brands(brand_name, config_city)
+            response = poi_controller.search_brands(brand_name, config_city, chain_id)
             
             return response
             

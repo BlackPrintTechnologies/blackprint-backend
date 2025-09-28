@@ -69,16 +69,31 @@ class POIsQueryController:
         return query    
 
     @staticmethod
-    def get_brand_search_query(brand_name, city="mexico"):
-        """Generate query to search brands by name pattern."""
+    def get_brand_search_query(brand_name, city="mexico", chain_id=None):
+        """Generate query to search brands by name pattern and/or chain_id."""
         if city == "queretaro" or city == "el_marques":
             places_table = 'blackprint_db_prd.presentation.dim_pois_qro'
         else:
             places_table = 'blackprint_db_prd.presentation.dim_pois_cdmx'
         
-        query = f'''SELECT DISTINCT chain_id as brand 
+        # Build WHERE conditions based on provided parameters
+        where_conditions = []
+        
+        if brand_name:
+            where_conditions.append(f"chain_id ILIKE '%{brand_name}%'")
+        
+        if chain_id:
+            where_conditions.append(f"name ILIKE '%{chain_id}%'")
+        
+        # If no search parameters provided, return empty result
+        if not where_conditions:
+            return f"SELECT DISTINCT chain_id as brand, name FROM {places_table} WHERE 1=0 LIMIT 0"
+        
+        where_clause = " OR ".join(where_conditions)
+        
+        query = f'''SELECT DISTINCT chain_id as brand, name 
                     FROM {places_table} 
-                    WHERE chain_id ILIKE '{brand_name}%' 
+                    WHERE {where_clause}
                     LIMIT 50'''
         return query
 
