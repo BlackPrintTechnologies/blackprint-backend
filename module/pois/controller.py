@@ -92,8 +92,8 @@ class POIsController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    def search_brands(self, brand_name, city="mexico"):
-        """Search brands by name pattern."""
+    def search_brands(self, brand_name=None, city="mexico", chain_id=None):
+        """Search brands by name pattern and/or chain_id."""
         connection = None
         cursor = None
         resp = None
@@ -101,7 +101,7 @@ class POIsController:
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            query = self.qc.get_brand_search_query(brand_name, city)
+            query = self.qc.get_brand_search_query(brand_name, city, chain_id)
             logger.info(f"Brand search query: {query}")
             
             cursor.execute(query)
