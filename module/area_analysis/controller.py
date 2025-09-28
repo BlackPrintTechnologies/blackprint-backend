@@ -487,98 +487,146 @@ class AreaAnalysisController:
             patterns_data = {
                 "center_point": {"lat": lat, "lng": lng},
                 "radius_meters": radius,
-                "pattern_type": "both"
+                "pattern_type": "both_with_user_types"
             }
             
-            # Get hourly data for all user types combined (no user_type filter)
-            query = self.query_builder.build_traffic_by_hour_query(lat, lng, radius, None)
-            logger.info(f"Executing hourly query: {query}")
+            # Define user types and their English names
+            user_types = {
+                'vehiculo': 'vehicles',
+                'peaton': 'pedestrians', 
+                'estacionario': 'stationary_devices'
+            }
             
-            cursor.execute(query)
-            connection.commit()
-            res = cursor.fetchall()
+            # Get hourly data for each user type
+            hourly_traffic = {}
+            for user_type, user_type_english in user_types.items():
+                query = self.query_builder.build_traffic_by_hour_query(lat, lng, radius, user_type)
+                logger.info(f"Executing hourly query for {user_type}: {query}")
+                
+                cursor.execute(query)
+                connection.commit()
+                res = cursor.fetchall()
+                
+                if res and len(res) > 0:
+                    hourly_data = res[0]
+                    
+                    # Convert to array format for charts [0-23]
+                    hourly_array = []
+                    max_value = 0
+                    for hour in range(24):
+                        hour_key = f"hour_{hour}"
+                        value = hourly_data.get(hour_key, 0)
+                        hourly_array.append(value)
+                        max_value = max(max_value, value)
+                    
+                    # Calculate average visits per hour
+                    total_hourly_visits = sum(hourly_array)
+                    avg_visits_per_hour = round(total_hourly_visits / 24) if total_hourly_visits > 0 else 0
+                    
+                    # Convert to percentages (0-40% as shown in UI)
+                    hourly_percentages = []
+                    for value in hourly_array:
+                        percentage = (value / max_value * 40) if max_value > 0 else 0
+                        hourly_percentages.append(round(percentage, 1))
+                    
+                    # Create time labels for x-axis (0-23 hours)
+                    time_labels = [f"{hour:02d}:00" for hour in range(24)]
+                    
+                    hourly_traffic[user_type_english] = {
+                        "raw_values": hourly_array,
+                        "percentages": hourly_percentages,
+                        "max_value": max_value,
+                        "avg_visits_per_hour": avg_visits_per_hour,
+                        "total_visits": total_hourly_visits,
+                        "time_labels": time_labels,
+                        "x_axis_labels": list(range(24))  # For chart x-axis
+                    }
+                else:
+                    # No data for this user type
+                    hourly_traffic[user_type_english] = {
+                        "raw_values": [0] * 24,
+                        "percentages": [0] * 24,
+                        "max_value": 0,
+                        "avg_visits_per_hour": 0,
+                        "total_visits": 0,
+                        "time_labels": [f"{hour:02d}:00" for hour in range(24)],
+                        "x_axis_labels": list(range(24))
+                    }
             
-            if res and len(res) > 0:
-                hourly_data = res[0]
-                
-                # Convert to array format for charts [0-23]
-                hourly_array = []
-                max_value = 0
-                for hour in range(24):
-                    hour_key = f"hour_{hour}"
-                    value = hourly_data.get(hour_key, 0)
-                    hourly_array.append(value)
-                    max_value = max(max_value, value)
-                
-                # Calculate average visits per hour
-                total_hourly_visits = sum(hourly_array)
-                avg_visits_per_hour = round(total_hourly_visits / 24) if total_hourly_visits > 0 else 0
-                
-                # Convert to percentages (0-40% as shown in UI)
-                hourly_percentages = []
-                for value in hourly_array:
-                    percentage = (value / max_value * 40) if max_value > 0 else 0
-                    hourly_percentages.append(round(percentage, 1))
-                
-                # Create time labels for x-axis (0-23 hours)
-                time_labels = [f"{hour:02d}:00" for hour in range(24)]
-                
-                patterns_data["hourly_traffic"] = {
-                    "raw_values": hourly_array,
-                    "percentages": hourly_percentages,
-                    "max_value": max_value,
-                    "avg_visits_per_hour": avg_visits_per_hour,
-                    "total_visits": total_hourly_visits,
-                    "time_labels": time_labels,
-                    "x_axis_labels": list(range(24))  # For chart x-axis
-                }
+            patterns_data["hourly_traffic"] = hourly_traffic
             
-            # Get daily data for all user types combined (no user_type filter)
-            query = self.query_builder.build_traffic_by_day_query(lat, lng, radius, None)
-            logger.info(f"Executing daily query: {query}")
+            # Get daily data for each user type
+            daily_traffic = {}
+            for user_type, user_type_english in user_types.items():
+                query = self.query_builder.build_traffic_by_day_query(lat, lng, radius, user_type)
+                logger.info(f"Executing daily query for {user_type}: {query}")
+                
+                cursor.execute(query)
+                connection.commit()
+                res = cursor.fetchall()
+                
+                if res and len(res) > 0:
+                    daily_data = res[0]
+                    
+                    # Convert to array format for charts
+                    days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+                    daily_array = []
+                    max_value = 0
+                    for day in days:
+                        value = daily_data.get(day, 0)
+                        daily_array.append(value)
+                        max_value = max(max_value, value)
+                    
+                    # Calculate average visits per day
+                    total_daily_visits = sum(daily_array)
+                    avg_visits_per_day = round(total_daily_visits / 7) if total_daily_visits > 0 else 0
+                    
+                    # Convert to percentages (0-40% as shown in UI)
+                    daily_percentages = []
+                    for value in daily_array:
+                        percentage = (value / max_value * 40) if max_value > 0 else 0
+                        daily_percentages.append(round(percentage, 1))
+                    
+                    # Create day labels for x-axis
+                    day_labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S']  # Short labels as shown in UI
+                    day_full_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                    
+                    daily_traffic[user_type_english] = {
+                        "raw_values": daily_array,
+                        "percentages": daily_percentages,
+                        "max_value": max_value,
+                        "avg_visits_per_day": avg_visits_per_day,
+                        "total_visits": total_daily_visits,
+                        "days": days,
+                        "day_labels": day_labels,  # Short labels for chart
+                        "day_full_names": day_full_names  # Full names for tooltips
+                    }
+                else:
+                    # No data for this user type
+                    daily_traffic[user_type_english] = {
+                        "raw_values": [0] * 7,
+                        "percentages": [0] * 7,
+                        "max_value": 0,
+                        "avg_visits_per_day": 0,
+                        "total_visits": 0,
+                        "days": ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+                        "day_labels": ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+                        "day_full_names": ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                    }
             
-            cursor.execute(query)
-            connection.commit()
-            res = cursor.fetchall()
+            patterns_data["daily_traffic"] = daily_traffic
             
-            if res and len(res) > 0:
-                daily_data = res[0]
-                
-                # Convert to array format for charts
-                days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-                daily_array = []
-                max_value = 0
-                for day in days:
-                    value = daily_data.get(day, 0)
-                    daily_array.append(value)
-                    max_value = max(max_value, value)
-                
-                # Calculate average visits per day
-                total_daily_visits = sum(daily_array)
-                avg_visits_per_day = round(total_daily_visits / 7) if total_daily_visits > 0 else 0
-                
-                # Convert to percentages (0-40% as shown in UI)
-                daily_percentages = []
-                for value in daily_array:
-                    percentage = (value / max_value * 40) if max_value > 0 else 0
-                    daily_percentages.append(round(percentage, 1))
-                
-                # Create day labels for x-axis
-                day_labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S']  # Short labels as shown in UI
-                day_full_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-                
-                patterns_data["daily_traffic"] = {
-                    "raw_values": daily_array,
-                    "percentages": daily_percentages,
-                    "max_value": max_value,
-                    "avg_visits_per_day": avg_visits_per_day,
-                    "total_visits": total_daily_visits,
-                    "days": days,
-                    "day_labels": day_labels,  # Short labels for chart
-                    "day_full_names": day_full_names  # Full names for tooltips
-                }
+            # Calculate totals across all user types
+            total_hourly_visits = sum(traffic["total_visits"] for traffic in hourly_traffic.values())
+            total_daily_visits = sum(traffic["total_visits"] for traffic in daily_traffic.values())
             
-            logger.info("Traffic patterns completed")
+            patterns_data["summary"] = {
+                "total_hourly_visits": total_hourly_visits,
+                "total_daily_visits": total_daily_visits,
+                "user_types_analyzed": list(user_types.values())
+            }
+            
+            logger.info("Traffic patterns completed with all user types")
             resp = Response.success(data=patterns_data)
             
         except Exception as e:
