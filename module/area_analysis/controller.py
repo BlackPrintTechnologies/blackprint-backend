@@ -353,62 +353,6 @@ class AreaAnalysisController:
             if municipality_population > 0 and municipality_total_users > 0:
                 municipality_average_devices_per_person = round(municipality_total_users / municipality_population, 2)
             
-            # Get weekly traffic distribution by municipality
-            weekly_traffic_data = {}
-            try:
-                weekly_query = self.query_builder.build_weekly_traffic_by_municipality_query(lat, lng, radius)
-                logger.info(f"Executing weekly traffic query: {weekly_query}")
-                
-                cursor.execute(weekly_query)
-                connection.commit()
-                weekly_res = cursor.fetchall()
-                
-                if weekly_res and len(weekly_res) > 0:
-                    # Group data by municipality
-                    municipalities = {}
-                    for row in weekly_res:
-                        cve_mun = row.get('cve_mun')
-                        nom_mun = row.get('nom_mun')
-                        dia_de_la_semana = row.get('dia_de_la_semana')
-                        tipo_usuario = row.get('tipo_usuario')
-                        total_users = row.get('total_users', 0)
-                        
-                        if cve_mun not in municipalities:
-                            municipalities[cve_mun] = {
-                                "municipality_code": cve_mun,
-                                "municipality_name": nom_mun,
-                                "weekly_traffic": {}
-                            }
-                        
-                        if dia_de_la_semana not in municipalities[cve_mun]["weekly_traffic"]:
-                            municipalities[cve_mun]["weekly_traffic"][dia_de_la_semana] = {}
-                        
-                        # Translate Spanish field names to English
-                        user_type_english = {
-                            'estacionario': 'stationary_devices',
-                            'peaton': 'pedestrians', 
-                            'vehiculo': 'vehicles'
-                        }.get(tipo_usuario, tipo_usuario)
-                        
-                        municipalities[cve_mun]["weekly_traffic"][dia_de_la_semana][user_type_english] = total_users
-                    
-                    weekly_traffic_data = {
-                        "total_municipalities": len(municipalities),
-                        "municipalities": list(municipalities.values())
-                    }
-                    logger.info(f"Weekly traffic data collected for {len(municipalities)} municipalities")
-                else:
-                    weekly_traffic_data = {
-                        "total_municipalities": 0,
-                        "municipalities": []
-                    }
-                    logger.info("No weekly traffic data found")
-            except Exception as e:
-                logger.error(f"Error getting weekly traffic data: {str(e)}")
-                weekly_traffic_data = {
-                    "total_municipalities": 0,
-                    "municipalities": []
-                }
 
             # Get H3 distribution data for all user types
             h3_distribution_data = {}
@@ -536,7 +480,6 @@ class AreaAnalysisController:
                         "trend": None  # Not available - would need historical data
                     }
                 },
-                "weekly_distribution": weekly_traffic_data,
                 "h3_distribution": h3_distribution_data
             }
             
