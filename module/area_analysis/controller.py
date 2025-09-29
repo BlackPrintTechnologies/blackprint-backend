@@ -436,8 +436,7 @@ class AreaAnalysisController:
                             for row in h3_res:
                                 h3_distribution.append({
                                     "h3_index": str(row.get('h3_index', '')),
-                                    "avg_users": float(row.get('avg_users', 0)),
-                                    "frequency_percentage": float(row.get('frequency_percentage', 0))
+                                    "total_users": float(row.get('total_users', 0))
                                 })
                             
                             # Create buckets from H3 distribution data
@@ -2575,8 +2574,7 @@ class AreaAnalysisController:
                 for row in res:
                     h3_distribution.append({
                         "h3_index": str(row.get('h3_index', '')),
-                        "avg_pedestrian": float(row.get('avg_pedestrian', 0)),
-                        "frequency_percentage": float(row.get('frequency_percentage', 0))
+                        "total_users": float(row.get('total_users', 0))
                     })
                 
                 logger.info(f"H3 distribution: {len(h3_distribution)} H3 indexes found")
@@ -2626,10 +2624,10 @@ class AreaAnalysisController:
                 "buckets": []
             }
         
-        # Extract avg_users values
-        avg_values = [item.get('avg_users', 0) for item in h3_distribution_data if 'avg_users' in item]
+        # Extract total_users values
+        total_values = [item.get('total_users', 0) for item in h3_distribution_data if 'total_users' in item]
         
-        if not avg_values:
+        if not total_values:
             return {
                 "total_buckets": 0,
                 "bucket_size": bucket_size,
@@ -2637,8 +2635,8 @@ class AreaAnalysisController:
             }
         
         # Determine min and max values
-        data_min = min(avg_values)
-        data_max = max(avg_values)
+        data_min = min(total_values)
+        data_max = max(total_values)
         
         # Always start from 0 unless explicitly overridden
         actual_min = min_value if min_value is not None else 0
@@ -2657,13 +2655,13 @@ class AreaAnalysisController:
             h3_count = 0
             
             for item in h3_distribution_data:
-                avg_users = item.get('avg_users', 0)
+                total_users = item.get('total_users', 0)
                 # Check if value falls in this bucket (inclusive of min, exclusive of max for all but last bucket)
                 if i == bucket_size - 1:  # Last bucket includes max value
-                    if bucket_min <= avg_users <= bucket_max:
+                    if bucket_min <= total_users <= bucket_max:
                         h3_count += 1
                 else:
-                    if bucket_min <= avg_users < bucket_max:
+                    if bucket_min <= total_users < bucket_max:
                         h3_count += 1
             
             buckets.append({
