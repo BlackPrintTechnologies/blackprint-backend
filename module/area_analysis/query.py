@@ -923,8 +923,8 @@ class AreaAnalysisQuery:
         """
         return query
 
-    def build_h3_distribution_query(self, lat, lng, radius):
-        """Build SQL query for H3 distribution based on pedestrian traffic data."""
+    def build_h3_distribution_query(self, lat, lng, radius, user_type='peaton'):
+        """Build SQL query for H3 distribution based on specific user type traffic data."""
         query = f"""
         WITH point_geom AS (
           SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
@@ -944,28 +944,30 @@ class AreaAnalysisQuery:
         ),
         traffic_data AS (
             SELECT a.h3_index,
-                   AVG(a.total_usuarios_unicos) AS avg_pedestrian
+                   AVG(a.total_usuarios_unicos) AS avg_users
             FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
             INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+            WHERE a.tipo_usuario = '{user_type}'
             GROUP BY a.h3_index
         ),
         min_max_data AS (
             SELECT 
-                MIN(avg_pedestrian) AS min_value,
-                MAX(avg_pedestrian) AS max_value
+                MIN(avg_users) AS min_value,
+                MAX(avg_users) AS max_value
             FROM traffic_data
         )
         SELECT 
             t.h3_index,
-            t.avg_pedestrian,
+            t.avg_users,
             CASE 
                 WHEN m.max_value = m.min_value THEN 50  -- If all values are the same, return middle
                 ELSE ROUND(
-                    ((t.avg_pedestrian - m.min_value) * 100.0 / (m.max_value - m.min_value))::NUMERIC, 2
+                    ((t.avg_users - m.min_value) * 100.0 / (m.max_value - m.min_value))::NUMERIC, 2
                 )
             END AS frequency_percentage
         FROM traffic_data t
         CROSS JOIN min_max_data m
-        ORDER BY t.avg_pedestrian DESC
+        ORDER BY t.avg_users DESC
         """
         return query
+
