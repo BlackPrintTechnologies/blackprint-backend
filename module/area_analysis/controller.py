@@ -354,95 +354,52 @@ class AreaAnalysisController:
                 municipality_average_devices_per_person = round(municipality_total_users / municipality_population, 2)
             
 
-            # Get H3 distribution data for all user types
+            # Get H3 distribution data for all user types combined
             h3_distribution_data = {}
-            user_types = ['peaton', 'estacionario', 'vehiculo']
-            user_type_mapping = {
-                'peaton': 'pedestrians',
-                'estacionario': 'stationary_devices', 
-                'vehiculo': 'vehicles'
-            }
             
             try:
-                all_user_type_data = {}
+                h3_query = self.query_builder.build_h3_distribution_query(lat, lng, radius)
+                logger.info(f"Executing H3 distribution query for all user types: {h3_query}")
                 
-                for user_type in user_types:
-                    try:
-                        h3_query = self.query_builder.build_h3_distribution_query(lat, lng, radius, user_type)
-                        logger.info(f"Executing H3 distribution query for {user_type}: {h3_query}")
-                        
-                        cursor.execute(h3_query)
-                        connection.commit()
-                        h3_res = cursor.fetchall()
-                        
-                        if h3_res and len(h3_res) > 0:
-                            h3_distribution = []
-                            for row in h3_res:
-                                h3_distribution.append({
-                                    "h3_index": str(row.get('h3_index', '')),
-                                    "total_users": float(row.get('total_users', 0))
-                                })
-                            
-                            # Create buckets from H3 distribution data
-                            bucket_data = self.create_h3_buckets(h3_distribution, bucket_size=20)
-                            
-                            english_name = user_type_mapping[user_type]
-                            all_user_type_data[english_name] = {
-                                "total_h3_indexes": len(h3_distribution),
-                                "bucket_distribution": bucket_data
-                            }
-                            logger.info(f"H3 distribution data collected for {user_type}: {len(h3_distribution)} H3 indexes with {bucket_data['total_buckets']} buckets")
-                        else:
-                            english_name = user_type_mapping[user_type]
-                            all_user_type_data[english_name] = {
-                                "total_h3_indexes": 0,
-                                "bucket_distribution": {
-                                    "total_buckets": 0,
-                                    "bucket_size": 20,
-                                    "buckets": []
-                                }
-                            }
-                            logger.info(f"No H3 distribution data found for {user_type}")
-                    except Exception as e:
-                        logger.error(f"Error getting H3 distribution data for {user_type}: {str(e)}")
-                        english_name = user_type_mapping[user_type]
-                        all_user_type_data[english_name] = {
-                            "total_h3_indexes": 0,
-                            "bucket_distribution": {
-                                "total_buckets": 0,
-                                "bucket_size": 20,
-                                "buckets": []
-                            }
+                cursor.execute(h3_query)
+                connection.commit()
+                h3_res = cursor.fetchall()
+                
+                if h3_res and len(h3_res) > 0:
+                    h3_distribution = []
+                    for row in h3_res:
+                        h3_distribution.append({
+                            "h3_index": str(row.get('h3_index', '')),
+                            "total_users": float(row.get('total_users', 0))
+                        })
+                    
+                    # Create buckets from H3 distribution data
+                    bucket_data = self.create_h3_buckets(h3_distribution, bucket_size=20)
+                    
+                    h3_distribution_data = {
+                        "total_h3_indexes": len(h3_distribution),
+                        "bucket_distribution": bucket_data
+                    }
+                    logger.info(f"H3 distribution data collected for all user types: {len(h3_distribution)} H3 indexes with {bucket_data['total_buckets']} buckets")
+                else:
+                    h3_distribution_data = {
+                        "total_h3_indexes": 0,
+                        "bucket_distribution": {
+                            "total_buckets": 0,
+                            "bucket_size": 20,
+                            "buckets": []
                         }
-                
-                h3_distribution_data = all_user_type_data
+                    }
+                    logger.info("No H3 distribution data found for all user types")
                 
             except Exception as e:
                 logger.error(f"Error getting H3 distribution data: {str(e)}")
                 h3_distribution_data = {
-                    "pedestrians": {
-                        "total_h3_indexes": 0,
-                        "bucket_distribution": {
-                            "total_buckets": 0,
-                            "bucket_size": 20,
-                            "buckets": []
-                        }
-                    },
-                    "stationary_devices": {
-                        "total_h3_indexes": 0,
-                        "bucket_distribution": {
-                            "total_buckets": 0,
-                            "bucket_size": 20,
-                            "buckets": []
-                        }
-                    },
-                    "vehicles": {
-                        "total_h3_indexes": 0,
-                        "bucket_distribution": {
-                            "total_buckets": 0,
-                            "bucket_size": 20,
-                            "buckets": []
-                        }
+                    "total_h3_indexes": 0,
+                    "bucket_distribution": {
+                        "total_buckets": 0,
+                        "bucket_size": 20,
+                        "buckets": []
                     }
                 }
 

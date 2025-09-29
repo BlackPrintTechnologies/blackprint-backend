@@ -877,8 +877,8 @@ class AreaAnalysisQuery:
         return query
 
 
-    def build_h3_distribution_query(self, lat, lng, radius, user_type='peaton'):
-        """Build SQL query for H3 distribution based on specific user type traffic data."""
+    def build_h3_distribution_query(self, lat, lng, radius):
+        """Build SQL query for H3 distribution based on all user types traffic data."""
         query = f"""
         WITH point_geom AS (
           SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
@@ -901,7 +901,6 @@ class AreaAnalysisQuery:
                    SUM(a.total_usuarios_unicos) AS total_users
             FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
             INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
-            WHERE a.tipo_usuario = '{user_type}'
             GROUP BY a.h3_index
         )
         SELECT 
