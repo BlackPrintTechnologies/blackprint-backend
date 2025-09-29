@@ -380,13 +380,11 @@ class AreaAnalysisController:
                         "total_h3_indexes": len(h3_distribution),
                         "bucket_distribution": bucket_data
                     }
-                    logger.info(f"H3 distribution data collected for all user types: {len(h3_distribution)} H3 indexes with {bucket_data['total_buckets']} buckets")
+                    logger.info(f"H3 distribution data collected for all user types: {len(h3_distribution)} H3 indexes with {len(bucket_data['buckets'])} buckets")
                 else:
                     h3_distribution_data = {
                         "total_h3_indexes": 0,
                         "bucket_distribution": {
-                            "total_buckets": 0,
-                            "bucket_size": 20,
                             "buckets": []
                         }
                     }
@@ -397,8 +395,6 @@ class AreaAnalysisController:
                 h3_distribution_data = {
                     "total_h3_indexes": 0,
                     "bucket_distribution": {
-                        "total_buckets": 0,
-                        "bucket_size": 20,
                         "buckets": []
                     }
                 }
@@ -2519,8 +2515,6 @@ class AreaAnalysisController:
         """
         if not h3_distribution_data or len(h3_distribution_data) == 0:
             return {
-                "total_buckets": 0,
-                "bucket_size": bucket_size,
                 "buckets": []
             }
         
@@ -2529,8 +2523,6 @@ class AreaAnalysisController:
         
         if not total_values:
             return {
-                "total_buckets": 0,
-                "bucket_size": bucket_size,
                 "buckets": []
             }
         
@@ -2574,8 +2566,6 @@ class AreaAnalysisController:
             })
         
         return {
-            "total_buckets": bucket_size,
-            "bucket_size": bucket_size,
             "data_range": {
                 "min_value": round(actual_min, 2),
                 "max_value": round(actual_max, 2)
