@@ -876,49 +876,38 @@ class AreaAnalysisQuery:
         """
         return query
 
-    def build_weekly_traffic_by_municipality_query(self, lat, lng, radius):
-        """Build SQL query for weekly traffic distribution by municipality."""
+
+    def build_h3_distribution_query(self, lat, lng, radius):
+        """Build SQL query for H3 distribution based on all user types traffic data."""
         query = f"""
         WITH point_geom AS (
-            SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-            SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
         ),
         buffered AS (
-            SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            SELECT geometry
+            FROM blackprint_db_prd.integration.int_state_municipality_shapefile
+            WHERE ST_Within((SELECT geom FROM point_geom), geometry)
         ),
         h3_values AS (
-            SELECT H3_Polyfill(ST_Transform(geom, 4326), 10) AS h3_indexes FROM buffered
+          SELECT H3_Polyfill(ST_Transform(geometry, 4326), 10) AS h3_indexes
+          FROM buffered
         ),
         h3_index AS (
             SELECT o AS h3_value
             FROM h3_values i, i.h3_indexes o
         ),
-        municipality_mapping AS (
-            SELECT DISTINCT 
-                h.h3_value,
-                v.cve_mun,
-                v.nom_mun
-            FROM h3_index h
-            INNER JOIN blackprint_db_prd.data_product.v_qro v 
-                ON ST_Intersects(
-                    ST_SetSRID(ST_MakePoint(
-                        CAST(JSON_EXTRACT_PATH_TEXT(v.centroid, 'coordinates', '0') AS FLOAT),
-                        CAST(JSON_EXTRACT_PATH_TEXT(v.centroid, 'coordinates', '1') AS FLOAT)
-                    ), 4326),
-                    ST_Transform(ST_Buffer(ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857), {radius}), 4326)
-                )
+        traffic_data AS (
+            SELECT a.h3_index,
+                   SUM(a.total_usuarios_unicos) AS total_users
+            FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
+            INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+            GROUP BY a.h3_index
         )
         SELECT 
-            m.cve_mun,
-            m.nom_mun,
-            t.dia_de_la_semana,
-            t.tipo_usuario,
-            SUM(t.total_usuarios_unicos) as total_users
-        FROM blackprint_db_prd.staging.stg_data_movilidad_por_dia_qro t
-        INNER JOIN municipality_mapping m ON t.h3_index::VARCHAR = m.h3_value::VARCHAR
-        GROUP BY m.cve_mun, m.nom_mun, t.dia_de_la_semana, t.tipo_usuario
-        ORDER BY m.cve_mun, t.dia_de_la_semana, t.tipo_usuario
+            t.h3_index,
+            t.total_users
+        FROM traffic_data t
+        ORDER BY t.total_users DESC
         """
         return query
+

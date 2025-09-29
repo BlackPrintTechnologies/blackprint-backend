@@ -353,61 +353,50 @@ class AreaAnalysisController:
             if municipality_population > 0 and municipality_total_users > 0:
                 municipality_average_devices_per_person = round(municipality_total_users / municipality_population, 2)
             
-            # Get weekly traffic distribution by municipality
-            weekly_traffic_data = {}
+
+            # Get H3 distribution data for all user types combined
+            h3_distribution_data = {}
+            
             try:
-                weekly_query = self.query_builder.build_weekly_traffic_by_municipality_query(lat, lng, radius)
-                logger.info(f"Executing weekly traffic query: {weekly_query}")
+                h3_query = self.query_builder.build_h3_distribution_query(lat, lng, radius)
+                logger.info(f"Executing H3 distribution query for all user types: {h3_query}")
                 
-                cursor.execute(weekly_query)
+                cursor.execute(h3_query)
                 connection.commit()
-                weekly_res = cursor.fetchall()
+                h3_res = cursor.fetchall()
                 
-                if weekly_res and len(weekly_res) > 0:
-                    # Group data by municipality
-                    municipalities = {}
-                    for row in weekly_res:
-                        cve_mun = row.get('cve_mun')
-                        nom_mun = row.get('nom_mun')
-                        dia_de_la_semana = row.get('dia_de_la_semana')
-                        tipo_usuario = row.get('tipo_usuario')
-                        total_users = row.get('total_users', 0)
-                        
-                        if cve_mun not in municipalities:
-                            municipalities[cve_mun] = {
-                                "municipality_code": cve_mun,
-                                "municipality_name": nom_mun,
-                                "weekly_traffic": {}
-                            }
-                        
-                        if dia_de_la_semana not in municipalities[cve_mun]["weekly_traffic"]:
-                            municipalities[cve_mun]["weekly_traffic"][dia_de_la_semana] = {}
-                        
-                        # Translate Spanish field names to English
-                        user_type_english = {
-                            'estacionario': 'stationary_devices',
-                            'peaton': 'pedestrians', 
-                            'vehiculo': 'vehicles'
-                        }.get(tipo_usuario, tipo_usuario)
-                        
-                        municipalities[cve_mun]["weekly_traffic"][dia_de_la_semana][user_type_english] = total_users
+                if h3_res and len(h3_res) > 0:
+                    h3_distribution = []
+                    for row in h3_res:
+                        h3_distribution.append({
+                            "h3_index": str(row.get('h3_index', '')),
+                            "total_users": float(row.get('total_users', 0))
+                        })
                     
-                    weekly_traffic_data = {
-                        "total_municipalities": len(municipalities),
-                        "municipalities": list(municipalities.values())
+                    # Create buckets from H3 distribution data
+                    bucket_data = self.create_h3_buckets(h3_distribution, bucket_size=20)
+                    
+                    h3_distribution_data = {
+                        "total_h3_indexes": len(h3_distribution),
+                        "bucket_distribution": bucket_data
                     }
-                    logger.info(f"Weekly traffic data collected for {len(municipalities)} municipalities")
+                    logger.info(f"H3 distribution data collected for all user types: {len(h3_distribution)} H3 indexes with {len(bucket_data['buckets'])} buckets")
                 else:
-                    weekly_traffic_data = {
-                        "total_municipalities": 0,
-                        "municipalities": []
+                    h3_distribution_data = {
+                        "total_h3_indexes": 0,
+                        "bucket_distribution": {
+                            "buckets": []
+                        }
                     }
-                    logger.info("No weekly traffic data found")
+                    logger.info("No H3 distribution data found for all user types")
+                
             except Exception as e:
-                logger.error(f"Error getting weekly traffic data: {str(e)}")
-                weekly_traffic_data = {
-                    "total_municipalities": 0,
-                    "municipalities": []
+                logger.error(f"Error getting H3 distribution data: {str(e)}")
+                h3_distribution_data = {
+                    "total_h3_indexes": 0,
+                    "bucket_distribution": {
+                        "buckets": []
+                    }
                 }
 
             # Structure response with calculated data
@@ -444,7 +433,7 @@ class AreaAnalysisController:
                         "trend": None  # Not available - would need historical data
                     }
                 },
-                "weekly_distribution": weekly_traffic_data
+                "h3_distribution": h3_distribution_data
             }
             
             logger.info(f"Area summary completed for {total_all_users} total users")
@@ -2447,5 +2436,141 @@ class AreaAnalysisController:
             if connection:
                 self.redshift_db.disconnect(connection)
             return resp
+
+    def get_h3_distribution(self, lat, lng, radius=2000):
+        """
+        Get H3 distribution based on pedestrian traffic data with frequency percentages.
+        
+        Args:
+            lat (float): Latitude of the center point
+            lng (float): Longitude of the center point
+            radius (int): Radius in meters (default: 2000)
+            
+        Returns:
+            dict: Response with H3 distribution data including frequency percentages
+        """
+        connection = None
+        cursor = None
+        resp = None
+        
+        try:
+            connection = self.redshift_db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            query = self.query_builder.build_h3_distribution_query(lat, lng, radius)
+            logger.info(f"H3 distribution query: {query}")
+            
+            cursor.execute(query)
+            connection.commit()
+            res = cursor.fetchall()
+            
+            # Process the results
+            h3_distribution = []
+            if res and len(res) > 0:
+                for row in res:
+                    h3_distribution.append({
+                        "h3_index": str(row.get('h3_index', '')),
+                        "total_users": float(row.get('total_users', 0))
+                    })
+                
+                logger.info(f"H3 distribution: {len(h3_distribution)} H3 indexes found")
+            else:
+                logger.info("No H3 distribution data found")
+            
+            # Structure response
+            distribution_data = {
+                "center_point": {"lat": lat, "lng": lng},
+                "radius_meters": radius,
+                "total_h3_indexes": len(h3_distribution),
+                "h3_distribution": h3_distribution
+            }
+            
+            resp = Response.success(data=distribution_data)
+            
+        except Exception as e:
+            logger.error(f"Error in get_h3_distribution: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            if connection:
+                connection.rollback()
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_db.disconnect(connection)
+            return resp
+
+    def create_h3_buckets(self, h3_distribution_data, min_value=None, max_value=None, bucket_size=10):
+        """
+        Create buckets from H3 distribution data based on min/max values and bucket size.
+        
+        Args:
+            h3_distribution_data (list): List of H3 distribution data with avg_pedestrian values
+            min_value (float): Minimum value for bucket range (if None, uses min from data)
+            max_value (float): Maximum value for bucket range (if None, uses max from data)
+            bucket_size (int): Number of buckets to create (default: 10)
+            
+        Returns:
+            dict: Bucket distribution with counts and ranges
+        """
+        if not h3_distribution_data or len(h3_distribution_data) == 0:
+            return {
+                "buckets": []
+            }
+        
+        # Extract total_users values
+        total_values = [item.get('total_users', 0) for item in h3_distribution_data if 'total_users' in item]
+        
+        if not total_values:
+            return {
+                "buckets": []
+            }
+        
+        # Determine min and max values
+        data_min = min(total_values)
+        data_max = max(total_values)
+        
+        # Always start from 0 unless explicitly overridden
+        actual_min = min_value if min_value is not None else 0
+        actual_max = max_value if max_value is not None else data_max
+        
+        # Calculate bucket range
+        bucket_range = (actual_max - actual_min) / bucket_size
+        
+        # Create buckets
+        buckets = []
+        for i in range(bucket_size):
+            bucket_min = actual_min + (i * bucket_range)
+            bucket_max = actual_min + ((i + 1) * bucket_range)
+            
+            # Count H3 indexes in this bucket
+            h3_count = 0
+            
+            for item in h3_distribution_data:
+                total_users = item.get('total_users', 0)
+                # Check if value falls in this bucket (inclusive of min, exclusive of max for all but last bucket)
+                if i == bucket_size - 1:  # Last bucket includes max value
+                    if bucket_min <= total_users <= bucket_max:
+                        h3_count += 1
+                else:
+                    if bucket_min <= total_users < bucket_max:
+                        h3_count += 1
+            
+            buckets.append({
+                "bucket_number": i + 1,
+                "bucket_range": {
+                    "min_value": round(bucket_min, 2),
+                    "max_value": round(bucket_max, 2)
+                },
+                "h3_count": h3_count
+            })
+        
+        return {
+            "data_range": {
+                "min_value": round(actual_min, 2),
+                "max_value": round(actual_max, 2)
+            },
+            "buckets": buckets
+        }
 
 
