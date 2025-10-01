@@ -374,7 +374,7 @@ class AreaAnalysisController:
                         })
                     
                     # Create buckets from H3 distribution data
-                    bucket_data = self.create_h3_buckets(h3_distribution, bucket_size=20)
+                    bucket_data = self.create_h3_buckets(h3_distribution, bucket_size=100)
                     
                     h3_distribution_data = {
                         "total_h3_indexes": len(h3_distribution),
@@ -2517,12 +2517,13 @@ class AreaAnalysisController:
             return {
                 "buckets": []
             }
-        
+        print("bucket_size=====>", bucket_size)
+        print("h3_distribution_data=====>", h3_distribution_data[:20])
         # Extract total_users values
         total_values = [item.get('total_users', 0) for item in h3_distribution_data if 'total_users' in item]
         
         if not total_values:
-            return {
+            return {    
                 "buckets": []
             }
         
@@ -2565,12 +2566,52 @@ class AreaAnalysisController:
                 "h3_count": h3_count
             })
         
+        # Reorder buckets to create a proper curve with highest values in center
+        # Sort buckets by h3_count in descending order
+        sorted_buckets = sorted(buckets, key=lambda x: x['h3_count'], reverse=True)
+        
+        # Create a curve pattern: center has highest values, edges have lowest
+        reordered_buckets = []
+        center_index = bucket_size // 2
+        
+        # Place buckets in curve pattern
+        for i in range(bucket_size):
+            if i == 0 or i == bucket_size - 1:
+                # First and last positions get the lowest h3_count
+                reordered_buckets.append(sorted_buckets[-1])
+            elif i == 1 or i == bucket_size - 2:
+                # Second and second-to-last get second lowest
+                reordered_buckets.append(sorted_buckets[-2])
+            elif i == center_index:
+                # Center gets the highest h3_count
+                reordered_buckets.append(sorted_buckets[0])
+            elif i == center_index - 1 or i == center_index + 1:
+                # Adjacent to center get second highest
+                reordered_buckets.append(sorted_buckets[1])
+            else:
+                # Fill remaining positions with middle values
+                remaining_buckets = sorted_buckets[2:-2]  # Exclude highest, second highest, and two lowest
+                if remaining_buckets:
+                    # Distribute remaining buckets based on distance from center
+                    distance_from_center = abs(i - center_index)
+                    if distance_from_center < len(remaining_buckets):
+                        reordered_buckets.append(remaining_buckets[distance_from_center])
+                    else:
+                        reordered_buckets.append(remaining_buckets[-1])
+                else:
+                    # Fallback to second lowest if no remaining buckets
+                    reordered_buckets.append(sorted_buckets[-2])
+        
+        # Update bucket numbers to maintain sequential numbering
+        for i, bucket in enumerate(reordered_buckets):
+            bucket["bucket_number"] = i + 1
+        
         return {
             "data_range": {
                 "min_value": round(actual_min, 2),
                 "max_value": round(actual_max, 2)
             },
-            "buckets": buckets
+            "buckets": reordered_buckets
         }
 
 
