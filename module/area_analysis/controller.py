@@ -2586,12 +2586,46 @@ class AreaAnalysisController:
                 consecutive_low_counts = 0
                 filtered_buckets.append(bucket)
         
+        # Calculate percentile ranks with detailed statistics
+        total_points = sum(bucket["h3_count"] for bucket in filtered_buckets)
+        cumulative_count = 0
+        percentile_ranks = []
+        target_percentiles = [50, 63, 74]  # Yellow, Red, Blue markers
+        
+        print(f"Total points across all buckets: {total_points}")
+        
+        for bucket in filtered_buckets:
+            cumulative_count += bucket["h3_count"]
+            current_percentile = (cumulative_count / total_points * 100) if total_points > 0 else 0
+            
+            print(f"Bucket {bucket['bucket_number']}:")
+            print(f"  Range: {bucket['bucket_range']['min_value']} - {bucket['bucket_range']['max_value']}")
+            print(f"  H3 Count: {bucket['h3_count']}")
+            print(f"  Cumulative Count: {cumulative_count}")
+            print(f"  Current Percentile: {current_percentile:.2f}%")
+            
+            # Check each target percentile
+            for target in target_percentiles:
+                if current_percentile >= target and not any(p["rank"] == target for p in percentile_ranks):
+                    print(f"  Found {target}th percentile at value {bucket['bucket_range']['max_value']}")
+                    percentile_ranks.append({
+                        "rank": target,
+                        "value": bucket["bucket_range"]["max_value"],
+                        "percentile": round(current_percentile, 1)
+                    })
+        
         return {
             "data_range": {
                 "min_value": round(actual_min, 2),
                 "max_value": round(actual_max, 2)
             },
-            "buckets": filtered_buckets
+            "buckets": filtered_buckets,
+            "percentile_ranks": sorted(percentile_ranks, key=lambda x: x["rank"]),
+            "distribution_stats": {
+                "total_points": total_points,
+                "bucket_count": len(filtered_buckets),
+                "mean_count": round(total_points / len(filtered_buckets), 2) if filtered_buckets else 0
+            }
         }
 
 
