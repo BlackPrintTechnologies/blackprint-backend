@@ -2566,12 +2566,32 @@ class AreaAnalysisController:
                 "h3_count": h3_count
             })
         
+        # Filter out consecutive low h3_count points
+        # Remove all consecutive buckets with h3_count < 10 from the beginning
+        filtered_buckets = []
+        consecutive_low_counts = 0
+        max_consecutive_low_counts = 200
+        min_h3_count_threshold = 10
+        
+        for bucket in buckets:
+            if bucket["h3_count"] < min_h3_count_threshold:
+                consecutive_low_counts += 1
+                if consecutive_low_counts >= max_consecutive_low_counts:
+                    # Stop adding buckets once we hit 200 consecutive low counts
+                    break
+                # Don't add low count buckets to filtered results
+                continue
+            else:
+                # Reset consecutive low counts counter when we find a count >= 10
+                consecutive_low_counts = 0
+                filtered_buckets.append(bucket)
+        
         return {
             "data_range": {
                 "min_value": round(actual_min, 2),
                 "max_value": round(actual_max, 2)
             },
-            "buckets": buckets
+            "buckets": filtered_buckets
         }
 
 
