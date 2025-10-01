@@ -1276,18 +1276,53 @@ class AreaAnalysisController:
         """Create population growth data structure using only years available from database."""
         # Only use years that actually exist in the database
         # Based on the query: 2000, 2005, 2010, 2020 (no 2015, no interpolated 2007)
+        
+        # Get population values
+        pop_2000 = aggregated_result.get('pob_2000_ageb', 0)
+        pop_2005 = aggregated_result.get('pob_2005_ageb', 0)
+        pop_2010 = aggregated_result.get('pob_2010_ageb', 0)
+        pop_2020 = aggregated_result.get('pob_2020_ageb', 0)
+        
+        # Calculate period-to-period growth rates
         block_growth = {
-            "2000": [aggregated_result.get('pob_2000_ageb', 0), 0],  # Base year, 0% growth
-            "2005": [aggregated_result.get('pob_2005_ageb', 0), float(aggregated_result.get('cambio_porcentual_2005_ageb', 0) or 0)],
-            "2010": [aggregated_result.get('pob_2010_ageb', 0), float(aggregated_result.get('cambio_porcentual_2010_ageb', 0) or 0)],
-            "2020": [aggregated_result.get('pob_2020_ageb', 0), float(aggregated_result.get('cambio_porcentual_2020_ageb', 0) or 0)]
+            "2000": [pop_2000, 0],  # Base year, 0% growth
+            "2005": [
+                pop_2005,
+                round(((pop_2005 - pop_2000) / pop_2000 * 100), 4) if pop_2000 > 0 else 0  # 2005 vs 2000
+            ],
+            "2010": [
+                pop_2010,
+                round(((pop_2010 - pop_2005) / pop_2005 * 100), 4) if pop_2005 > 0 else 0  # 2010 vs 2005
+            ],
+            "2015": [None, None],  # No data for 2015
+            "2020": [
+                pop_2020,
+                round(((pop_2020 - pop_2010) / pop_2010 * 100), 4) if pop_2010 > 0 else 0  # 2020 vs 2010
+            ]
         }
         
+        # Get municipal population values
+        mun_2000 = aggregated_result.get('pob_2000_municipal', 0)
+        mun_2005 = aggregated_result.get('pob_2005_municipal', 0)
+        mun_2010 = aggregated_result.get('pob_2010_municipal', 0)
+        mun_2020 = aggregated_result.get('pob_2020_municipal', 0)
+        
+        # Calculate period-to-period growth rates for municipality
         alcaldia_growth = {
-            "2000": [aggregated_result.get('pob_2000_municipal', 0), 0],  # Base year, 0% growth
-            "2005": [aggregated_result.get('pob_2005_municipal', 0), float(aggregated_result.get('cambio_porcentual_2005_municipal', 0) or 0)],
-            "2010": [aggregated_result.get('pob_2010_municipal', 0), float(aggregated_result.get('cambio_porcentual_2010_municipal', 0) or 0)],
-            "2020": [aggregated_result.get('pob_2020_municipal', 0), float(aggregated_result.get('cambio_porcentual_2020_municipal', 0) or 0)]
+            "2000": [mun_2000, 0],  # Base year, 0% growth
+            "2005": [
+                mun_2005,
+                round(((mun_2005 - mun_2000) / mun_2000 * 100), 4) if mun_2000 > 0 else 0  # 2005 vs 2000
+            ],
+            "2010": [
+                mun_2010,
+                round(((mun_2010 - mun_2005) / mun_2005 * 100), 4) if mun_2005 > 0 else 0  # 2010 vs 2005
+            ],
+            "2015": [None, None],  # No data for 2015
+            "2020": [
+                mun_2020,
+                round(((mun_2020 - mun_2010) / mun_2010 * 100), 4) if mun_2010 > 0 else 0  # 2020 vs 2010
+            ]
         }
         
         # Only use years that exist in the database (no hardcoded 2007 or missing 2015)
