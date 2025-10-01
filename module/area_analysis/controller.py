@@ -374,7 +374,7 @@ class AreaAnalysisController:
                         })
                     
                     # Create buckets from H3 distribution data
-                    bucket_data = self.create_h3_buckets(h3_distribution, bucket_size=20)
+                    bucket_data = self.create_h3_buckets(h3_distribution, bucket_size=1000)
                     
                     h3_distribution_data = {
                         "total_h3_indexes": len(h3_distribution),
@@ -1276,18 +1276,53 @@ class AreaAnalysisController:
         """Create population growth data structure using only years available from database."""
         # Only use years that actually exist in the database
         # Based on the query: 2000, 2005, 2010, 2020 (no 2015, no interpolated 2007)
+        
+        # Get population values
+        pop_2000 = aggregated_result.get('pob_2000_ageb', 0)
+        pop_2005 = aggregated_result.get('pob_2005_ageb', 0)
+        pop_2010 = aggregated_result.get('pob_2010_ageb', 0)
+        pop_2020 = aggregated_result.get('pob_2020_ageb', 0)
+        
+        # Calculate period-to-period growth rates
         block_growth = {
-            "2000": [aggregated_result.get('pob_2000_ageb', 0), 0],  # Base year, 0% growth
-            "2005": [aggregated_result.get('pob_2005_ageb', 0), float(aggregated_result.get('cambio_porcentual_2005_ageb', 0) or 0)],
-            "2010": [aggregated_result.get('pob_2010_ageb', 0), float(aggregated_result.get('cambio_porcentual_2010_ageb', 0) or 0)],
-            "2020": [aggregated_result.get('pob_2020_ageb', 0), float(aggregated_result.get('cambio_porcentual_2020_ageb', 0) or 0)]
+            "2000": [pop_2000, 0],  # Base year, 0% growth
+            "2005": [
+                pop_2005,
+                round(((pop_2005 - pop_2000) / pop_2000 * 100), 4) if pop_2000 > 0 else 0  # 2005 vs 2000
+            ],
+            "2010": [
+                pop_2010,
+                round(((pop_2010 - pop_2005) / pop_2005 * 100), 4) if pop_2005 > 0 else 0  # 2010 vs 2005
+            ],
+            "2015": [None, None],  # No data for 2015
+            "2020": [
+                pop_2020,
+                round(((pop_2020 - pop_2010) / pop_2010 * 100), 4) if pop_2010 > 0 else 0  # 2020 vs 2010
+            ]
         }
         
+        # Get municipal population values
+        mun_2000 = aggregated_result.get('pob_2000_municipal', 0)
+        mun_2005 = aggregated_result.get('pob_2005_municipal', 0)
+        mun_2010 = aggregated_result.get('pob_2010_municipal', 0)
+        mun_2020 = aggregated_result.get('pob_2020_municipal', 0)
+        
+        # Calculate period-to-period growth rates for municipality
         alcaldia_growth = {
-            "2000": [aggregated_result.get('pob_2000_municipal', 0), 0],  # Base year, 0% growth
-            "2005": [aggregated_result.get('pob_2005_municipal', 0), float(aggregated_result.get('cambio_porcentual_2005_municipal', 0) or 0)],
-            "2010": [aggregated_result.get('pob_2010_municipal', 0), float(aggregated_result.get('cambio_porcentual_2010_municipal', 0) or 0)],
-            "2020": [aggregated_result.get('pob_2020_municipal', 0), float(aggregated_result.get('cambio_porcentual_2020_municipal', 0) or 0)]
+            "2000": [mun_2000, 0],  # Base year, 0% growth
+            "2005": [
+                mun_2005,
+                round(((mun_2005 - mun_2000) / mun_2000 * 100), 4) if mun_2000 > 0 else 0  # 2005 vs 2000
+            ],
+            "2010": [
+                mun_2010,
+                round(((mun_2010 - mun_2005) / mun_2005 * 100), 4) if mun_2005 > 0 else 0  # 2010 vs 2005
+            ],
+            "2015": [None, None],  # No data for 2015
+            "2020": [
+                mun_2020,
+                round(((mun_2020 - mun_2010) / mun_2010 * 100), 4) if mun_2010 > 0 else 0  # 2020 vs 2010
+            ]
         }
         
         # Only use years that exist in the database (no hardcoded 2007 or missing 2015)
@@ -2517,12 +2552,13 @@ class AreaAnalysisController:
             return {
                 "buckets": []
             }
-        
+        print("bucket_size=====>", bucket_size)
+        print("h3_distribution_data=====>", h3_distribution_data[:20])
         # Extract total_users values
         total_values = [item.get('total_users', 0) for item in h3_distribution_data if 'total_users' in item]
         
         if not total_values:
-            return {
+            return {    
                 "buckets": []
             }
         
@@ -2565,12 +2601,66 @@ class AreaAnalysisController:
                 "h3_count": h3_count
             })
         
+        # Filter out consecutive low h3_count points
+        # Remove all consecutive buckets with h3_count < 10 from the beginning
+        filtered_buckets = []
+        consecutive_low_counts = 0
+        max_consecutive_low_counts = 200
+        min_h3_count_threshold = 10
+        
+        for bucket in buckets:
+            if bucket["h3_count"] < min_h3_count_threshold:
+                consecutive_low_counts += 1
+                if consecutive_low_counts >= max_consecutive_low_counts:
+                    # Stop adding buckets once we hit 200 consecutive low counts
+                    break
+                # Don't add low count buckets to filtered results
+                continue
+            else:
+                # Reset consecutive low counts counter when we find a count >= 10
+                consecutive_low_counts = 0
+                filtered_buckets.append(bucket)
+        
+        # Calculate percentile ranks with detailed statistics
+        total_points = sum(bucket["h3_count"] for bucket in filtered_buckets)
+        cumulative_count = 0
+        percentile_ranks = []
+        target_percentiles = [50, 63, 74]  # Yellow, Red, Blue markers
+        
+        print(f"Total points across all buckets: {total_points}")
+        
+        for bucket in filtered_buckets:
+            cumulative_count += bucket["h3_count"]
+            current_percentile = (cumulative_count / total_points * 100) if total_points > 0 else 0
+            
+            print(f"Bucket {bucket['bucket_number']}:")
+            print(f"  Range: {bucket['bucket_range']['min_value']} - {bucket['bucket_range']['max_value']}")
+            print(f"  H3 Count: {bucket['h3_count']}")
+            print(f"  Cumulative Count: {cumulative_count}")
+            print(f"  Current Percentile: {current_percentile:.2f}%")
+            
+            # Check each target percentile
+            for target in target_percentiles:
+                if current_percentile >= target and not any(p["rank"] == target for p in percentile_ranks):
+                    print(f"  Found {target}th percentile at value {bucket['bucket_range']['max_value']}")
+                    percentile_ranks.append({
+                        "rank": target,
+                        "value": bucket["bucket_range"]["max_value"],
+                        "percentile": round(current_percentile, 1)
+                    })
+        
         return {
             "data_range": {
                 "min_value": round(actual_min, 2),
                 "max_value": round(actual_max, 2)
             },
-            "buckets": buckets
+            "buckets": filtered_buckets,
+            "percentile_ranks": sorted(percentile_ranks, key=lambda x: x["rank"]),
+            "distribution_stats": {
+                "total_points": total_points,
+                "bucket_count": len(filtered_buckets),
+                "mean_count": round(total_points / len(filtered_buckets), 2) if filtered_buckets else 0
+            }
         }
 
 
