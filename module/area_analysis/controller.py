@@ -358,7 +358,8 @@ class AreaAnalysisController:
             h3_traffic_summary = {
                 "unique_h3_count": 0,
                 "total_unique_users": 0,
-                "avg_users_per_h3": 0
+                "avg_users_per_h3": 0,
+                "percentile_rank": 0
             }
             
             try:
@@ -378,7 +379,8 @@ class AreaAnalysisController:
                     h3_traffic_summary = {
                         "unique_h3_count": unique_h3_count,
                         "total_unique_users": total_unique_users,
-                        "avg_users_per_h3": float(avg_users_per_h3)
+                        "avg_users_per_h3": float(avg_users_per_h3),
+                        "percentile_rank": 0
                     }
                     
                     logger.info(f"H3 traffic summary data collected: {unique_h3_count} unique H3, {total_unique_users} total users, {avg_users_per_h3} avg per H3")
@@ -432,6 +434,21 @@ class AreaAnalysisController:
                         "buckets": []
                     }
                 }
+
+            # Calculate percentile rank for avg_users_per_h3 against bucket distribution
+            if h3_traffic_summary.get('avg_users_per_h3', 0) > 0 and h3_distribution_data.get('bucket_distribution', {}).get('buckets'):
+                try:
+                    avg_value = h3_traffic_summary['avg_users_per_h3']
+                    buckets = h3_distribution_data['bucket_distribution']['buckets']
+                    
+                    # Calculate percentile rank for the avg_users_per_h3 value
+                    percentile_rank = self.calculate_percentile_rank_for_value(avg_value, buckets)
+                    h3_traffic_summary['percentile_rank'] = percentile_rank
+                    
+                    logger.info(f"Calculated percentile rank for avg_users_per_h3 {avg_value}: {percentile_rank}")
+                except Exception as e:
+                    logger.error(f"Error calculating percentile rank: {str(e)}")
+                    h3_traffic_summary['percentile_rank'] = 0
 
 
             # Structure response with calculated data
@@ -2672,6 +2689,40 @@ class AreaAnalysisController:
                 "mean_count": round(total_points / len(filtered_buckets), 2) if filtered_buckets else 0
             }
         }
+
+    def calculate_percentile_rank_for_value(self, target_value, buckets):
+        """
+        Calculate percentile rank for a specific value against bucket distribution.
+        
+        Args:
+            target_value (float): The value to find percentile rank for
+            buckets (list): List of bucket data with h3_count and bucket_range
+            
+        Returns:
+            float: Percentile rank (0-100)
+        """
+        if not buckets or len(buckets) == 0:
+            return 0
+        
+        # Calculate total points across all buckets
+        total_points = sum(bucket.get('h3_count', 0) for bucket in buckets)
+        if total_points == 0:
+            return 0
+        
+        # Calculate cumulative count up to the target value
+        cumulative_count = 0
+        for bucket in buckets:
+            bucket_range = bucket.get('bucket_range', {})
+            max_val = bucket_range.get('max_value', 0)
+            
+            if target_value <= max_val:
+                break
+            cumulative_count += bucket.get('h3_count', 0)
+        
+        # Calculate percentile for the target value
+        percentile = (cumulative_count / total_points * 100) if total_points > 0 else 0
+        
+        return round(percentile, 1)
 
 
 
