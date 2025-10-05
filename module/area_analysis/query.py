@@ -127,6 +127,34 @@ class AreaAnalysisQuery:
         """
         return query
 
+    def build_h3_traffic_summary_query(self, lat, lng, radius):
+        """Build SQL query for H3 traffic summary with aggregated data."""
+        query = f"""
+        WITH point_geom AS (
+          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+        ),
+        point_projected AS (
+          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+        ),
+        buffered AS (
+          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+        ),
+        h3_values AS (
+          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
+        ),
+        h3_index AS (
+            SELECT o AS h3_value
+            FROM h3_values i, i.h3_indexes o
+        )
+        SELECT 
+            COUNT(DISTINCT a.h3_index) as unique_h3_count,
+            SUM(a.total_usuarios_unicos) as total_unique_users,
+            ROUND(CAST(SUM(a.total_usuarios_unicos) AS DECIMAL) / CAST(COUNT(DISTINCT a.h3_index) AS DECIMAL), 2) as avg_users_per_h3
+        FROM blackprint_db_prd.staging.stg_data_movilidad_por_dia_qro a
+        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+        """
+        return query
+
     def build_population_query(self, lat, lng, radius, config_city='queretaro'):
         """Build SQL query to get population data within the specified area using proper spatial calculations."""
         

@@ -354,6 +354,40 @@ class AreaAnalysisController:
                 municipality_average_devices_per_person = round(municipality_total_users / municipality_population, 2)
             
 
+            # Get H3 traffic summary data with aggregated data
+            h3_traffic_summary = {
+                "unique_h3_count": 0,
+                "total_unique_users": 0,
+                "avg_users_per_h3": 0
+            }
+            
+            try:
+                h3_traffic_query = self.query_builder.build_h3_traffic_summary_query(lat, lng, radius)
+                logger.info(f"Executing H3 traffic summary query: {h3_traffic_query}")
+                
+                cursor.execute(h3_traffic_query)
+                connection.commit()
+                h3_traffic_res = cursor.fetchall()
+                
+                if h3_traffic_res and len(h3_traffic_res) > 0:
+                    row = h3_traffic_res[0]
+                    unique_h3_count = row.get('unique_h3_count', 0) or 0
+                    total_unique_users = row.get('total_unique_users', 0) or 0
+                    avg_users_per_h3 = row.get('avg_users_per_h3', 0) or 0
+                    
+                    h3_traffic_summary = {
+                        "unique_h3_count": unique_h3_count,
+                        "total_unique_users": total_unique_users,
+                        "avg_users_per_h3": float(avg_users_per_h3)
+                    }
+                    
+                    logger.info(f"H3 traffic summary data collected: {unique_h3_count} unique H3, {total_unique_users} total users, {avg_users_per_h3} avg per H3")
+                else:
+                    logger.info("No H3 traffic summary data found")
+                
+            except Exception as e:
+                logger.error(f"Error getting H3 traffic summary data: {str(e)}")
+
             # Get H3 distribution data for all user types combined
             h3_distribution_data = {}
             
@@ -433,6 +467,7 @@ class AreaAnalysisController:
                         "trend": None  # Not available - would need historical data
                     }
                 },
+                "h3_traffic_summary": h3_traffic_summary,
                 "h3_distribution": h3_distribution_data
             }
             
