@@ -354,6 +354,40 @@ class AreaAnalysisController:
                 municipality_average_devices_per_person = round(municipality_total_users / municipality_population, 2)
             
 
+            # Get H3 traffic summary data with aggregated data
+            h3_traffic_summary = {
+                "unique_h3_count": 0,
+                "total_unique_users": 0,
+                "avg_users_per_h3": 0
+            }
+            
+            try:
+                h3_traffic_query = self.query_builder.build_h3_traffic_summary_query(lat, lng, radius)
+                logger.info(f"Executing H3 traffic summary query: {h3_traffic_query}")
+                
+                cursor.execute(h3_traffic_query)
+                connection.commit()
+                h3_traffic_res = cursor.fetchall()
+                
+                if h3_traffic_res and len(h3_traffic_res) > 0:
+                    row = h3_traffic_res[0]
+                    unique_h3_count = row.get('unique_h3_count', 0) or 0
+                    total_unique_users = row.get('total_unique_users', 0) or 0
+                    avg_users_per_h3 = row.get('avg_users_per_h3', 0) or 0
+                    
+                    h3_traffic_summary = {
+                        "unique_h3_count": unique_h3_count,
+                        "total_unique_users": total_unique_users,
+                        "avg_users_per_h3": float(avg_users_per_h3)
+                    }
+                    
+                    logger.info(f"H3 traffic summary data collected: {unique_h3_count} unique H3, {total_unique_users} total users, {avg_users_per_h3} avg per H3")
+                else:
+                    logger.info("No H3 traffic summary data found")
+                
+            except Exception as e:
+                logger.error(f"Error getting H3 traffic summary data: {str(e)}")
+
             # Get H3 distribution data for all user types combined
             h3_distribution_data = {}
             
@@ -399,6 +433,7 @@ class AreaAnalysisController:
                     }
                 }
 
+
             # Structure response with calculated data
             summary_data = {
                 "summary": {
@@ -433,6 +468,7 @@ class AreaAnalysisController:
                         "trend": None  # Not available - would need historical data
                     }
                 },
+                "h3_traffic_summary": h3_traffic_summary,
                 "h3_distribution": h3_distribution_data
             }
             
@@ -2621,33 +2657,8 @@ class AreaAnalysisController:
                 consecutive_low_counts = 0
                 filtered_buckets.append(bucket)
         
-        # Calculate percentile ranks with detailed statistics
+        # Calculate distribution statistics
         total_points = sum(bucket["h3_count"] for bucket in filtered_buckets)
-        cumulative_count = 0
-        percentile_ranks = []
-        target_percentiles = [50, 63, 74]  # Yellow, Red, Blue markers
-        
-        print(f"Total points across all buckets: {total_points}")
-        
-        for bucket in filtered_buckets:
-            cumulative_count += bucket["h3_count"]
-            current_percentile = (cumulative_count / total_points * 100) if total_points > 0 else 0
-            
-            print(f"Bucket {bucket['bucket_number']}:")
-            print(f"  Range: {bucket['bucket_range']['min_value']} - {bucket['bucket_range']['max_value']}")
-            print(f"  H3 Count: {bucket['h3_count']}")
-            print(f"  Cumulative Count: {cumulative_count}")
-            print(f"  Current Percentile: {current_percentile:.2f}%")
-            
-            # Check each target percentile
-            for target in target_percentiles:
-                if current_percentile >= target and not any(p["rank"] == target for p in percentile_ranks):
-                    print(f"  Found {target}th percentile at value {bucket['bucket_range']['max_value']}")
-                    percentile_ranks.append({
-                        "rank": target,
-                        "value": bucket["bucket_range"]["max_value"],
-                        "percentile": round(current_percentile, 1)
-                    })
         
         return {
             "data_range": {
@@ -2655,12 +2666,12 @@ class AreaAnalysisController:
                 "max_value": round(actual_max, 2)
             },
             "buckets": filtered_buckets,
-            "percentile_ranks": sorted(percentile_ranks, key=lambda x: x["rank"]),
             "distribution_stats": {
                 "total_points": total_points,
                 "bucket_count": len(filtered_buckets),
                 "mean_count": round(total_points / len(filtered_buckets), 2) if filtered_buckets else 0
             }
         }
+
 
 
