@@ -711,18 +711,15 @@ class AreaAnalysisController:
             res = cursor.fetchall()
             
             if res and len(res) > 0:
-                # Process demographic data
+                # Process demographic data - both Mexico and Queretaro now use pre-aggregated queries
                 if config_city == 'mexico':
-                    demographics_data = self._process_mexico_demographics_data(res, lat, lng, radius, connection)
+                    demographics_data = self._process_queretaro_demographics_data(res, lat, lng, radius, connection)
                 elif config_city == 'queretaro':
                     demographics_data = self._process_queretaro_demographics_data(res, lat, lng, radius, connection)
                 else:
                     logger.error(f"Unsupported city configuration for processing: {config_city}")
                     return Response.error("Unsupported city configuration. Supported cities: mexico, queretaro")
-                if config_city == 'queretaro':
-                    logger.info(f"Demographics analysis completed for pre-aggregated query result in {config_city}")
-                else:
-                    logger.info(f"Demographics analysis completed for {len(res)} records in {config_city}")
+                logger.info(f"Demographics analysis completed for pre-aggregated query result in {config_city}")
                 resp = Response.success(data=demographics_data)
             else:
                 # Return empty demographics structure
