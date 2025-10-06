@@ -347,6 +347,31 @@ class AreaAnalysisQuery:
               SUM(d.p_60ymas_f) as p_60ymas_f,      -- Female population aged 60+ years
               SUM(d.p_60ymas_m) as p_60ymas_m,      -- Male population aged 60+ years
               
+              -- Municipality-level gender ratios for proportional scaling (if block-level gender not available)
+              MAX(d.p_0a2_m_alcaldia) as p_0a2_m_alcaldia,   -- Male population aged 0-2 years (municipality)
+              MAX(d.p_0a2_f_alcaldia) as p_0a2_f_alcaldia,   -- Female population aged 0-2 years (municipality)
+              MAX(d.p_3a5_m_alcaldia) as p_3a5_m_alcaldia,   -- Male population aged 3-5 years (municipality)
+              MAX(d.p_3a5_f_alcaldia) as p_3a5_f_alcaldia,   -- Female population aged 3-5 years (municipality)
+              MAX(d.p_6a11_m_alcaldia) as p_6a11_m_alcaldia, -- Male population aged 6-11 years (municipality)
+              MAX(d.p_6a11_f_alcaldia) as p_6a11_f_alcaldia, -- Female population aged 6-11 years (municipality)
+              MAX(d.p_12a14_m_alcaldia) as p_12a14_m_alcaldia, -- Male population aged 12-14 years (municipality)
+              MAX(d.p_12a14_f_alcaldia) as p_12a14_f_alcaldia, -- Female population aged 12-14 years (municipality)
+              MAX(d.p_15a17_m_alcaldia) as p_15a17_m_alcaldia, -- Male population aged 15-17 years (municipality)
+              MAX(d.p_15a17_f_alcaldia) as p_15a17_f_alcaldia, -- Female population aged 15-17 years (municipality)
+              MAX(d.p_18a24_m_alcaldia) as p_18a24_m_alcaldia, -- Male population aged 18-24 years (municipality)
+              MAX(d.p_18a24_f_alcaldia) as p_18a24_f_alcaldia, -- Female population aged 18-24 years (municipality)
+              MAX(d.p_60ymas_m_alcaldia) as p_60ymas_m_alcaldia, -- Male population aged 60+ years (municipality)
+              MAX(d.p_60ymas_f_alcaldia) as p_60ymas_f_alcaldia, -- Female population aged 60+ years (municipality)
+              
+              -- Municipality-level totals for ratio calculation
+              MAX(d.p_0a2_alcaldia) as p_0a2_alcaldia,       -- Total population aged 0-2 years (municipality)
+              MAX(d.p_3a5_alcaldia) as p_3a5_alcaldia,       -- Total population aged 3-5 years (municipality)
+              MAX(d.p_6a11_alcaldia) as p_6a11_alcaldia,     -- Total population aged 6-11 years (municipality)
+              MAX(d.p_12a14_alcaldia) as p_12a14_alcaldia,   -- Total population aged 12-14 years (municipality)
+              MAX(d.p_15a17_alcaldia) as p_15a17_alcaldia,   -- Total population aged 15-17 years (municipality)
+              MAX(d.p_18a24_alcaldia) as p_18a24_alcaldia,   -- Total population aged 18-24 years (municipality)
+              MAX(d.p_60ymas_alcaldia) as p_60ymas_alcaldia, -- Total population aged 60+ years (municipality)
+              
               -- ===== HISTORICAL POPULATION DATA (SUM across all records in radius) =====
               SUM(d.pob_2000_ageb) as pob_2000_ageb, -- Population in 2000 (block level)
               SUM(d.pob_2005_ageb) as pob_2005_ageb, -- Population in 2005 (block level)
