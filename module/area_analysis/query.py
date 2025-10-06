@@ -8,151 +8,317 @@ class AreaAnalysisQuery:
     def __init__(self):
         pass
     
-    def build_traffic_by_day_query(self, lat, lng, radius, user_type=None):
+    def build_traffic_by_day_query(self, lat, lng, radius, user_type=None, config_city='queretaro'):
         """Build SQL query for traffic data by day of the week."""
         user_type_condition = ""
         if user_type:
             user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
         
-        query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
-        )
-        SELECT  SUM(CASE WHEN a.dia_de_la_semana = 'Monday' THEN a.total_usuarios_unicos ELSE 0 END) AS monday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Tuesday' THEN a.total_usuarios_unicos ELSE 0 END) AS tuesday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Wednesday' THEN a.total_usuarios_unicos ELSE 0 END) AS wednesday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Thursday' THEN a.total_usuarios_unicos ELSE 0 END) AS thursday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Friday' THEN a.total_usuarios_unicos ELSE 0 END) AS friday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Saturday' THEN a.total_usuarios_unicos ELSE 0 END) AS saturday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Sunday' THEN a.total_usuarios_unicos ELSE 0 END) AS sunday
-        FROM blackprint_db_prd.staging.stg_data_movilidad_por_dia_qro a
-        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
-        {user_type_condition}
-        """
+        if config_city == 'mexico':
+            # Mexico City - aggregate hourly data by day of week using year/month/day columns
+            # Map user_type to appropriate column
+            if user_type == 'peaton':
+                column_name = 'a.pedestrian'
+            elif user_type == 'vehiculo':
+                column_name = 'a.motor_vehicle'
+            elif user_type == 'estacionario':
+                column_name = 'a.at_rest'
+            else:
+                # Default to total for all types
+                column_name = 'a.total'
+            
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 11) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT  SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 1 THEN {column_name} ELSE 0 END) AS monday,
+                    SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 2 THEN {column_name} ELSE 0 END) AS tuesday,
+                    SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 3 THEN {column_name} ELSE 0 END) AS wednesday,
+                    SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 4 THEN {column_name} ELSE 0 END) AS thursday,
+                    SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 5 THEN {column_name} ELSE 0 END) AS friday,
+                    SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 6 THEN {column_name} ELSE 0 END) AS saturday,
+                    SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 0 THEN {column_name} ELSE 0 END) AS sunday
+            FROM blackprint_db_prd.presentation.dataset_mobility_data_v2 a
+            INNER JOIN h3_index b ON a.h3_index = b.h3_value
+            """
+        else:
+            # Queretaro uses stg_data_movilidad_por_dia_qro with dia_de_la_semana column
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 10) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT  SUM(CASE WHEN a.dia_de_la_semana = 'Monday' THEN a.total_usuarios_unicos ELSE 0 END) AS monday,
+                    SUM(CASE WHEN a.dia_de_la_semana = 'Tuesday' THEN a.total_usuarios_unicos ELSE 0 END) AS tuesday,
+                    SUM(CASE WHEN a.dia_de_la_semana = 'Wednesday' THEN a.total_usuarios_unicos ELSE 0 END) AS wednesday,
+                    SUM(CASE WHEN a.dia_de_la_semana = 'Thursday' THEN a.total_usuarios_unicos ELSE 0 END) AS thursday,
+                    SUM(CASE WHEN a.dia_de_la_semana = 'Friday' THEN a.total_usuarios_unicos ELSE 0 END) AS friday,
+                    SUM(CASE WHEN a.dia_de_la_semana = 'Saturday' THEN a.total_usuarios_unicos ELSE 0 END) AS saturday,
+                    SUM(CASE WHEN a.dia_de_la_semana = 'Sunday' THEN a.total_usuarios_unicos ELSE 0 END) AS sunday
+            FROM blackprint_db_prd.staging.stg_data_movilidad_por_dia_qro a
+            INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+            {user_type_condition}
+            """
         return query
 
-    def build_traffic_by_hour_query(self, lat, lng, radius, user_type=None):
+    def build_traffic_by_hour_query(self, lat, lng, radius, user_type=None, config_city='queretaro'):
         """Build SQL query for traffic data by hour of the day."""
         user_type_condition = ""
         if user_type:
             user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
         
-        query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
-        )
-        SELECT  SUM(CASE WHEN a.hour = 0 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_0,
-                SUM(CASE WHEN a.hour = 1 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_1,
-                SUM(CASE WHEN a.hour = 2 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_2,
-                SUM(CASE WHEN a.hour = 3 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_3,
-                SUM(CASE WHEN a.hour = 4 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_4,
-                SUM(CASE WHEN a.hour = 5 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_5,
-                SUM(CASE WHEN a.hour = 6 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_6,
-                SUM(CASE WHEN a.hour = 7 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_7,
-                SUM(CASE WHEN a.hour = 8 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_8,
-                SUM(CASE WHEN a.hour = 9 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_9,
-                SUM(CASE WHEN a.hour = 10 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_10,
-                SUM(CASE WHEN a.hour = 11 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_11,
-                SUM(CASE WHEN a.hour = 12 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_12,
-                SUM(CASE WHEN a.hour = 13 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_13,
-                SUM(CASE WHEN a.hour = 14 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_14,
-                SUM(CASE WHEN a.hour = 15 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_15,
-                SUM(CASE WHEN a.hour = 16 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_16,
-                SUM(CASE WHEN a.hour = 17 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_17,
-                SUM(CASE WHEN a.hour = 18 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_18,
-                SUM(CASE WHEN a.hour = 19 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_19,
-                SUM(CASE WHEN a.hour = 20 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_20,
-                SUM(CASE WHEN a.hour = 21 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_21,
-                SUM(CASE WHEN a.hour = 22 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_22,
-                SUM(CASE WHEN a.hour = 23 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_23
-        FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
-        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
-        {user_type_condition}
-        """
+        if config_city == 'mexico':
+            # Mexico City uses dataset_mobility_data_v2 with pedestrian/motor_vehicle/at_rest/total columns
+            # Map user_type to appropriate column
+            if user_type == 'peaton':
+                column_name = 'a.pedestrian'
+            elif user_type == 'vehiculo':
+                column_name = 'a.motor_vehicle'
+            elif user_type == 'estacionario':
+                column_name = 'a.at_rest'
+            else:
+                # Default to total for all types
+                column_name = 'a.total'
+            
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 11) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT  SUM(CASE WHEN a.hour = 0 THEN {column_name} ELSE 0 END) AS hour_0,
+                    SUM(CASE WHEN a.hour = 1 THEN {column_name} ELSE 0 END) AS hour_1,
+                    SUM(CASE WHEN a.hour = 2 THEN {column_name} ELSE 0 END) AS hour_2,
+                    SUM(CASE WHEN a.hour = 3 THEN {column_name} ELSE 0 END) AS hour_3,
+                    SUM(CASE WHEN a.hour = 4 THEN {column_name} ELSE 0 END) AS hour_4,
+                    SUM(CASE WHEN a.hour = 5 THEN {column_name} ELSE 0 END) AS hour_5,
+                    SUM(CASE WHEN a.hour = 6 THEN {column_name} ELSE 0 END) AS hour_6,
+                    SUM(CASE WHEN a.hour = 7 THEN {column_name} ELSE 0 END) AS hour_7,
+                    SUM(CASE WHEN a.hour = 8 THEN {column_name} ELSE 0 END) AS hour_8,
+                    SUM(CASE WHEN a.hour = 9 THEN {column_name} ELSE 0 END) AS hour_9,
+                    SUM(CASE WHEN a.hour = 10 THEN {column_name} ELSE 0 END) AS hour_10,
+                    SUM(CASE WHEN a.hour = 11 THEN {column_name} ELSE 0 END) AS hour_11,
+                    SUM(CASE WHEN a.hour = 12 THEN {column_name} ELSE 0 END) AS hour_12,
+                    SUM(CASE WHEN a.hour = 13 THEN {column_name} ELSE 0 END) AS hour_13,
+                    SUM(CASE WHEN a.hour = 14 THEN {column_name} ELSE 0 END) AS hour_14,
+                    SUM(CASE WHEN a.hour = 15 THEN {column_name} ELSE 0 END) AS hour_15,
+                    SUM(CASE WHEN a.hour = 16 THEN {column_name} ELSE 0 END) AS hour_16,
+                    SUM(CASE WHEN a.hour = 17 THEN {column_name} ELSE 0 END) AS hour_17,
+                    SUM(CASE WHEN a.hour = 18 THEN {column_name} ELSE 0 END) AS hour_18,
+                    SUM(CASE WHEN a.hour = 19 THEN {column_name} ELSE 0 END) AS hour_19,
+                    SUM(CASE WHEN a.hour = 20 THEN {column_name} ELSE 0 END) AS hour_20,
+                    SUM(CASE WHEN a.hour = 21 THEN {column_name} ELSE 0 END) AS hour_21,
+                    SUM(CASE WHEN a.hour = 22 THEN {column_name} ELSE 0 END) AS hour_22,
+                    SUM(CASE WHEN a.hour = 23 THEN {column_name} ELSE 0 END) AS hour_23
+            FROM blackprint_db_prd.presentation.dataset_mobility_data_v2 a
+            INNER JOIN h3_index b ON a.h3_index = b.h3_value
+            """
+        else:
+            # Queretaro uses stg_data_movilidad_por_hora_qro with total_usuarios_unicos column
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 10) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT  SUM(CASE WHEN a.hour = 0 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_0,
+                    SUM(CASE WHEN a.hour = 1 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_1,
+                    SUM(CASE WHEN a.hour = 2 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_2,
+                    SUM(CASE WHEN a.hour = 3 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_3,
+                    SUM(CASE WHEN a.hour = 4 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_4,
+                    SUM(CASE WHEN a.hour = 5 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_5,
+                    SUM(CASE WHEN a.hour = 6 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_6,
+                    SUM(CASE WHEN a.hour = 7 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_7,
+                    SUM(CASE WHEN a.hour = 8 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_8,
+                    SUM(CASE WHEN a.hour = 9 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_9,
+                    SUM(CASE WHEN a.hour = 10 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_10,
+                    SUM(CASE WHEN a.hour = 11 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_11,
+                    SUM(CASE WHEN a.hour = 12 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_12,
+                    SUM(CASE WHEN a.hour = 13 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_13,
+                    SUM(CASE WHEN a.hour = 14 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_14,
+                    SUM(CASE WHEN a.hour = 15 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_15,
+                    SUM(CASE WHEN a.hour = 16 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_16,
+                    SUM(CASE WHEN a.hour = 17 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_17,
+                    SUM(CASE WHEN a.hour = 18 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_18,
+                    SUM(CASE WHEN a.hour = 19 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_19,
+                    SUM(CASE WHEN a.hour = 20 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_20,
+                    SUM(CASE WHEN a.hour = 21 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_21,
+                    SUM(CASE WHEN a.hour = 22 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_22,
+                    SUM(CASE WHEN a.hour = 23 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_23
+            FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
+            INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+            {user_type_condition}
+            """
         return query
 
-    def build_traffic_summary_query(self, lat, lng, radius, user_type=None):
+    def build_traffic_summary_query(self, lat, lng, radius, user_type=None, config_city='queretaro'):
         """Build SQL query for total traffic summary."""
         user_type_condition = ""
         if user_type:
             user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
         
-        query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
-        )
-        SELECT  SUM(a.total_usuarios_unicos) as total_users
-        FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
-        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
-        {user_type_condition}
-        """
+        if config_city == 'mexico':
+            # Mexico City uses dataset_mobility_data_v2 with pedestrian/motor_vehicle/at_rest/total columns
+            # Map user_type to appropriate column
+            if user_type == 'peaton':
+                column_name = 'a.pedestrian'
+            elif user_type == 'vehiculo':
+                column_name = 'a.motor_vehicle'
+            elif user_type == 'estacionario':
+                column_name = 'a.at_rest'
+            else:
+                # Default to total for all types
+                column_name = 'a.total'
+            
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 11) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT  SUM({column_name}) as total_users
+            FROM blackprint_db_prd.presentation.dataset_mobility_data_v2 a
+            INNER JOIN h3_index b ON a.h3_index = b.h3_value
+            """
+        else:
+            # Queretaro uses stg_data_movilidad_por_hora_qro with total_usuarios_unicos column
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 10) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT  SUM(a.total_usuarios_unicos) as total_users
+            FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
+            INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+            {user_type_condition}
+            """
         return query
 
-    def build_h3_traffic_summary_query(self, lat, lng, radius):
+    def build_h3_traffic_summary_query(self, lat, lng, radius, config_city='queretaro'):
         """Build SQL query for H3 traffic summary with aggregated data."""
-        query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
-        )
-        SELECT 
-            COUNT(DISTINCT a.h3_index) as unique_h3_count,
-            SUM(a.total_usuarios_unicos) as total_unique_users,
-            ROUND(CAST(SUM(a.total_usuarios_unicos) AS DECIMAL) / CAST(COUNT(DISTINCT a.h3_index) AS DECIMAL), 2) as avg_users_per_h3
-        FROM blackprint_db_prd.staging.stg_data_movilidad_por_dia_qro a
-        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
-        """
+        if config_city == 'mexico':
+            # Mexico City uses dataset_mobility_data_v2 with pedestrian/motor_vehicle/at_rest/total columns
+            # Use total column for H3 summary (aggregated across all mobility types)
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 11) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT 
+                COUNT(DISTINCT a.h3_index) as unique_h3_count,
+                SUM(a.total) as total_unique_users,
+                ROUND(CAST(SUM(a.total) AS DECIMAL) / CAST(COUNT(DISTINCT a.h3_index) AS DECIMAL), 2) as avg_users_per_h3
+            FROM blackprint_db_prd.presentation.dataset_mobility_data_v2 a
+            INNER JOIN h3_index b ON a.h3_index = b.h3_value
+            """
+        else:
+            # Queretaro uses stg_data_movilidad_por_dia_qro with total_usuarios_unicos column
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 10) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT 
+                COUNT(DISTINCT a.h3_index) as unique_h3_count,
+                SUM(a.total_usuarios_unicos) as total_unique_users,
+                ROUND(CAST(SUM(a.total_usuarios_unicos) AS DECIMAL) / CAST(COUNT(DISTINCT a.h3_index) AS DECIMAL), 2) as avg_users_per_h3
+            FROM blackprint_db_prd.staging.stg_data_movilidad_por_dia_qro a
+            INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+            """
         return query
 
     def build_population_query(self, lat, lng, radius, config_city='queretaro'):
@@ -178,21 +344,21 @@ class AreaAnalysisQuery:
             )
             """
         else:
-            # For Mexico City (CDMX)
+            # For Mexico City (CDMX) - use v_parcel_v3 table with correct column names
             query = f"""
             SELECT 
                 SUM(d.pobtot) as total_population,
                 MAX(d.pobtot_alcaldia) as municipality_population,
-                MAX(d.cve_mun) as municipality_code,
-                MAX(d.nom_mun) as municipality_name
+                MAX(d.municipality_code) as municipality_code,
+                MAX(d.municipality_nm) as municipality_name
             FROM blackprint_db_prd.data_product.v_parcel_v3 d
             WHERE d.centroid IS NOT NULL
             AND d.centroid != ''
             AND ST_DWithin(
                 ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857),
                 ST_Transform(ST_SetSRID(ST_MakePoint(
-                    CAST(SPLIT_PART(d.centroid, ',', 2) AS FLOAT),
-                    CAST(SPLIT_PART(d.centroid, ',', 1) AS FLOAT)
+                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '0') AS FLOAT),
+                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '1') AS FLOAT)
                 ), 4326), 3857),
                 {radius}
             )
@@ -276,7 +442,7 @@ class AreaAnalysisQuery:
                 d.ses_e as pct_viv_e,
                 d.graproes as education_level,
                 d.neighborhood,
-                d.nom_mun as municipality
+                d.municipality_nm as municipality
             FROM blackprint_db_prd.data_product.v_parcel_v3 d
             WHERE d.centroid IS NOT NULL
             AND d.centroid != ''
@@ -408,7 +574,7 @@ class AreaAnalysisQuery:
               MAX(d.neighborhood) as neighborhood,       -- Neighborhood name
               MAX(d.predominant_level) as predominant_level, -- Predominant socioeconomic level
               MAX(d.ageb_code) as ageb_code,         -- Block code (AGEB)
-              MAX(d.nom_mun) as nom_mun,            -- Municipality name
+              MAX(d.municipality_nm) as nom_mun,            -- Municipality name
               MAX(d.municipality_code) as municipality_code,  -- Municipality code
               MAX(d.municipality_nm) as municipality_nm,    -- Municipality name (duplicate)
               MAX(d.centroid) as centroid,          -- Geographic centroid coordinates
@@ -524,8 +690,8 @@ class AreaAnalysisQuery:
         AND ST_Intersects(
             ST_SetSRID(
                 ST_MakePoint(
-                    CAST(SPLIT_PART(REPLACE(REPLACE(d.centroid, '{{"type":"Point","coordinates":[', ''), ']}}', ''), ',', 1) AS FLOAT),
-                    CAST(SPLIT_PART(REPLACE(REPLACE(d.centroid, '{{"type":"Point","coordinates":[', ''), ']}}', ''), ',', 2) AS FLOAT)
+                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '0') AS FLOAT),
+                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '1') AS FLOAT)
                 ), 
                 4326
             ),

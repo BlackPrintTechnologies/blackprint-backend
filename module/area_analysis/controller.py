@@ -14,7 +14,7 @@ class AreaAnalysisController:
         self.redshift_db = RedshiftDatabase()
         self.query_builder = AreaAnalysisQuery()
 
-    def get_traffic_by_day(self, lat, lng, radius=2000, user_type=None):
+    def get_traffic_by_day(self, lat, lng, radius=2000, user_type=None, config_city='queretaro'):
         """
         Get traffic data aggregated by day of the week within a specified radius.
         
@@ -23,6 +23,7 @@ class AreaAnalysisController:
             lng (float): Longitude of the center point
             radius (int): Radius in meters (default: 2000)
             user_type (str): User type filter ('estacionario', 'vehiculo', 'peaton') or None for all
+            config_city (str): City configuration - 'queretaro' or 'mexico'
             
         Returns:
             dict: Response with traffic data by day
@@ -34,7 +35,7 @@ class AreaAnalysisController:
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            query = self.query_builder.build_traffic_by_day_query(lat, lng, radius, user_type)
+            query = self.query_builder.build_traffic_by_day_query(lat, lng, radius, user_type, config_city)
             logger.info(f"Traffic by day query: {query}")
             
             cursor.execute(query)
@@ -99,7 +100,7 @@ class AreaAnalysisController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    def get_traffic_by_hour(self, lat, lng, radius=2000, user_type=None):
+    def get_traffic_by_hour(self, lat, lng, radius=2000, user_type=None, config_city='queretaro'):
         """
         Get traffic data aggregated by hour of the day within a specified radius.
         
@@ -108,6 +109,7 @@ class AreaAnalysisController:
             lng (float): Longitude of the center point
             radius (int): Radius in meters (default: 2000)
             user_type (str): User type filter ('estacionario', 'vehiculo', 'peaton') or None for all
+            config_city (str): City configuration - 'queretaro' or 'mexico'
             
         Returns:
             dict: Response with traffic data by hour
@@ -119,7 +121,7 @@ class AreaAnalysisController:
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            query = self.query_builder.build_traffic_by_hour_query(lat, lng, radius, user_type)
+            query = self.query_builder.build_traffic_by_hour_query(lat, lng, radius, user_type, config_city)
             logger.info(f"Traffic by hour query: {query}")
             
             cursor.execute(query)
@@ -174,7 +176,7 @@ class AreaAnalysisController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    def get_traffic_summary(self, lat, lng, radius=2000, user_type=None):
+    def get_traffic_summary(self, lat, lng, radius=2000, user_type=None, config_city='queretaro'):
         """
         Get total traffic summary within a specified radius.
         
@@ -183,6 +185,7 @@ class AreaAnalysisController:
             lng (float): Longitude of the center point
             radius (int): Radius in meters (default: 2000)
             user_type (str): User type filter ('estacionario', 'vehiculo', 'peaton') or None for all
+            config_city (str): City configuration - 'queretaro' or 'mexico'
             
         Returns:
             dict: Response with total traffic summary
@@ -194,7 +197,7 @@ class AreaAnalysisController:
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            query = self.query_builder.build_traffic_summary_query(lat, lng, radius, user_type)
+            query = self.query_builder.build_traffic_summary_query(lat, lng, radius, user_type, config_city)
             logger.info(f"Traffic summary query: {query}")
             
             cursor.execute(query)
@@ -285,7 +288,7 @@ class AreaAnalysisController:
             
             # Get traffic data for each user type directly from database
             for user_type in user_types:
-                query = self.query_builder.build_traffic_summary_query(lat, lng, radius, user_type)
+                query = self.query_builder.build_traffic_summary_query(lat, lng, radius, user_type, config_city)
                 logger.info(f"Executing query for {user_type}: {query}")
                 
                 cursor.execute(query)
@@ -363,7 +366,7 @@ class AreaAnalysisController:
             }
             
             try:
-                h3_traffic_query = self.query_builder.build_h3_traffic_summary_query(lat, lng, radius)
+                h3_traffic_query = self.query_builder.build_h3_traffic_summary_query(lat, lng, radius, config_city)
                 logger.info(f"Executing H3 traffic summary query: {h3_traffic_query}")
                 
                 cursor.execute(h3_traffic_query)
@@ -542,7 +545,7 @@ class AreaAnalysisController:
             # Get hourly data for each user type
             hourly_traffic = {}
             for user_type, user_type_english in user_types.items():
-                query = self.query_builder.build_traffic_by_hour_query(lat, lng, radius, user_type)
+                query = self.query_builder.build_traffic_by_hour_query(lat, lng, radius, user_type, config_city)
                 logger.info(f"Executing hourly query for {user_type}: {query}")
                 
                 cursor.execute(query)
@@ -600,7 +603,7 @@ class AreaAnalysisController:
             # Get daily data for each user type
             daily_traffic = {}
             for user_type, user_type_english in user_types.items():
-                query = self.query_builder.build_traffic_by_day_query(lat, lng, radius, user_type)
+                query = self.query_builder.build_traffic_by_day_query(lat, lng, radius, user_type, config_city)
                 logger.info(f"Executing daily query for {user_type}: {query}")
                 
                 cursor.execute(query)
