@@ -8,151 +8,317 @@ class AreaAnalysisQuery:
     def __init__(self):
         pass
     
-    def build_traffic_by_day_query(self, lat, lng, radius, user_type=None):
+    def build_traffic_by_day_query(self, lat, lng, radius, user_type=None, config_city='queretaro'):
         """Build SQL query for traffic data by day of the week."""
         user_type_condition = ""
         if user_type:
             user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
         
-        query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
-        )
-        SELECT  SUM(CASE WHEN a.dia_de_la_semana = 'Monday' THEN a.total_usuarios_unicos ELSE 0 END) AS monday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Tuesday' THEN a.total_usuarios_unicos ELSE 0 END) AS tuesday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Wednesday' THEN a.total_usuarios_unicos ELSE 0 END) AS wednesday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Thursday' THEN a.total_usuarios_unicos ELSE 0 END) AS thursday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Friday' THEN a.total_usuarios_unicos ELSE 0 END) AS friday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Saturday' THEN a.total_usuarios_unicos ELSE 0 END) AS saturday,
-                SUM(CASE WHEN a.dia_de_la_semana = 'Sunday' THEN a.total_usuarios_unicos ELSE 0 END) AS sunday
-        FROM blackprint_db_prd.staging.stg_data_movilidad_por_dia_qro a
-        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
-        {user_type_condition}
-        """
+        if config_city == 'mexico':
+            # Mexico City - aggregate hourly data by day of week using year/month/day columns
+            # Map user_type to appropriate column
+            if user_type == 'peaton':
+                column_name = 'a.pedestrian'
+            elif user_type == 'vehiculo':
+                column_name = 'a.motor_vehicle'
+            elif user_type == 'estacionario':
+                column_name = 'a.at_rest'
+            else:
+                # Default to total for all types
+                column_name = 'a.total'
+            
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 11) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT  SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 1 THEN {column_name} ELSE 0 END) AS monday,
+                    SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 2 THEN {column_name} ELSE 0 END) AS tuesday,
+                    SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 3 THEN {column_name} ELSE 0 END) AS wednesday,
+                    SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 4 THEN {column_name} ELSE 0 END) AS thursday,
+                    SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 5 THEN {column_name} ELSE 0 END) AS friday,
+                    SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 6 THEN {column_name} ELSE 0 END) AS saturday,
+                    SUM(CASE WHEN EXTRACT(DOW FROM DATE(a.year || '-' || LPAD(a.month::text, 2, '0') || '-' || LPAD(a.day::text, 2, '0'))) = 0 THEN {column_name} ELSE 0 END) AS sunday
+            FROM blackprint_db_prd.presentation.dataset_mobility_data_v2 a
+            INNER JOIN h3_index b ON a.h3_index = b.h3_value
+            """
+        else:
+            # Queretaro uses stg_data_movilidad_por_dia_qro with dia_de_la_semana column
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 10) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT  SUM(CASE WHEN a.dia_de_la_semana = 'Monday' THEN a.total_usuarios_unicos ELSE 0 END) AS monday,
+                    SUM(CASE WHEN a.dia_de_la_semana = 'Tuesday' THEN a.total_usuarios_unicos ELSE 0 END) AS tuesday,
+                    SUM(CASE WHEN a.dia_de_la_semana = 'Wednesday' THEN a.total_usuarios_unicos ELSE 0 END) AS wednesday,
+                    SUM(CASE WHEN a.dia_de_la_semana = 'Thursday' THEN a.total_usuarios_unicos ELSE 0 END) AS thursday,
+                    SUM(CASE WHEN a.dia_de_la_semana = 'Friday' THEN a.total_usuarios_unicos ELSE 0 END) AS friday,
+                    SUM(CASE WHEN a.dia_de_la_semana = 'Saturday' THEN a.total_usuarios_unicos ELSE 0 END) AS saturday,
+                    SUM(CASE WHEN a.dia_de_la_semana = 'Sunday' THEN a.total_usuarios_unicos ELSE 0 END) AS sunday
+            FROM blackprint_db_prd.staging.stg_data_movilidad_por_dia_qro a
+            INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+            {user_type_condition}
+            """
         return query
 
-    def build_traffic_by_hour_query(self, lat, lng, radius, user_type=None):
+    def build_traffic_by_hour_query(self, lat, lng, radius, user_type=None, config_city='queretaro'):
         """Build SQL query for traffic data by hour of the day."""
         user_type_condition = ""
         if user_type:
             user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
         
-        query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
-        )
-        SELECT  SUM(CASE WHEN a.hour = 0 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_0,
-                SUM(CASE WHEN a.hour = 1 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_1,
-                SUM(CASE WHEN a.hour = 2 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_2,
-                SUM(CASE WHEN a.hour = 3 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_3,
-                SUM(CASE WHEN a.hour = 4 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_4,
-                SUM(CASE WHEN a.hour = 5 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_5,
-                SUM(CASE WHEN a.hour = 6 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_6,
-                SUM(CASE WHEN a.hour = 7 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_7,
-                SUM(CASE WHEN a.hour = 8 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_8,
-                SUM(CASE WHEN a.hour = 9 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_9,
-                SUM(CASE WHEN a.hour = 10 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_10,
-                SUM(CASE WHEN a.hour = 11 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_11,
-                SUM(CASE WHEN a.hour = 12 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_12,
-                SUM(CASE WHEN a.hour = 13 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_13,
-                SUM(CASE WHEN a.hour = 14 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_14,
-                SUM(CASE WHEN a.hour = 15 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_15,
-                SUM(CASE WHEN a.hour = 16 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_16,
-                SUM(CASE WHEN a.hour = 17 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_17,
-                SUM(CASE WHEN a.hour = 18 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_18,
-                SUM(CASE WHEN a.hour = 19 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_19,
-                SUM(CASE WHEN a.hour = 20 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_20,
-                SUM(CASE WHEN a.hour = 21 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_21,
-                SUM(CASE WHEN a.hour = 22 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_22,
-                SUM(CASE WHEN a.hour = 23 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_23
-        FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
-        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
-        {user_type_condition}
-        """
+        if config_city == 'mexico':
+            # Mexico City uses dataset_mobility_data_v2 with pedestrian/motor_vehicle/at_rest/total columns
+            # Map user_type to appropriate column
+            if user_type == 'peaton':
+                column_name = 'a.pedestrian'
+            elif user_type == 'vehiculo':
+                column_name = 'a.motor_vehicle'
+            elif user_type == 'estacionario':
+                column_name = 'a.at_rest'
+            else:
+                # Default to total for all types
+                column_name = 'a.total'
+            
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 11) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT  SUM(CASE WHEN a.hour = 0 THEN {column_name} ELSE 0 END) AS hour_0,
+                    SUM(CASE WHEN a.hour = 1 THEN {column_name} ELSE 0 END) AS hour_1,
+                    SUM(CASE WHEN a.hour = 2 THEN {column_name} ELSE 0 END) AS hour_2,
+                    SUM(CASE WHEN a.hour = 3 THEN {column_name} ELSE 0 END) AS hour_3,
+                    SUM(CASE WHEN a.hour = 4 THEN {column_name} ELSE 0 END) AS hour_4,
+                    SUM(CASE WHEN a.hour = 5 THEN {column_name} ELSE 0 END) AS hour_5,
+                    SUM(CASE WHEN a.hour = 6 THEN {column_name} ELSE 0 END) AS hour_6,
+                    SUM(CASE WHEN a.hour = 7 THEN {column_name} ELSE 0 END) AS hour_7,
+                    SUM(CASE WHEN a.hour = 8 THEN {column_name} ELSE 0 END) AS hour_8,
+                    SUM(CASE WHEN a.hour = 9 THEN {column_name} ELSE 0 END) AS hour_9,
+                    SUM(CASE WHEN a.hour = 10 THEN {column_name} ELSE 0 END) AS hour_10,
+                    SUM(CASE WHEN a.hour = 11 THEN {column_name} ELSE 0 END) AS hour_11,
+                    SUM(CASE WHEN a.hour = 12 THEN {column_name} ELSE 0 END) AS hour_12,
+                    SUM(CASE WHEN a.hour = 13 THEN {column_name} ELSE 0 END) AS hour_13,
+                    SUM(CASE WHEN a.hour = 14 THEN {column_name} ELSE 0 END) AS hour_14,
+                    SUM(CASE WHEN a.hour = 15 THEN {column_name} ELSE 0 END) AS hour_15,
+                    SUM(CASE WHEN a.hour = 16 THEN {column_name} ELSE 0 END) AS hour_16,
+                    SUM(CASE WHEN a.hour = 17 THEN {column_name} ELSE 0 END) AS hour_17,
+                    SUM(CASE WHEN a.hour = 18 THEN {column_name} ELSE 0 END) AS hour_18,
+                    SUM(CASE WHEN a.hour = 19 THEN {column_name} ELSE 0 END) AS hour_19,
+                    SUM(CASE WHEN a.hour = 20 THEN {column_name} ELSE 0 END) AS hour_20,
+                    SUM(CASE WHEN a.hour = 21 THEN {column_name} ELSE 0 END) AS hour_21,
+                    SUM(CASE WHEN a.hour = 22 THEN {column_name} ELSE 0 END) AS hour_22,
+                    SUM(CASE WHEN a.hour = 23 THEN {column_name} ELSE 0 END) AS hour_23
+            FROM blackprint_db_prd.presentation.dataset_mobility_data_v2 a
+            INNER JOIN h3_index b ON a.h3_index = b.h3_value
+            """
+        else:
+            # Queretaro uses stg_data_movilidad_por_hora_qro with total_usuarios_unicos column
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 10) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT  SUM(CASE WHEN a.hour = 0 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_0,
+                    SUM(CASE WHEN a.hour = 1 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_1,
+                    SUM(CASE WHEN a.hour = 2 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_2,
+                    SUM(CASE WHEN a.hour = 3 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_3,
+                    SUM(CASE WHEN a.hour = 4 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_4,
+                    SUM(CASE WHEN a.hour = 5 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_5,
+                    SUM(CASE WHEN a.hour = 6 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_6,
+                    SUM(CASE WHEN a.hour = 7 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_7,
+                    SUM(CASE WHEN a.hour = 8 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_8,
+                    SUM(CASE WHEN a.hour = 9 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_9,
+                    SUM(CASE WHEN a.hour = 10 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_10,
+                    SUM(CASE WHEN a.hour = 11 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_11,
+                    SUM(CASE WHEN a.hour = 12 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_12,
+                    SUM(CASE WHEN a.hour = 13 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_13,
+                    SUM(CASE WHEN a.hour = 14 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_14,
+                    SUM(CASE WHEN a.hour = 15 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_15,
+                    SUM(CASE WHEN a.hour = 16 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_16,
+                    SUM(CASE WHEN a.hour = 17 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_17,
+                    SUM(CASE WHEN a.hour = 18 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_18,
+                    SUM(CASE WHEN a.hour = 19 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_19,
+                    SUM(CASE WHEN a.hour = 20 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_20,
+                    SUM(CASE WHEN a.hour = 21 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_21,
+                    SUM(CASE WHEN a.hour = 22 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_22,
+                    SUM(CASE WHEN a.hour = 23 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_23
+            FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
+            INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+            {user_type_condition}
+            """
         return query
 
-    def build_traffic_summary_query(self, lat, lng, radius, user_type=None):
+    def build_traffic_summary_query(self, lat, lng, radius, user_type=None, config_city='queretaro'):
         """Build SQL query for total traffic summary."""
         user_type_condition = ""
         if user_type:
             user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
         
-        query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
-        )
-        SELECT  SUM(a.total_usuarios_unicos) as total_users
-        FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
-        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
-        {user_type_condition}
-        """
+        if config_city == 'mexico':
+            # Mexico City uses dataset_mobility_data_v2 with pedestrian/motor_vehicle/at_rest/total columns
+            # Map user_type to appropriate column
+            if user_type == 'peaton':
+                column_name = 'a.pedestrian'
+            elif user_type == 'vehiculo':
+                column_name = 'a.motor_vehicle'
+            elif user_type == 'estacionario':
+                column_name = 'a.at_rest'
+            else:
+                # Default to total for all types
+                column_name = 'a.total'
+            
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 11) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT  SUM({column_name}) as total_users
+            FROM blackprint_db_prd.presentation.dataset_mobility_data_v2 a
+            INNER JOIN h3_index b ON a.h3_index = b.h3_value
+            """
+        else:
+            # Queretaro uses stg_data_movilidad_por_hora_qro with total_usuarios_unicos column
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 10) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT  SUM(a.total_usuarios_unicos) as total_users
+            FROM blackprint_db_prd.staging.stg_data_movilidad_por_hora_qro a
+            INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+            {user_type_condition}
+            """
         return query
 
-    def build_h3_traffic_summary_query(self, lat, lng, radius):
+    def build_h3_traffic_summary_query(self, lat, lng, radius, config_city='queretaro'):
         """Build SQL query for H3 traffic summary with aggregated data."""
-        query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        h3_values AS (
-          SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
-        )
-        SELECT 
-            COUNT(DISTINCT a.h3_index) as unique_h3_count,
-            SUM(a.total_usuarios_unicos) as total_unique_users,
-            ROUND(CAST(SUM(a.total_usuarios_unicos) AS DECIMAL) / CAST(COUNT(DISTINCT a.h3_index) AS DECIMAL), 2) as avg_users_per_h3
-        FROM blackprint_db_prd.staging.stg_data_movilidad_por_dia_qro a
-        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
-        """
+        if config_city == 'mexico':
+            # Mexico City uses dataset_mobility_data_v2 with pedestrian/motor_vehicle/at_rest/total columns
+            # Use total column for H3 summary (aggregated across all mobility types)
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 11) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT 
+                COUNT(DISTINCT a.h3_index) as unique_h3_count,
+                SUM(a.total) as total_unique_users,
+                ROUND(CAST(SUM(a.total) AS DECIMAL) / CAST(COUNT(DISTINCT a.h3_index) AS DECIMAL), 2) as avg_users_per_h3
+            FROM blackprint_db_prd.presentation.dataset_mobility_data_v2 a
+            INNER JOIN h3_index b ON a.h3_index = b.h3_value
+            """
+        else:
+            # Queretaro uses stg_data_movilidad_por_dia_qro with total_usuarios_unicos column
+            query = f"""
+            WITH point_geom AS (
+              SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+              SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+              SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+              SELECT H3_Polyfill(ST_Transform(geom, 4326), 10) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            )
+            SELECT 
+                COUNT(DISTINCT a.h3_index) as unique_h3_count,
+                SUM(a.total_usuarios_unicos) as total_unique_users,
+                ROUND(CAST(SUM(a.total_usuarios_unicos) AS DECIMAL) / CAST(COUNT(DISTINCT a.h3_index) AS DECIMAL), 2) as avg_users_per_h3
+            FROM blackprint_db_prd.staging.stg_data_movilidad_por_dia_qro a
+            INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+            """
         return query
 
     def build_population_query(self, lat, lng, radius, config_city='queretaro'):
@@ -178,21 +344,21 @@ class AreaAnalysisQuery:
             )
             """
         else:
-            # For Mexico City (CDMX)
+            # For Mexico City (CDMX) - use v_parcel_v3 table with correct column names
             query = f"""
             SELECT 
                 SUM(d.pobtot) as total_population,
                 MAX(d.pobtot_alcaldia) as municipality_population,
-                MAX(d.cve_mun) as municipality_code,
-                MAX(d.nom_mun) as municipality_name
+                MAX(d.municipality_code) as municipality_code,
+                MAX(d.municipality_nm) as municipality_name
             FROM blackprint_db_prd.data_product.v_parcel_v3 d
             WHERE d.centroid IS NOT NULL
             AND d.centroid != ''
             AND ST_DWithin(
                 ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857),
                 ST_Transform(ST_SetSRID(ST_MakePoint(
-                    CAST(SPLIT_PART(d.centroid, ',', 2) AS FLOAT),
-                    CAST(SPLIT_PART(d.centroid, ',', 1) AS FLOAT)
+                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '0') AS FLOAT),
+                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '1') AS FLOAT)
                 ), 4326), 3857),
                 {radius}
             )
@@ -276,7 +442,7 @@ class AreaAnalysisQuery:
                 d.ses_e as pct_viv_e,
                 d.graproes as education_level,
                 d.neighborhood,
-                d.nom_mun as municipality
+                d.municipality_nm as municipality
             FROM blackprint_db_prd.data_product.v_parcel_v3 d
             WHERE d.centroid IS NOT NULL
             AND d.centroid != ''
@@ -287,242 +453,286 @@ class AreaAnalysisQuery:
 
     def build_mexico_demographics_query(self, lat, lng, radius):
         """
-        Build optimized Mexico City demographics query using accurate spatial filtering.
-        Uses PostGIS ST_Buffer with proper coordinate system transformations for precise radius filtering.
+        Build optimized Mexico City demographics query with all aggregations included.
+        This query performs all the aggregations at the database level, providing better 
+        control and performance by doing calculations in SQL rather than in the controller.
+        Matches the structure of the Queretaro demographics query.
         """
         query = f"""
-        WITH point_geom AS (
-          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
-        ),
-        point_projected AS (
-          SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
-        ),
-        buffered AS (
-          SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
-        ),
-        buffered_4326 AS (
-          SELECT ST_Transform(geom, 4326) AS geom FROM buffered
-        )
+        WITH demographic_data AS (
         SELECT 
-            -- General demographic data
-            d.neighborhood,
-            d.predominant_level,
-            d.ageb_code,
-            d.vivtot,
-            d.prom_ocup,
-            d.pro_ocup_c,
-            
-            -- Colonia level data
-            d.vivtot_colonia,
-            d.prom_ocup_colonia,
-            d.pro_ocup_c_colonia,
-            
-            -- Alcaldia level data
-            d.nom_mun,
-            d.vivtot_alcaldia,
-            d.prom_ocup_alcaldia,
-            d.pro_ocup_c_alcaldia,
-            
-            -- Socioeconomic data - Block level
-            d.ses_ab,
-            d.ses_c_plus,
-            d.ses_c,
-            d.ses_c_minus,
-            d.ses_d,
-            d.ses_d_plus,
-            d.ses_e,
-            
-            -- Socioeconomic data - Colonia level
-            d.ses_ab_colonia,
-            d.ses_c_plus_colonia,
-            d.ses_c_colonia,
-            d.ses_c_minus_colonia,
-            d.ses_d_colonia,
-            d.ses_d_plus_colonia,
-            d.ses_e_colonia,
-            
-            -- Socioeconomic data - Alcaldia level
-            d.ses_ab_alcaldia,
-            d.ses_c_plus_alcaldia,
-            d.ses_c_alcaldia,
-            d.ses_c_minus_alcaldia,
-            d.ses_d_alcaldia,
-            d.ses_d_plus_alcaldia,
-            d.ses_e_alcaldia,
-            
-            -- Population data - Block level
-            (d.pobmas_alcaldia + d.pobfem_alcaldia) as pobtot,
-            d.pobmas,
-            d.pobfem,
-            
-            -- Population data - Colonia level
-            d.pobtot_colonia,
-            d.pobmas_colonia,
-            d.pobfem_colonia,
-            
-            -- Population data - Alcaldia level
-            d.pobtot_alcaldia,
-            d.pobmas_alcaldia,
-            d.pobfem_alcaldia,
-            
-            -- Education data - Block level
-            d.p_3a5,
-            d.p_6a11,
-            d.p_12a14,
-            d.p_15a17,
-            d.p_18a24,
-            d.p3a5_noa,
-            d.p6a11_noa,
-            d.p12a14noa,
-            d.p15a17a,
-            d.p18a24a,
-            
-            -- Gender-specific age data for age pyramid
-            d.p_0a2,
-            d.p_0a2_f,
-            d.p_0a2_m,
-            d.p_3a5_f,
-            d.p_3a5_m,
-            d.p_6a11_f,
-            d.p_6a11_m,
-            d.p_12a14_f,
-            d.p_12a14_m,
-            d.p_15a17_f,
-            d.p_15a17_m,
-            d.p_18a24_f,
-            d.p_18a24_m,
-            d.p_60ymas,
-            d.p_60ymas_f,
-            d.p_60ymas_m,
-            
-            -- Education data - Colonia level
-            d.p_3a5_colonia,
-            d.p_6a11_colonia,
-            d.p_12a14_colonia,
-            d.p_15a17_colonia,
-            d.p_18a24_colonia,
-            d.p3a5_noa_colonia,
-            d.p6a11_noa_colonia,
-            d.p12a14noa_colonia,
-            d.p15a17a_colonia,
-            d.p18a24a_colonia,
-            
-            -- Education data - Alcaldia level
-            d.p_3a5_alcaldia,
-            d.p_6a11_alcaldia,
-            d.p_12a14_alcaldia,
-            d.p_15a17_alcaldia,
-            d.p_18a24_alcaldia,
-            d.p3a5_noa_alcaldia,
-            d.p6a11_noa_alcaldia,
-            d.p12a14noa_alcaldia,
-            d.p15a17a_alcaldia,
-            d.p18a24a_alcaldia,
-            
-            -- Workforce data - Block level
-            d.pea,
-            d.pea_m,
-            d.pea_f,
-            d.pe_inac,
-            d.pe_inac_m,
-            d.pe_inac_f,
-            
-            -- Workforce data - Colonia level
-            d.pea_colonia,
-            d.pea_m_colonia,
-            d.pea_f_colonia,
-            d.pe_inac_colonia,
-            d.pe_inac_m_colonia,
-            d.pe_inac_f_colonia,
-            
-            -- Workforce data - Alcaldia level
-            d.pea_alcaldia,
-            d.pea_m_alcaldia,
-            d.pea_f_alcaldia,
-            d.pe_inac_alcaldia,
-            d.pe_inac_m_alcaldia,
-            d.pe_inac_f_alcaldia,
-            
-            -- Employment data - Block level
-            d.pocupada,
-            d.pocupada_m,
-            d.pocupada_f,
-            d.pdesocup,
-            d.pdesocup_m,
-            d.pdesocup_f,
-            
-            -- Employment data - Colonia level
-            d.pocupada_colonia,
-            d.pocupada_m_colonia,
-            d.pocupada_f_colonia,
-            d.pdesocup_colonia,
-            d.pdesocup_m_colonia,
-            d.pdesocup_f_colonia,
-            
-            -- Employment data - Alcaldia level
-            d.pocupada_alcaldia,
-            d.pocupada_m_alcaldia,
-            d.pocupada_f_alcaldia,
-            d.pdesocup_alcaldia,
-            d.pdesocup_m_alcaldia,
-            d.pdesocup_f_alcaldia,
-            
-            -- Population growth data - Block level
-            d.pob_2000_ageb,
-            d.pob_2005_ageb,
-            d.pob_2010_ageb,
-            d.pob_2015_ageb,
-            d.pob_2020_ageb,
-            d.cambio_porcentual_2005_ageb,
-            d.cambio_porcentual_2010_ageb,
-            d.cambio_porcentual_2015_ageb,
-            d.cambio_porcentual_2020_ageb,
-            
-            -- Population growth data - Colonia level
-            d.pob_2000_entidad,
-            d.pob_2005_entidad,
-            d.pob_2010_entidad,
-            d.pob_2015_entidad,
-            d.pob_2020_entidad,
-            d.cambio_porcentual_2005_entidad,
-            d.cambio_porcentual_2010_entidad,
-            d.cambio_porcentual_2015_entidad,
-            d.cambio_porcentual_2020_entidad,
-            
-            -- Population growth data - Alcaldia level
-            d.pob_2000_municipal,
-            d.pob_2005_municipal,
-            d.pob_2010_municipal,
-            d.pob_2015_municipal,
-            d.pob_2020_municipal,
-            d.cambio_porcentual_2005_municipal,
-            d.cambio_porcentual_2010_municipal,
-            d.cambio_porcentual_2015_municipal,
-            d.cambio_porcentual_2020_municipal,
-            
-            -- Centroid for distance filtering
-            d.centroid,
-            
-            -- Area data for municipality calculation
-            d.total_area,
-            d.municipality_code,
-            d.municipality_nm
+              -- ===== WORKFORCE DATA (SUM across all records in radius) =====
+              SUM(d.pea) as pea,                    -- Total economically active population
+              SUM(d.pea_m) as pea_m,                -- Total economically active male population
+              SUM(d.pea_f) as pea_f,                -- Total economically active female population
+              SUM(d.pe_inac) as pe_inac,            -- Total economically inactive population
+              SUM(d.pe_inac_m) as pe_inac_m,        -- Total economically inactive male population
+              SUM(d.pe_inac_f) as pe_inac_f,        -- Total economically inactive female population
+              
+              -- ===== EMPLOYMENT DATA (SUM across all records in radius) =====
+              SUM(d.pocupada) as pocupada,          -- Total employed population
+              SUM(d.pocupada_m) as pocupada_m,      -- Total employed male population
+              SUM(d.pocupada_f) as pocupada_f,      -- Total employed female population
+              SUM(d.pdesocup) as pdesocup,          -- Total unemployed population
+              SUM(d.pdesocup_m) as pdesocup_m,      -- Total unemployed male population
+              SUM(d.pdesocup_f) as pdesocup_f,      -- Total unemployed female population
+              
+              -- ===== EDUCATION DATA (SUM across all records in radius) =====
+              SUM(d.p_3a5) as p_3a5,                -- Population aged 3-5 years
+              SUM(d.p_6a11) as p_6a11,              -- Population aged 6-11 years
+              SUM(d.p_12a14) as p_12a14,            -- Population aged 12-14 years
+              SUM(d.p_15a17) as p_15a17,            -- Population aged 15-17 years
+              SUM(d.p_18a24) as p_18a24,            -- Population aged 18-24 years
+              SUM(d.p_60ymas) as p_60ymas,          -- Population aged 60+ years
+              SUM(d.p3a5_noa) as p3a5_noa,          -- Population aged 3-5 not attending school
+              SUM(d.p6a11_noa) as p6a11_noa,        -- Population aged 6-11 not attending school
+              SUM(d.p12a14noa) as p12a14noa,        -- Population aged 12-14 not attending school
+              SUM(d.p15a17a) as p15a17a,            -- Population aged 15-17 attending school
+              SUM(d.p18a24a) as p18a24a,            -- Population aged 18-24 attending school
+              
+              -- ===== AGE PYRAMID DATA (Block-level totals) =====
+              SUM(d.p_0a2) as p_0a2,                -- Population aged 0-2 years (block level)
+              SUM(d.p_0a2_f) as p_0a2_f,            -- Female population aged 0-2 years
+              SUM(d.p_0a2_m) as p_0a2_m,            -- Male population aged 0-2 years
+              SUM(d.p_3a5) as p_3a5,                -- Population aged 3-5 years (block level)
+              SUM(d.p_3a5_f) as p_3a5_f,            -- Female population aged 3-5 years
+              SUM(d.p_3a5_m) as p_3a5_m,            -- Male population aged 3-5 years
+              SUM(d.p_6a11) as p_6a11,              -- Population aged 6-11 years (block level)
+              SUM(d.p_6a11_f) as p_6a11_f,          -- Female population aged 6-11 years
+              SUM(d.p_6a11_m) as p_6a11_m,          -- Male population aged 6-11 years
+              SUM(d.p_12a14) as p_12a14,            -- Population aged 12-14 years (block level)
+              SUM(d.p_12a14_f) as p_12a14_f,        -- Female population aged 12-14 years
+              SUM(d.p_12a14_m) as p_12a14_m,        -- Male population aged 12-14 years
+              SUM(d.p_15a17) as p_15a17,            -- Population aged 15-17 years (block level)
+              SUM(d.p_15a17_f) as p_15a17_f,        -- Female population aged 15-17 years
+              SUM(d.p_15a17_m) as p_15a17_m,        -- Male population aged 15-17 years
+              SUM(d.p_18a24) as p_18a24,            -- Population aged 18-24 years (block level)
+              SUM(d.p_18a24_f) as p_18a24_f,        -- Female population aged 18-24 years
+              SUM(d.p_18a24_m) as p_18a24_m,        -- Male population aged 18-24 years
+              SUM(d.p_60ymas) as p_60ymas,          -- Population aged 60+ years (block level)
+              SUM(d.p_60ymas_f) as p_60ymas_f,      -- Female population aged 60+ years
+              SUM(d.p_60ymas_m) as p_60ymas_m,      -- Male population aged 60+ years
+              
+              -- Municipality-level gender ratios for proportional scaling (if block-level gender not available)
+              MAX(d.p_0a2_m_alcaldia) as p_0a2_m_alcaldia,   -- Male population aged 0-2 years (municipality)
+              MAX(d.p_0a2_f_alcaldia) as p_0a2_f_alcaldia,   -- Female population aged 0-2 years (municipality)
+              MAX(d.p_3a5_m_alcaldia) as p_3a5_m_alcaldia,   -- Male population aged 3-5 years (municipality)
+              MAX(d.p_3a5_f_alcaldia) as p_3a5_f_alcaldia,   -- Female population aged 3-5 years (municipality)
+              MAX(d.p_6a11_m_alcaldia) as p_6a11_m_alcaldia, -- Male population aged 6-11 years (municipality)
+              MAX(d.p_6a11_f_alcaldia) as p_6a11_f_alcaldia, -- Female population aged 6-11 years (municipality)
+              MAX(d.p_12a14_m_alcaldia) as p_12a14_m_alcaldia, -- Male population aged 12-14 years (municipality)
+              MAX(d.p_12a14_f_alcaldia) as p_12a14_f_alcaldia, -- Female population aged 12-14 years (municipality)
+              MAX(d.p_15a17_m_alcaldia) as p_15a17_m_alcaldia, -- Male population aged 15-17 years (municipality)
+              MAX(d.p_15a17_f_alcaldia) as p_15a17_f_alcaldia, -- Female population aged 15-17 years (municipality)
+              MAX(d.p_18a24_m_alcaldia) as p_18a24_m_alcaldia, -- Male population aged 18-24 years (municipality)
+              MAX(d.p_18a24_f_alcaldia) as p_18a24_f_alcaldia, -- Female population aged 18-24 years (municipality)
+              MAX(d.p_60ymas_m_alcaldia) as p_60ymas_m_alcaldia, -- Male population aged 60+ years (municipality)
+              MAX(d.p_60ymas_f_alcaldia) as p_60ymas_f_alcaldia, -- Female population aged 60+ years (municipality)
+              
+              -- Municipality-level totals for ratio calculation
+              MAX(d.p_0a2_alcaldia) as p_0a2_alcaldia,       -- Total population aged 0-2 years (municipality)
+              MAX(d.p_3a5_alcaldia) as p_3a5_alcaldia,       -- Total population aged 3-5 years (municipality)
+              MAX(d.p_6a11_alcaldia) as p_6a11_alcaldia,     -- Total population aged 6-11 years (municipality)
+              MAX(d.p_12a14_alcaldia) as p_12a14_alcaldia,   -- Total population aged 12-14 years (municipality)
+              MAX(d.p_15a17_alcaldia) as p_15a17_alcaldia,   -- Total population aged 15-17 years (municipality)
+              MAX(d.p_18a24_alcaldia) as p_18a24_alcaldia,   -- Total population aged 18-24 years (municipality)
+              MAX(d.p_60ymas_alcaldia) as p_60ymas_alcaldia, -- Total population aged 60+ years (municipality)
+              
+              -- ===== HISTORICAL POPULATION DATA (SUM across all records in radius) =====
+              SUM(d.pob_2000_ageb) as pob_2000_ageb, -- Population in 2000 (block level)
+              SUM(d.pob_2005_ageb) as pob_2005_ageb, -- Population in 2005 (block level)
+              SUM(d.pob_2010_ageb) as pob_2010_ageb, -- Population in 2010 (block level)
+              SUM(d.pob_2015_ageb) as pob_2015_ageb, -- Population in 2015 (block level)
+              SUM(d.pob_2020_ageb) as pob_2020_ageb, -- Population in 2020 (block level)
+              
+              -- ===== CURRENT POPULATION AND HOUSEHOLDS (Direct sum from block level) =====
+              SUM(d.vivtot) as vivtot,                    -- Total households in selected area
+              SUM(COALESCE(d.pobmas, 0) + COALESCE(d.pobfem, 0)) as pobtot,   -- Total population
+              SUM(COALESCE(d.pobmas, 0)) as pobmas,       -- Total male population
+              SUM(COALESCE(d.pobfem, 0)) as pobfem,       -- Total female population
+              
+              -- ===== SOCIOECONOMIC LEVELS (AVERAGE across all records) =====
+              AVG(d.ses_ab) as ses_ab,              -- Percentage of households in socioeconomic level AB (highest)
+              AVG(d.ses_c_plus) as ses_c_plus,      -- Percentage of households in socioeconomic level C+
+              AVG(d.ses_c) as ses_c,                -- Percentage of households in socioeconomic level C
+              AVG(d.ses_c_minus) as ses_c_minus,    -- Percentage of households in socioeconomic level C-
+              AVG(d.ses_d_plus) as ses_d_plus,      -- Percentage of households in socioeconomic level D+
+              AVG(d.ses_d) as ses_d,                -- Percentage of households in socioeconomic level D
+              AVG(d.ses_e) as ses_e,                -- Percentage of households in socioeconomic level E (lowest)
+              
+              -- ===== POPULATION GROWTH RATES (AVERAGE across all records) =====
+              AVG(d.cambio_porcentual_2005_ageb) as cambio_porcentual_2005_ageb, -- Population growth rate 2000-2005
+              AVG(d.cambio_porcentual_2010_ageb) as cambio_porcentual_2010_ageb, -- Population growth rate 2005-2010
+              AVG(d.cambio_porcentual_2015_ageb) as cambio_porcentual_2015_ageb, -- Population growth rate 2010-2015
+              AVG(d.cambio_porcentual_2020_ageb) as cambio_porcentual_2020_ageb, -- Population growth rate 2015-2020
+              
+              -- ===== HOUSEHOLD OCCUPANCY (AVERAGE across all records) =====
+              AVG(d.prom_ocup) as prom_ocup,        -- Average household occupancy
+              AVG(d.pro_ocup_c) as pro_ocup_c,      -- Average number of rooms per household
+              
+              -- ===== LOCATION IDENTIFIERS (from first record) =====
+              MAX(d.neighborhood) as neighborhood,       -- Neighborhood name
+              MAX(d.predominant_level) as predominant_level, -- Predominant socioeconomic level
+              MAX(d.ageb_code) as ageb_code,         -- Block code (AGEB)
+              MAX(d.municipality_nm) as nom_mun,            -- Municipality name
+              MAX(d.municipality_code) as municipality_code,  -- Municipality code
+              MAX(d.municipality_nm) as municipality_nm,    -- Municipality name (duplicate)
+              MAX(d.centroid) as centroid,          -- Geographic centroid coordinates
+              
+              -- ===== MUNICIPALITY LEVEL DATA (from first record - same for all records in same municipality) =====
+              MAX(d.pobtot_alcaldia) as pobtot_alcaldia,     -- Total population in municipality
+              MAX(d.pobmas_alcaldia) as pobmas_alcaldia,     -- Total male population in municipality
+              MAX(d.pobfem_alcaldia) as pobfem_alcaldia,     -- Total female population in municipality
+              MAX(d.vivtot_alcaldia) as vivtot_alcaldia,     -- Total households in municipality
+              MAX(d.pea_alcaldia) as pea_alcaldia,           -- Total economically active population in municipality
+              MAX(d.pea_m_alcaldia) as pea_m_alcaldia,       -- Total economically active male population in municipality
+              MAX(d.pea_f_alcaldia) as pea_f_alcaldia,       -- Total economically active female population in municipality
+              MAX(d.pe_inac_alcaldia) as pe_inac_alcaldia,   -- Total economically inactive population in municipality
+              MAX(d.pe_inac_m_alcaldia) as pe_inac_m_alcaldia, -- Total economically inactive male population in municipality
+              MAX(d.pe_inac_f_alcaldia) as pe_inac_f_alcaldia, -- Total economically inactive female population in municipality
+              MAX(d.pocupada_alcaldia) as pocupada_alcaldia, -- Total employed population in municipality
+              MAX(d.pocupada_m_alcaldia) as pocupada_m_alcaldia, -- Total employed male population in municipality
+              MAX(d.pocupada_f_alcaldia) as pocupada_f_alcaldia, -- Total employed female population in municipality
+              MAX(d.pdesocup_alcaldia) as pdesocup_alcaldia, -- Total unemployed population in municipality
+              MAX(d.pdesocup_m_alcaldia) as pdesocup_m_alcaldia, -- Total unemployed male population in municipality
+              MAX(d.pdesocup_f_alcaldia) as pdesocup_f_alcaldia, -- Total unemployed female population in municipality
+              
+              -- ===== MUNICIPALITY LEVEL EDUCATION DATA =====
+              MAX(d.p_3a5_alcaldia) as p_3a5_alcaldia,       -- Population aged 3-5 in municipality
+              MAX(d.p_6a11_alcaldia) as p_6a11_alcaldia,     -- Population aged 6-11 in municipality
+              MAX(d.p_12a14_alcaldia) as p_12a14_alcaldia,   -- Population aged 12-14 in municipality
+              MAX(d.p_15a17_alcaldia) as p_15a17_alcaldia,   -- Population aged 15-17 in municipality
+              MAX(d.p_18a24_alcaldia) as p_18a24_alcaldia,   -- Population aged 18-24 in municipality
+              MAX(d.p3a5_noa_alcaldia) as p3a5_noa_alcaldia, -- Population aged 3-5 not attending school in municipality
+              MAX(d.p6a11_noa_alcaldia) as p6a11_noa_alcaldia, -- Population aged 6-11 not attending school in municipality
+              MAX(d.p12a14noa_alcaldia) as p12a14noa_alcaldia, -- Population aged 12-14 not attending school in municipality
+              MAX(d.p15a17a_alcaldia) as p15a17a_alcaldia,   -- Population aged 15-17 attending school in municipality
+              MAX(d.p18a24a_alcaldia) as p18a24a_alcaldia,   -- Population aged 18-24 attending school in municipality
+              
+              -- ===== MUNICIPALITY LEVEL HISTORICAL DATA =====
+              MAX(d.pob_2000_municipal) as pob_2000_municipal, -- Population in 2000 (municipality level)
+              MAX(d.pob_2005_municipal) as pob_2005_municipal, -- Population in 2005 (municipality level)
+              MAX(d.pob_2010_municipal) as pob_2010_municipal, -- Population in 2010 (municipality level)
+              MAX(d.pob_2015_municipal) as pob_2015_municipal, -- Population in 2015 (municipality level)
+              MAX(d.pob_2020_municipal) as pob_2020_municipal, -- Population in 2020 (municipality level)
+              MAX(d.prom_ocup_alcaldia) as prom_ocup_alcaldia, -- Average household occupancy in municipality
+              MAX(d.pro_ocup_c_alcaldia) as pro_ocup_c_alcaldia, -- Average number of rooms per household in municipality
+              
+              -- ===== MUNICIPALITY LEVEL SOCIOECONOMIC DATA =====
+              MAX(d.ses_ab_alcaldia) as ses_ab_alcaldia,     -- Percentage of households in SES AB in municipality
+              MAX(d.ses_c_plus_alcaldia) as ses_c_plus_alcaldia, -- Percentage of households in SES C+ in municipality
+              MAX(d.ses_c_alcaldia) as ses_c_alcaldia,       -- Percentage of households in SES C in municipality
+              MAX(d.ses_c_minus_alcaldia) as ses_c_minus_alcaldia, -- Percentage of households in SES C- in municipality
+              MAX(d.ses_d_plus_alcaldia) as ses_d_plus_alcaldia, -- Percentage of households in SES D+ in municipality
+              MAX(d.ses_d_alcaldia) as ses_d_alcaldia,       -- Percentage of households in SES D in municipality
+              MAX(d.ses_e_alcaldia) as ses_e_alcaldia,       -- Percentage of households in SES E in municipality
+              MAX(d.cambio_porcentual_2005_municipal) as cambio_porcentual_2005_municipal, -- Population growth rate 2000-2005 (municipality)
+              MAX(d.cambio_porcentual_2010_municipal) as cambio_porcentual_2010_municipal, -- Population growth rate 2005-2010 (municipality)
+              MAX(d.cambio_porcentual_2015_municipal) as cambio_porcentual_2015_municipal, -- Population growth rate 2010-2015 (municipality)
+              MAX(d.cambio_porcentual_2020_municipal) as cambio_porcentual_2020_municipal, -- Population growth rate 2015-2020 (municipality)
+              
+              -- ===== COLONIA (NEIGHBORHOOD) LEVEL DATA =====
+              SUM(d.vivtot_colonia) as vivtot_colonia,           -- Total households in colonia (summed)
+              SUM(d.pobtot_colonia) as pobtot_colonia,           -- Total population in colonia (summed)
+              SUM(d.pobmas_colonia) as pobmas_colonia,           -- Total male population in colonia (summed)
+              SUM(d.pobfem_colonia) as pobfem_colonia,           -- Total female population in colonia (summed)
+              SUM(d.pea_colonia) as pea_colonia,                 -- Total economically active population in colonia
+              SUM(d.pea_m_colonia) as pea_m_colonia,             -- Total economically active male population in colonia
+              SUM(d.pea_f_colonia) as pea_f_colonia,             -- Total economically active female population in colonia
+              SUM(d.pe_inac_colonia) as pe_inac_colonia,         -- Total economically inactive population in colonia
+              SUM(d.pe_inac_m_colonia) as pe_inac_m_colonia,     -- Total economically inactive male population in colonia
+              SUM(d.pe_inac_f_colonia) as pe_inac_f_colonia,     -- Total economically inactive female population in colonia
+              SUM(d.pocupada_colonia) as pocupada_colonia,       -- Total employed population in colonia
+              SUM(d.pocupada_m_colonia) as pocupada_m_colonia,   -- Total employed male population in colonia
+              SUM(d.pocupada_f_colonia) as pocupada_f_colonia,   -- Total employed female population in colonia
+              SUM(d.pdesocup_colonia) as pdesocup_colonia,       -- Total unemployed population in colonia
+              SUM(d.pdesocup_m_colonia) as pdesocup_m_colonia,   -- Total unemployed male population in colonia
+              SUM(d.pdesocup_f_colonia) as pdesocup_f_colonia,   -- Total unemployed female population in colonia
+              
+              -- ===== COLONIA LEVEL EDUCATION DATA =====
+              SUM(d.p_3a5_colonia) as p_3a5_colonia,             -- Population aged 3-5 in colonia
+              SUM(d.p_6a11_colonia) as p_6a11_colonia,           -- Population aged 6-11 in colonia
+              SUM(d.p_12a14_colonia) as p_12a14_colonia,         -- Population aged 12-14 in colonia
+              SUM(d.p_15a17_colonia) as p_15a17_colonia,         -- Population aged 15-17 in colonia
+              SUM(d.p_18a24_colonia) as p_18a24_colonia,         -- Population aged 18-24 in colonia
+              SUM(d.p3a5_noa_colonia) as p3a5_noa_colonia,       -- Population aged 3-5 not attending school in colonia
+              SUM(d.p6a11_noa_colonia) as p6a11_noa_colonia,     -- Population aged 6-11 not attending school in colonia
+              SUM(d.p12a14noa_colonia) as p12a14noa_colonia,     -- Population aged 12-14 not attending school in colonia
+              SUM(d.p15a17a_colonia) as p15a17a_colonia,         -- Population aged 15-17 attending school in colonia
+              SUM(d.p18a24a_colonia) as p18a24a_colonia,         -- Population aged 18-24 attending school in colonia
+              
+              -- ===== COLONIA LEVEL SOCIOECONOMIC DATA (AVERAGED) =====
+              AVG(d.ses_ab_colonia) as ses_ab_colonia,       -- Percentage of households in SES AB in colonia
+              AVG(d.ses_c_plus_colonia) as ses_c_plus_colonia, -- Percentage of households in SES C+ in colonia
+              AVG(d.ses_c_colonia) as ses_c_colonia,         -- Percentage of households in SES C in colonia
+              AVG(d.ses_c_minus_colonia) as ses_c_minus_colonia, -- Percentage of households in SES C- in colonia
+              AVG(d.ses_d_plus_colonia) as ses_d_plus_colonia, -- Percentage of households in SES D+ in colonia
+              AVG(d.ses_d_colonia) as ses_d_colonia,         -- Percentage of households in SES D in colonia
+              AVG(d.ses_e_colonia) as ses_e_colonia,         -- Percentage of households in SES E in colonia
+              AVG(d.prom_ocup_colonia) as prom_ocup_colonia,     -- Average household occupancy in colonia
+              AVG(d.pro_ocup_c_colonia) as pro_ocup_c_colonia,   -- Average number of rooms per household in colonia
+              
+              -- ===== STATE LEVEL HISTORICAL DATA =====
+              MAX(d.pob_2000_entidad) as pob_2000_entidad,       -- Population in 2000 (state level)
+              MAX(d.pob_2005_entidad) as pob_2005_entidad,       -- Population in 2005 (state level)
+              MAX(d.pob_2010_entidad) as pob_2010_entidad,       -- Population in 2010 (state level)
+              MAX(d.pob_2015_entidad) as pob_2015_entidad,       -- Population in 2015 (state level)
+              MAX(d.pob_2020_entidad) as pob_2020_entidad,       -- Population in 2020 (state level)
+              MAX(d.cambio_porcentual_2005_entidad) as cambio_porcentual_2005_entidad, -- Population growth rate 2000-2005 (state)
+              MAX(d.cambio_porcentual_2010_entidad) as cambio_porcentual_2010_entidad, -- Population growth rate 2005-2010 (state)
+              MAX(d.cambio_porcentual_2015_entidad) as cambio_porcentual_2015_entidad, -- Population growth rate 2010-2015 (state)
+              MAX(d.cambio_porcentual_2020_entidad) as cambio_porcentual_2020_entidad  -- Population growth rate 2015-2020 (state)
             
         FROM blackprint_db_prd.data_product.v_parcel_v3 d
-        CROSS JOIN buffered_4326 b
         WHERE d.centroid IS NOT NULL
         AND d.centroid != ''
         AND d.centroid LIKE '%coordinates%'
         AND ST_Intersects(
             ST_SetSRID(
                 ST_MakePoint(
-                    CAST(SPLIT_PART(REPLACE(REPLACE(d.centroid, '{{"type":"Point","coordinates":[', ''), ']}}', ''), ',', 1) AS FLOAT),
-                    CAST(SPLIT_PART(REPLACE(REPLACE(d.centroid, '{{"type":"Point","coordinates":[', ''), ']}}', ''), ',', 2) AS FLOAT)
+                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '0') AS FLOAT),
+                    CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '1') AS FLOAT)
                 ), 
                 4326
             ),
-            b.geom
+              ST_Transform(ST_Buffer(ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857), {radius}), 4326)
+          )
         )
+        SELECT 
+            *,
+            -- ===== CALCULATED METRICS =====
+            ROUND(CAST(({radius} / 1000.0) * ({radius} / 1000.0) * 3.14159 AS DECIMAL(10,2)), 2) as area_km2,  -- Area in km² using provided radius
+            CASE 
+                WHEN pobtot > 0 AND ({radius} / 1000.0) * ({radius} / 1000.0) * 3.14159 > 0 
+                THEN ROUND(CAST(pobtot AS DECIMAL(15,2)) / CAST(({radius} / 1000.0) * ({radius} / 1000.0) * 3.14159 AS DECIMAL(10,2)), 2) 
+                ELSE 0 
+            END as population_density,  -- Population density (persons/km²)
+            CASE 
+                WHEN pobtot > 0 THEN ROUND(CAST(pobmas AS DECIMAL(15,2)) / CAST(pobtot AS DECIMAL(15,2)) * 100, 1) 
+                ELSE NULL 
+            END as male_percentage,  -- Male percentage
+            CASE 
+                WHEN pobtot > 0 THEN ROUND(CAST(pobfem AS DECIMAL(15,2)) / CAST(pobtot AS DECIMAL(15,2)) * 100, 1) 
+                ELSE NULL 
+            END as female_percentage,  -- Female percentage
+            CASE 
+                WHEN vivtot > 0 THEN ROUND(CAST(pobtot AS DECIMAL(15,2)) / CAST(vivtot AS DECIMAL(15,2)), 2) 
+                ELSE 0 
+            END as average_household_size,  -- Average household size
+            CASE 
+                WHEN pobtot_alcaldia > 0 THEN ROUND(CAST(pobmas_alcaldia AS DECIMAL(15,2)) / CAST(pobtot_alcaldia AS DECIMAL(15,2)) * 100, 1) 
+                ELSE NULL 
+            END as municipality_male_percentage,  -- Municipality male percentage
+            CASE 
+                WHEN pobtot_alcaldia > 0 THEN ROUND(CAST(pobfem_alcaldia AS DECIMAL(15,2)) / CAST(pobtot_alcaldia AS DECIMAL(15,2)) * 100, 1) 
+                ELSE NULL 
+            END as municipality_female_percentage,  -- Municipality female percentage
+            
+            -- ===== INPUT PARAMETERS FOR REFERENCE =====
+            CAST({lat} AS DECIMAL(10,7)) as center_lat,     -- Input latitude
+            CAST({lng} AS DECIMAL(10,7)) as center_lng,     -- Input longitude
+            {radius} as radius_meters -- Input radius in meters
+        FROM demographic_data
         """
         return query
 
