@@ -5,6 +5,8 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 from module.area_analysis.query import AreaAnalysisQuery
+#for adding brand icon links in the brand api
+from utils.iconUtils import IconMapper
 
 logger = logging.getLogger(__name__)
 
@@ -293,15 +295,20 @@ class ActiveSearchController:
                     "count": brand_counts[brand],
                     "total_reviews": brand_reviews[brand],
                     "average_rating": round(avg_rating, 2),
-                    "average_popularity": round(avg_popularity, 2)
+                    "average_popularity": round(avg_popularity, 2),
+                    
                 }
             
             # Top 10 Brands by count
-            metrics["top_brands"] = sorted(
-                [(brand, data["count"]) for brand, data in metrics["brand_analysis"].items()],
-                key=lambda x: x[1], reverse=True
-            )[:10]
-            
+            metrics["top_brands"] = [
+                {
+                    "brand": brand,
+                    "count":data["count"],
+                    "icon_url": IconMapper.get_brand_url(brand)
+                }
+                for brand , data in metrics["brand_analysis"].items()
+            ]
+            metrics["top_brands"] = sorted(metrics["top_brands"], key=lambda x: x["count"], reverse=True)[:10]
             # Top 10 Brands by reviews
             metrics["top_brands_by_reviews"] = sorted(
                 [(brand, data["total_reviews"]) for brand, data in metrics["brand_analysis"].items()],

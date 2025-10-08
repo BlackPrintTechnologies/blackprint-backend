@@ -2093,10 +2093,13 @@ class AreaAnalysisController:
         
         # Always start from 0 unless explicitly overridden
         actual_min = min_value if min_value is not None else 0
-        actual_max = max_value if max_value is not None else data_max
+        # Restrict max to 6000
+        actual_max = min(max_value if max_value is not None else data_max, 6000)
         
-        # Calculate bucket range
-        bucket_range = (actual_max - actual_min) / bucket_size
+        # Calculate bucket range - each bucket is 500
+        bucket_range = 500
+        # Calculate number of buckets needed
+        bucket_size = int((actual_max - actual_min) / bucket_range) + 1
         
         # Create buckets
         buckets = []
