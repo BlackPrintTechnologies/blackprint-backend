@@ -1183,3 +1183,43 @@ class AreaAnalysisQuery:
         """
         return query
 
+
+
+    #to get the total population of the selected area for both the city
+
+    def _get_total_population_query(self, lat, lng, radius, city='queretaro'):
+        """Get population data within specified radius from coordinates using spatial calculations."""
+        if city == 'queretaro':
+            query = f"""
+                SELECT 
+                    SUM(d.pobtot) as total_population
+                FROM blackprint_db_prd.data_product.v_qro d
+                WHERE d.centroid IS NOT NULL
+                AND d.centroid != ''
+                AND ST_DWithin(
+                    ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857),
+                    ST_Transform(ST_SetSRID(ST_MakePoint(
+                        CAST(SPLIT_PART(d.centroid, ',', 2) AS FLOAT),
+                        CAST(SPLIT_PART(d.centroid, ',', 1) AS FLOAT)
+                    ), 4326), 3857),
+                    {radius}
+                )
+            """
+        else:  # mexico
+            query = f"""
+                SELECT 
+                    SUM(d.pobtot) as total_population
+                FROM blackprint_db_prd.data_product.v_parcel_v3 d
+                WHERE d.centroid IS NOT NULL
+                AND d.centroid != ''
+                AND ST_DWithin(
+                    ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857),
+                    ST_Transform(ST_SetSRID(ST_MakePoint(
+                        CAST(SPLIT_PART(d.centroid, ',', 2) AS FLOAT),
+                        CAST(SPLIT_PART(d.centroid, ',', 1) AS FLOAT)
+                    ), 4326), 3857),
+                    {radius}
+                )
+            """
+        return query
+
