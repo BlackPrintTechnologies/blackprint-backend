@@ -242,3 +242,35 @@ class AreaAnalysisWeeklyTraffic(Resource):
             logger.error("Error in AreaAnalysisWeeklyTraffic POST: %s", str(e))
             return {'message': 'Internal server error', 'status_code': 500}, 500
 
+
+
+# area analysis poi hierarchy
+class AreaAnalysisPOIHierarchy(Resource):
+    """Resource to get POI hierarchy for a specific area."""
+    
+    post_parser = reqparse.RequestParser()
+    post_parser.add_argument('lat', type=float, required=True, help='Latitude is required', location='json')
+    post_parser.add_argument('lng', type=float, required=True, help='Longitude is required', location='json')
+    post_parser.add_argument('radius', type=int, default=2000, required=False, location='json')
+    post_parser.add_argument('config_city', type=str, default='queretaro', required=False, location='json')
+    
+    @authenticate
+    def post(self, current_user):
+        """POST /area-analysis/poi-hierarchy - Get POI hierarchy for a specific area."""
+        try:
+            args = self.post_parser.parse_args()
+            lat = args.get('lat')
+            lng = args.get('lng')
+            radius = args.get('radius', 2000)
+            config_city = args.get('config_city', 'queretaro')
+            
+            logger.info("User %s requesting POI hierarchy for lat=%s, lng=%s, radius=%s, city=%s", 
+                       current_user, lat, lng, radius, config_city)
+            
+            response = active_search_controller.get_pois_hierarchy_with_details(lat, lng, radius, config_city)
+            
+            return response
+
+        except Exception as e:
+            logger.error("Error in AreaAnalysisPOIHierarchy POST: %s", str(e))
+            return {'message': 'Internal server error', 'status_code': 500}, 500

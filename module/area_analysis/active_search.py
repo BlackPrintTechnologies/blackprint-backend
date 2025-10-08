@@ -445,3 +445,145 @@ class ActiveSearchController:
                 "error": f"Failed to calculate analysis metrics: {str(e)}",
                 "total_pois": len(pois_data) if pois_data else 0
             }
+
+
+    #get poi hierarchy with details
+    def get_pois_hierarchy_with_details(self, lat, lng, radius, city='queretaro'):
+        """Get POI category hierarchy with brand statistics within specified area."""
+        connection = None
+        cursor = None
+        resp = None
+        try:
+            logger.info(f"Getting POI hierarchy with brands - lat: {lat}, lng: {lng}, radius: {radius}, city: {city}")
+            
+            query = self.qc.get_pois_hierarchy_with_brands_query(lat, lng, radius, city)
+            connection = self.redshift_db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            logger.info(f"POI hierarchy with brands query: {query}")
+            
+            cursor.execute(query)
+            connection.commit()
+            res = cursor.fetchall()
+            
+            # Build hierarchy structure with brand data
+            hierarchy = self._build_hierarchy_with_brands_from_results(res)
+            
+            logger.info(f"POI hierarchy with brands built with {len(hierarchy)} top-level categories")
+            resp = Response.success(data={"hierarchy": hierarchy})
+            
+        except Exception as e:
+            logger.error(f"Error in get_pois_hierarchy_with_brands: {str(e)}", exc_info=True)
+            if connection:
+                connection.rollback()
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_db.disconnect(connection)
+            return resp
+
+    def _build_hierarchy_with_brands_from_results(self, results):
+        """Build hierarchical structure with brand statistics from database results."""
+        hierarchy = {}
+        
+        for row in results:
+            cat1 = row.get('category_1', '').strip()
+            cat2 = row.get('category_2', '').strip()
+            cat3 = row.get('category_3', '').strip()
+            unique_brands = row.get('unique_brands', 0)
+            total_pois = row.get('total_pois', 0)
+            brand_list = row.get('brand_list', '').split(',') if row.get('brand_list') else []
+            
+            if not cat1:
+                continue
+                
+            # Create category_1 entry if it doesn't exist
+            if cat1 not in hierarchy:
+                hierarchy[cat1] = {
+                    'id': cat1.lower().replace(' ', '_').replace('&', 'and'),
+                    'name': cat1,
+                    'brand_stats': {
+                        'unique_brands': 0,
+                        'total_pois': 0,
+                        'brand_list': []
+                    },
+                    'subCategories': {}
+                }
+            
+            # Update category_1 brand stats
+            hierarchy[cat1]['brand_stats']['unique_brands'] += unique_brands
+            hierarchy[cat1]['brand_stats']['total_pois'] += total_pois
+            hierarchy[cat1]['brand_stats']['brand_list'].extend(brand_list)
+            
+            # Add category_2 if it exists
+            if cat2 and cat2 != cat1:
+                if cat2 not in hierarchy[cat1]['subCategories']:
+                    hierarchy[cat1]['subCategories'][cat2] = {
+                        'id': cat2.lower().replace(' ', '_').replace('&', 'and'),
+                        'name': cat2,
+                        'brand_stats': {
+                            'unique_brands': 0,
+                            'total_pois': 0,
+                            'brand_list': []
+                        },
+                        'subSubCategories': {}
+                    }
+                
+                # Update category_2 brand stats
+                hierarchy[cat1]['subCategories'][cat2]['brand_stats']['unique_brands'] += unique_brands
+                hierarchy[cat1]['subCategories'][cat2]['brand_stats']['total_pois'] += total_pois
+                hierarchy[cat1]['subCategories'][cat2]['brand_stats']['brand_list'].extend(brand_list)
+                
+                # Add category_3 if it exists
+                if cat3 and cat3 != cat2 and cat3 != cat1:
+                    if cat3 not in hierarchy[cat1]['subCategories'][cat2]['subSubCategories']:
+                        hierarchy[cat1]['subCategories'][cat2]['subSubCategories'][cat3] = {
+                            'id': cat3.lower().replace(' ', '_').replace('&', 'and'),
+                            'name': cat3,
+                            'brand_stats': {
+                                'unique_brands': unique_brands,
+                                'total_pois': total_pois,
+                                'brand_list': brand_list
+                            }
+                        }
+        
+        # Convert dictionaries to lists and clean up brand lists
+        final_hierarchy = []
+        for cat1_data in hierarchy.values():
+            # Remove duplicates from brand lists
+            cat1_data['brand_stats']['brand_list'] = list(set(cat1_data['brand_stats']['brand_list']))
+            
+            cat1_entry = {
+                'id': cat1_data['id'],
+                'name': cat1_data['name'],
+                'brand_stats': cat1_data['brand_stats'],
+                'subCategories': []
+            }
+            
+            for cat2_data in cat1_data['subCategories'].values():
+                cat2_data['brand_stats']['brand_list'] = list(set(cat2_data['brand_stats']['brand_list']))
+                
+                cat2_entry = {
+                    'id': cat2_data['id'],
+                    'name': cat2_data['name'],
+                    'brand_stats': cat2_data['brand_stats'],
+                    'subSubCategories': []
+                }
+                
+                for cat3_data in cat2_data['subSubCategories'].values():
+                    cat3_data['brand_stats']['brand_list'] = list(set(cat3_data['brand_stats']['brand_list']))
+                    
+                    cat2_entry['subSubCategories'].append({
+                        'id': cat3_data['id'],
+                        'name': cat3_data['name'],
+                        'brand_stats': cat3_data['brand_stats']
+                    })
+                
+                cat1_entry['subCategories'].append(cat2_entry)
+            
+            final_hierarchy.append(cat1_entry)
+        
+        return final_hierarchy
+        

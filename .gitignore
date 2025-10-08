@@ -5,6 +5,7 @@
 /utils/aioCacheUtils.py
 /.vscode
 app.log
+.env
 __pycache__/
 .vscode/
 /module/properties/new_controller.py
