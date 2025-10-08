@@ -381,6 +381,32 @@ class ActiveSearchController:
                     ((high_rating_pois + high_popularity_pois) / len(pois_data)) * 100, 2
                 ) if pois_data else 0
             }
+            #calculation for the chains and independent pois
+            chain_count = 0
+            independent_count = 0
+            for poi in pois_data:
+                brand = poi.get('brand')
+                if brand and brand != 'None' and brand.strip() != '':
+                    chain_count += 1
+                else:
+                    independent_count += 1
+            #calcultate %s
+            chain_percentage = round((chain_count / len(pois_data)) * 100, 2)
+            independent_percentage = round((independent_count / len(pois_data)) * 100, 2)
+            
+            #add to the metrics
+            metrics["chain_analysis"] = {
+                "chains":{
+                    "count": chain_count,
+                    "percentage": chain_percentage
+                },
+                "independent":{
+                    "count": independent_count,
+                    "percentage": independent_percentage
+                },
+                "total_pois": len(pois_data)
+                }
+            
             #calculating the bussiness density rate per 1000 people
             bussiness_density_rate = 0
             if total_population > 0:
