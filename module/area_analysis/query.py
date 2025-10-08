@@ -1261,40 +1261,44 @@ class AreaAnalysisQuery:
                 AND chain_id != 'None'
                 GROUP BY main_category, sub_category, sub_sub_category, chain_id
             ),
+            unique_brands_per_category AS (
+                SELECT
+                    main_category,
+                    sub_category,
+                    sub_sub_category,
+                    COUNT(DISTINCT brand) as unique_brands
+                FROM area_pois
+                GROUP BY main_category, sub_category, sub_sub_category
+            ),
             category_stats AS (
-                SELECT 
+                SELECT
                     main_category as category_1,
                     sub_category as category_2,
                     sub_sub_category as category_3,
-                    COUNT(DISTINCT brand) as unique_brands,
                     SUM(brand_count) as total_pois,
-                    category_stats AS (
-    SELECT
-        main_category as category_1,
-        sub_category as category_2,
-        sub_sub_category as category_3,
-        COUNT(DISTINCT brand) as unique_brands,
-        SUM(brand_count) as total_pois,
-        LISTAGG(
-            CASE
-                WHEN brand IS NOT NULL AND brand != ''
-                THEN brand
-                ELSE NULL
-            END,
-            ','
-        ) WITHIN GROUP (ORDER BY brand) as brand_list
-            FROM area_pois
-            GROUP BY main_category, sub_category, sub_sub_category
-        )
-               
+                    LISTAGG(
+                        CASE
+                            WHEN brand IS NOT NULL AND brand != ''
+                            THEN brand
+                            ELSE NULL
+                        END,
+                        ','
+                    ) WITHIN GROUP (ORDER BY brand) as brand_list
+                FROM area_pois
+                GROUP BY main_category, sub_category, sub_sub_category
+            )
             SELECT 
-                category_1,
-                category_2,
-                category_3,
-                unique_brands,
-                total_pois,
-                brand_list
-            FROM category_stats
-            ORDER BY category_1, category_2, category_3
+                cs.category_1,
+                cs.category_2,
+                cs.category_3,
+                ub.unique_brands,
+                cs.total_pois,
+                cs.brand_list
+            FROM category_stats cs
+            LEFT JOIN unique_brands_per_category ub 
+                ON cs.category_1 = ub.main_category 
+                AND cs.category_2 = ub.sub_category 
+                AND cs.category_3 = ub.sub_sub_category
+            ORDER BY cs.category_1, cs.category_2, cs.category_3
         """
         return query
