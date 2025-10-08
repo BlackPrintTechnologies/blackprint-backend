@@ -1199,8 +1199,8 @@ class AreaAnalysisQuery:
                 AND ST_DWithin(
                     ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857),
                     ST_Transform(ST_SetSRID(ST_MakePoint(
-                        CAST(SPLIT_PART(d.centroid, ',', 2) AS FLOAT),
-                        CAST(SPLIT_PART(d.centroid, ',', 1) AS FLOAT)
+                        CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '0') AS FLOAT),
+                        CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '1') AS FLOAT)
                     ), 4326), 3857),
                     {radius}
                 )
@@ -1215,11 +1215,10 @@ class AreaAnalysisQuery:
                 AND ST_DWithin(
                     ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857),
                     ST_Transform(ST_SetSRID(ST_MakePoint(
-                        CAST(SPLIT_PART(d.centroid, ',', 2) AS FLOAT),
-                        CAST(SPLIT_PART(d.centroid, ',', 1) AS FLOAT)
+                        CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '0') AS FLOAT),
+                        CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '1') AS FLOAT)
                     ), 4326), 3857),
                     {radius}
                 )
             """
         return query
-

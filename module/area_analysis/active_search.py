@@ -136,7 +136,7 @@ class ActiveSearchController:
             logger.info(f"Getting POIs data - lat: {lat}, lng: {lng}, radius: {radius}, city: {city}")
             
             query = self.qc._get_pois_query(lat, lng, radius)
-            # population_query = self.qc._get_total_population_query(lat, lng, radius, city)
+            population_query = self.qc._get_total_population_query(lat, lng, radius, city)
             
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -147,10 +147,10 @@ class ActiveSearchController:
             res = cursor.fetchall()
             
             #execute the population query
-            # cursor.execute(population_query)
-            # connection.commit()
-            # population_res = cursor.fetchall()
-            # print("population_res", population_res)
+            cursor.execute(population_query)
+            connection.commit()
+            population_res = cursor.fetchall()
+            print("population_res", population_res)
             
             
             logger.info(f"POIs results count: {len(res)}")
@@ -166,15 +166,15 @@ class ActiveSearchController:
                 processed_results.append(row_dict)
                 
             #get the total population of the selected area
-            # total_population  = 0
-            # if population_res and len(population_res) > 0:
-            #     total_population = population_res[0]["total_population"]
-            # else:
-            #     total_population = 0
+            total_population  = 0
+            if population_res and len(population_res) > 0:
+                total_population = population_res[0]["total_population"]
+            else:
+                total_population = 0
             
             
             # Calculate comprehensive area analysis metrics
-            analysis_metrics = self._calculate_pois_analysis_metrics(processed_results)
+            analysis_metrics = self._calculate_pois_analysis_metrics(processed_results,total_population)
             
             resp = Response.success(data={
                 "analysis_metrics": analysis_metrics
