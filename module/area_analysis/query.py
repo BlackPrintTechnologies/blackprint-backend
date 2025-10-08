@@ -1252,6 +1252,14 @@ class AreaAnalysisQuery:
                     sub_category,
                     sub_sub_category,
                     chain_id as brand,
+                    name as business_name,
+                    business_category,
+                    COALESCE(address, '') || CASE 
+                        WHEN address IS NOT NULL AND address2 IS NOT NULL THEN ', ' 
+                        ELSE '' 
+                    END || COALESCE(address2, '') as full_address,
+                    opened_on,
+                    average_stars,
                     COUNT(*) as brand_count
                 FROM {places_table} a
                 INNER JOIN h3_index b ON a.h3_value = b.h3_value
@@ -1259,7 +1267,7 @@ class AreaAnalysisQuery:
                 AND main_category != ''
                 AND chain_id IS NOT NULL
                 AND chain_id != 'None'
-                GROUP BY main_category, sub_category, sub_sub_category, chain_id
+                GROUP BY main_category, sub_category, sub_sub_category, chain_id, name, business_category, address, address2, opened_on, average_stars
             ),
             unique_brands_per_category AS (
                 SELECT
@@ -1279,7 +1287,7 @@ class AreaAnalysisQuery:
                     LISTAGG(
                         CASE
                             WHEN brand IS NOT NULL AND brand != ''
-                            THEN brand
+                            THEN '{{"name":"' || COALESCE(brand, '') || '","address":"' || COALESCE(full_address, '') || '","business_category":"' || COALESCE(business_category, '') || '","rating":"' || COALESCE(CAST(average_stars AS VARCHAR), '0') || '","date_opened":"' || COALESCE(CAST(opened_on AS VARCHAR), '') || '"}}'
                             ELSE NULL
                         END,
                         ','

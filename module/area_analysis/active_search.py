@@ -494,7 +494,53 @@ class ActiveSearchController:
             cat3 = row.get('category_3', '').strip()
             unique_brands = row.get('unique_brands', 0)
             total_pois = row.get('total_pois', 0)
-            brand_list = row.get('brand_list', '').split(',') if row.get('brand_list') else []
+            # Parse brand_list as JSON objects
+            brand_list = []
+            brand_list_json = row.get('brand_list', '')
+            logger.info(f"Raw brand_list_json: {brand_list_json}")
+            if brand_list_json:
+                try:
+                    import json
+                    import re
+                    
+                    # Use regex to find complete JSON objects instead of splitting by comma
+                    # Look for patterns like {"name":"...","address":"...","business_category":"...","rating":"...","date_opened":"..."}
+                    # This pattern handles commas within quoted strings
+                    json_pattern = r'\{(?:[^{}]|"[^"]*")*\}'
+                    json_matches = re.findall(json_pattern, brand_list_json)
+                    
+                    logger.info(f"Found {len(json_matches)} JSON objects")
+                    for json_str in json_matches:
+                        try:
+                            parsed_obj = json.loads(json_str)
+                            brand_list.append(parsed_obj)
+                            logger.info(f"Parsed brand object: {parsed_obj}")
+                        except Exception as parse_e:
+                            logger.warning(f"Failed to parse individual JSON: {parse_e}")
+                            logger.warning(f"JSON string: {json_str}")
+                    
+                    # If regex didn't work, try the old method as fallback
+                    if not brand_list:
+                        logger.info("Regex method failed, trying comma split method")
+                        json_strings = brand_list_json.split(',')
+                        for json_str in json_strings:
+                            if json_str.strip():
+                                parsed_obj = json.loads(json_str.strip())
+                                brand_list.append(parsed_obj)
+                                
+                except Exception as e:
+                    logger.warning(f"Error parsing brand list JSON: {e}")
+                    # Final fallback: extract just brand names
+                    try:
+                        import re
+                        brand_names = re.findall(r'"name":"([^"]*)"', brand_list_json)
+                        brand_list = [{"name": name, "address": "", "business_category": "", "rating": "0", "date_opened": ""} for name in brand_names]
+                        logger.info(f"Final fallback brand list: {brand_list}")
+                    except Exception as fallback_e:
+                        logger.warning(f"Final fallback parsing also failed: {fallback_e}")
+                        brand_list = []
+            else:
+                logger.warning("brand_list_json is empty or None")
             
             if not cat1:
                 continue
@@ -552,8 +598,15 @@ class ActiveSearchController:
         # Convert dictionaries to lists and clean up brand lists
         final_hierarchy = []
         for cat1_data in hierarchy.values():
-            # Remove duplicates from brand lists
-            cat1_data['brand_stats']['brand_list'] = list(set(cat1_data['brand_stats']['brand_list']))
+            # Remove duplicates from brand lists based on brand name
+            seen_brands = set()
+            unique_brands = []
+            for brand in cat1_data['brand_stats']['brand_list']:
+                brand_name = brand.get('name', '') if isinstance(brand, dict) else brand
+                if brand_name not in seen_brands:
+                    seen_brands.add(brand_name)
+                    unique_brands.append(brand)
+            cat1_data['brand_stats']['brand_list'] = unique_brands
             
             cat1_entry = {
                 'id': cat1_data['id'],
@@ -563,7 +616,15 @@ class ActiveSearchController:
             }
             
             for cat2_data in cat1_data['subCategories'].values():
-                cat2_data['brand_stats']['brand_list'] = list(set(cat2_data['brand_stats']['brand_list']))
+                # Remove duplicates from brand lists based on brand name
+                seen_brands = set()
+                unique_brands = []
+                for brand in cat2_data['brand_stats']['brand_list']:
+                    brand_name = brand.get('name', '') if isinstance(brand, dict) else brand
+                    if brand_name not in seen_brands:
+                        seen_brands.add(brand_name)
+                        unique_brands.append(brand)
+                cat2_data['brand_stats']['brand_list'] = unique_brands
                 
                 cat2_entry = {
                     'id': cat2_data['id'],
@@ -573,7 +634,15 @@ class ActiveSearchController:
                 }
                 
                 for cat3_data in cat2_data['subSubCategories'].values():
-                    cat3_data['brand_stats']['brand_list'] = list(set(cat3_data['brand_stats']['brand_list']))
+                    # Remove duplicates from brand lists based on brand name
+                    seen_brands = set()
+                    unique_brands = []
+                    for brand in cat3_data['brand_stats']['brand_list']:
+                        brand_name = brand.get('name', '') if isinstance(brand, dict) else brand
+                        if brand_name not in seen_brands:
+                            seen_brands.add(brand_name)
+                            unique_brands.append(brand)
+                    cat3_data['brand_stats']['brand_list'] = unique_brands
                     
                     cat2_entry['subSubCategories'].append({
                         'id': cat3_data['id'],
