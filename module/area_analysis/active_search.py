@@ -387,7 +387,14 @@ class ActiveSearchController:
                 bussiness_density_rate = round((len(pois_data) / total_population) * 1000, 2)
             else:
                 bussiness_density_rate = 0
-            
+            #main categories with count and percentage
+            main_categories_detailed = {}
+            for category, count in main_category_counts.items():
+                percentage = round((count / len(pois_data)) * 100, 2)
+                main_categories_detailed[category] = {
+                    "count": count,
+                    "percentage": percentage
+                }
             # Additional insights
             metrics["insights"] = {
                 "most_common_category": max(main_category_counts.items(), key=lambda x: x[1]) if main_category_counts else ("None", 0),
@@ -400,7 +407,8 @@ class ActiveSearchController:
                     key=lambda x: x[1]
                 ) if metrics["brand_analysis"] else ("None", 0),
                 "area_density": round(len(pois_data) / 1000, 2),  # POIs per 1000m² (assuming radius is in meters)
-                "bussiness_density_rate": bussiness_density_rate # for bussiness density per 1000 people
+                "bussiness_density_rate": bussiness_density_rate, # for bussiness density per 1000 people,
+                "main_categories_detailed": main_categories_detailed #main categories with count and percentage
             }
             
             return metrics
