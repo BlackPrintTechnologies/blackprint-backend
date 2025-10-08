@@ -821,14 +821,48 @@ class AreaAnalysisQuery:
               SUM(COALESCE(d.pobmas_colonia, 0)) as pobmas,   -- Total male population from all intersecting colonias
               SUM(COALESCE(d.pobfem_colonia, 0)) as pobfem,   -- Total female population from all intersecting colonias
               
-              -- ===== SOCIOECONOMIC LEVELS (AVERAGE across all records) =====
-              AVG(d.pct_viv_ab) as ses_ab,          -- Percentage of households in socioeconomic level AB (highest)
-              AVG(d.pct_viv_cp) as ses_c_plus,      -- Percentage of households in socioeconomic level C+
-              AVG(d.pct_viv_c) as ses_c,            -- Percentage of households in socioeconomic level C
-              AVG(d.pct_viv_cm) as ses_c_minus,     -- Percentage of households in socioeconomic level C-
-              AVG(d.pct_viv_dp) as ses_d_plus,      -- Percentage of households in socioeconomic level D+
-              AVG(d.pct_viv_d) as ses_d,            -- Percentage of households in socioeconomic level D
-              AVG(d.pct_viv_e) as ses_e,            -- Percentage of households in socioeconomic level E (lowest)
+              -- ===== SOCIOECONOMIC LEVELS (CORRECTED: Weighted average based on household counts) =====
+              CASE 
+                  WHEN SUM(d.tot_vivien) > 0 THEN 
+                      ROUND(SUM((d.pct_viv_ab * d.tot_vivien) / 100.0) / SUM(d.tot_vivien) * 100, 1)
+                  ELSE 0 
+              END as ses_ab,          -- Percentage of households in socioeconomic level AB (highest)
+              
+              CASE 
+                  WHEN SUM(d.tot_vivien) > 0 THEN 
+                      ROUND(SUM((d.pct_viv_cp * d.tot_vivien) / 100.0) / SUM(d.tot_vivien) * 100, 1)
+                  ELSE 0 
+              END as ses_c_plus,      -- Percentage of households in socioeconomic level C+
+              
+              CASE 
+                  WHEN SUM(d.tot_vivien) > 0 THEN 
+                      ROUND(SUM((d.pct_viv_c * d.tot_vivien) / 100.0) / SUM(d.tot_vivien) * 100, 1)
+                  ELSE 0 
+              END as ses_c,            -- Percentage of households in socioeconomic level C
+              
+              CASE 
+                  WHEN SUM(d.tot_vivien) > 0 THEN 
+                      ROUND(SUM((d.pct_viv_cm * d.tot_vivien) / 100.0) / SUM(d.tot_vivien) * 100, 1)
+                  ELSE 0 
+              END as ses_c_minus,     -- Percentage of households in socioeconomic level C-
+              
+              CASE 
+                  WHEN SUM(d.tot_vivien) > 0 THEN 
+                      ROUND(SUM((d.pct_viv_dp * d.tot_vivien) / 100.0) / SUM(d.tot_vivien) * 100, 1)
+                  ELSE 0 
+              END as ses_d_plus,      -- Percentage of households in socioeconomic level D+
+              
+              CASE 
+                  WHEN SUM(d.tot_vivien) > 0 THEN 
+                      ROUND(SUM((d.pct_viv_d * d.tot_vivien) / 100.0) / SUM(d.tot_vivien) * 100, 1)
+                  ELSE 0 
+              END as ses_d,            -- Percentage of households in socioeconomic level D
+              
+              CASE 
+                  WHEN SUM(d.tot_vivien) > 0 THEN 
+                      ROUND(SUM((d.pct_viv_e * d.tot_vivien) / 100.0) / SUM(d.tot_vivien) * 100, 1)
+                  ELSE 0 
+              END as ses_e,            -- Percentage of households in socioeconomic level E (lowest)
               
               -- ===== POPULATION GROWTH RATES (AVERAGE across all records) =====
               AVG(d.cambio_porcentual_2005_ageb) as cambio_porcentual_2005_ageb, -- Population growth rate 2000-2005
@@ -885,14 +919,14 @@ class AreaAnalysisQuery:
               MAX(d.prom_ocup_alcaldia) as prom_ocup_alcaldia, -- Average household occupancy in municipality
               MAX(d.pro_ocup_c_alcaldia) as pro_ocup_c_alcaldia, -- Average number of rooms per household in municipality
               
-              -- ===== MUNICIPALITY LEVEL SOCIOECONOMIC DATA =====
-              MAX(d.pct_ses_ab_alcaldia) as ses_ab_alcaldia,     -- Percentage of households in SES AB in municipality
-              MAX(d.pct_ses_c_plus_alcaldia) as ses_c_plus_alcaldia, -- Percentage of households in SES C+ in municipality
-              MAX(d.pct_ses_c_alcaldia) as ses_c_alcaldia,       -- Percentage of households in SES C in municipality
-              MAX(d.pct_ses_c_minus_alcaldia) as ses_c_minus_alcaldia, -- Percentage of households in SES C- in municipality
-              MAX(d.pct_ses_d_plus_alcaldia) as ses_d_plus_alcaldia, -- Percentage of households in SES D+ in municipality
-              MAX(d.pct_ses_d_alcaldia) as ses_d_alcaldia,       -- Percentage of households in SES D in municipality
-              MAX(d.pct_ses_e_alcaldia) as ses_e_alcaldia,       -- Percentage of households in SES E in municipality
+              -- ===== MUNICIPALITY LEVEL SOCIOECONOMIC DATA (CORRECTED: Use AVG instead of MAX) =====
+              ROUND(AVG(d.pct_ses_ab_alcaldia), 1) as ses_ab_alcaldia,     -- Percentage of households in SES AB in municipality
+              ROUND(AVG(d.pct_ses_c_plus_alcaldia), 1) as ses_c_plus_alcaldia, -- Percentage of households in SES C+ in municipality
+              ROUND(AVG(d.pct_ses_c_alcaldia), 1) as ses_c_alcaldia,       -- Percentage of households in SES C in municipality
+              ROUND(AVG(d.pct_ses_c_minus_alcaldia), 1) as ses_c_minus_alcaldia, -- Percentage of households in SES C- in municipality
+              ROUND(AVG(d.pct_ses_d_plus_alcaldia), 1) as ses_d_plus_alcaldia, -- Percentage of households in SES D+ in municipality
+              ROUND(AVG(d.pct_ses_d_alcaldia), 1) as ses_d_alcaldia,       -- Percentage of households in SES D in municipality
+              ROUND(AVG(d.pct_ses_e_alcaldia), 1) as ses_e_alcaldia,       -- Percentage of households in SES E in municipality
               MAX(d.cambio_porcentual_2005_municipal) as cambio_porcentual_2005_municipal, -- Population growth rate 2000-2005 (municipality)
               MAX(d.cambio_porcentual_2010_municipal) as cambio_porcentual_2010_municipal, -- Population growth rate 2005-2010 (municipality)
               MAX(d.cambio_porcentual_2020_municipal) as cambio_porcentual_2020_municipal, -- Population growth rate 2010-2020 (municipality)
@@ -1147,5 +1181,45 @@ class AreaAnalysisQuery:
         FROM traffic_data t
         ORDER BY t.total_users DESC
         """
+        return query
+
+
+
+    #to get the total population of the selected area for both the city
+
+    def _get_total_population_query(self, lat, lng, radius, city='queretaro'):
+        """Get population data within specified radius from coordinates using spatial calculations."""
+        if city == 'queretaro':
+            query = f"""
+                SELECT 
+                    SUM(d.pobtot) as total_population
+                FROM blackprint_db_prd.data_product.v_qro d
+                WHERE d.centroid IS NOT NULL
+                AND d.centroid != ''
+                AND ST_DWithin(
+                    ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857),
+                    ST_Transform(ST_SetSRID(ST_MakePoint(
+                        CAST(SPLIT_PART(d.centroid, ',', 2) AS FLOAT),
+                        CAST(SPLIT_PART(d.centroid, ',', 1) AS FLOAT)
+                    ), 4326), 3857),
+                    {radius}
+                )
+            """
+        else:  # mexico
+            query = f"""
+                SELECT 
+                    SUM(d.pobtot) as total_population
+                FROM blackprint_db_prd.data_product.v_parcel_v3 d
+                WHERE d.centroid IS NOT NULL
+                AND d.centroid != ''
+                AND ST_DWithin(
+                    ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857),
+                    ST_Transform(ST_SetSRID(ST_MakePoint(
+                        CAST(SPLIT_PART(d.centroid, ',', 2) AS FLOAT),
+                        CAST(SPLIT_PART(d.centroid, ',', 1) AS FLOAT)
+                    ), 4326), 3857),
+                    {radius}
+                )
+            """
         return query
 

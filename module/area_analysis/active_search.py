@@ -5,6 +5,8 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 from module.area_analysis.query import AreaAnalysisQuery
+#for adding brand icon links in the brand api
+from utils.iconUtils import IconMapper
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +136,8 @@ class ActiveSearchController:
             logger.info(f"Getting POIs data - lat: {lat}, lng: {lng}, radius: {radius}, city: {city}")
             
             query = self.qc._get_pois_query(lat, lng, radius)
+            # population_query = self.qc._get_total_population_query(lat, lng, radius, city)
+            
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             logger.info(f"POIs query: {query}")
@@ -141,6 +145,13 @@ class ActiveSearchController:
             cursor.execute(query)
             connection.commit()
             res = cursor.fetchall()
+            
+            #execute the population query
+            # cursor.execute(population_query)
+            # connection.commit()
+            # population_res = cursor.fetchall()
+            # print("population_res", population_res)
+            
             
             logger.info(f"POIs results count: {len(res)}")
             
@@ -153,6 +164,14 @@ class ActiveSearchController:
                     if isinstance(value, Decimal):
                         row_dict[key] = float(value)
                 processed_results.append(row_dict)
+                
+            #get the total population of the selected area
+            # total_population  = 0
+            # if population_res and len(population_res) > 0:
+            #     total_population = population_res[0]["total_population"]
+            # else:
+            #     total_population = 0
+            
             
             # Calculate comprehensive area analysis metrics
             analysis_metrics = self._calculate_pois_analysis_metrics(processed_results)
@@ -173,13 +192,14 @@ class ActiveSearchController:
                 self.redshift_db.disconnect(connection)
             return resp
     
-    def _calculate_pois_analysis_metrics(self, pois_data):
+    def _calculate_pois_analysis_metrics(self, pois_data,total_population=0):
         """Calculate comprehensive area analysis metrics from POIs data."""
         try:
             if not pois_data:
                 return {
                     "total_pois": 0,
-                    "message": "No POIs found in the specified area"
+                    "message": "No POIs found in the specified area",
+                    "bussiness_density": 0
                 }
             
             # Initialize metrics
@@ -293,15 +313,20 @@ class ActiveSearchController:
                     "count": brand_counts[brand],
                     "total_reviews": brand_reviews[brand],
                     "average_rating": round(avg_rating, 2),
-                    "average_popularity": round(avg_popularity, 2)
+                    "average_popularity": round(avg_popularity, 2),
+                    
                 }
             
             # Top 10 Brands by count
-            metrics["top_brands"] = sorted(
-                [(brand, data["count"]) for brand, data in metrics["brand_analysis"].items()],
-                key=lambda x: x[1], reverse=True
-            )[:10]
-            
+            metrics["top_brands"] = [
+                {
+                    "brand": brand,
+                    "count":data["count"],
+                    "icon_url": IconMapper.get_brand_url(brand)
+                }
+                for brand , data in metrics["brand_analysis"].items()
+            ]
+            metrics["top_brands"] = sorted(metrics["top_brands"], key=lambda x: x["count"], reverse=True)[:10]
             # Top 10 Brands by reviews
             metrics["top_brands_by_reviews"] = sorted(
                 [(brand, data["total_reviews"]) for brand, data in metrics["brand_analysis"].items()],
@@ -356,6 +381,12 @@ class ActiveSearchController:
                     ((high_rating_pois + high_popularity_pois) / len(pois_data)) * 100, 2
                 ) if pois_data else 0
             }
+            #calculating the bussiness density rate per 1000 people
+            bussiness_density_rate = 0
+            if total_population > 0:
+                bussiness_density_rate = round((len(pois_data) / total_population) * 1000, 2)
+            else:
+                bussiness_density_rate = 0
             
             # Additional insights
             metrics["insights"] = {
@@ -368,7 +399,8 @@ class ActiveSearchController:
                     [(brand, data["average_rating"]) for brand, data in metrics["brand_analysis"].items() if data["average_rating"] > 0],
                     key=lambda x: x[1]
                 ) if metrics["brand_analysis"] else ("None", 0),
-                "area_density": round(len(pois_data) / 1000, 2)  # POIs per 1000m² (assuming radius is in meters)
+                "area_density": round(len(pois_data) / 1000, 2),  # POIs per 1000m² (assuming radius is in meters)
+                "bussiness_density_rate": bussiness_density_rate # for bussiness density per 1000 people
             }
             
             return metrics

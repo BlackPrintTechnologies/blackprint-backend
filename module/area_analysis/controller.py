@@ -1359,7 +1359,7 @@ class AreaAnalysisController:
         return demographics_data
 
     def _create_queretaro_socioeconomic_analysis(self, aggregated_result):
-        """Create socioeconomic analysis for Queretaro demographics API."""
+        """Create socioeconomic analysis for Queretaro demographics API with corrected percentage calculations."""
         # Calculate total households for selected area
         total_households = aggregated_result.get('vivtot', 0) or 0
         
@@ -1374,13 +1374,28 @@ class AreaAnalysisController:
             {'key': 'ses_e', 'level': 'E'}
         ]
         
+        def validate_percentage(value, name):
+            """Validate and cap percentage values between 0-100."""
+            if value is None:
+                return 0.0
+            if value > 100:
+                logger.warning(f"{name} percentage {value} is > 100%, capping at 100%")
+                return 100.0
+            if value < 0:
+                logger.warning(f"{name} percentage {value} is < 0%, setting to 0%")
+                return 0.0
+            return float(value)
+        
         # Calculate household distribution for selected area
         household_distribution = []
         predominant_level = None
         max_percentage = 0
         
         for ses in ses_levels:
-            percentage = aggregated_result.get(ses['key'], 0) or 0
+            # Get percentage from corrected query (already calculated as weighted average)
+            percentage = validate_percentage(aggregated_result.get(ses['key'], 0), f"Selected area {ses['level']}")
+            
+            # Calculate actual household count from percentage
             households = round((percentage * total_households) / 100) if total_households > 0 else 0
             
             household_distribution.append({
@@ -1393,17 +1408,25 @@ class AreaAnalysisController:
                 max_percentage = percentage
                 predominant_level = ses['level']
         
-        # Municipality level data
+        # Municipality level data (CORRECTED: Now using AVG instead of MAX)
         municipality_total_households = aggregated_result.get('vivtot_alcaldia', 0) or 0
         municipality_predominant_level = None
         municipality_max_percentage = 0
         
-        # Find municipality predominant level
+        # Find municipality predominant level with validation
         for ses in ses_levels:
-            municipality_percentage = aggregated_result.get(f"{ses['key']}_alcaldia", 0) or 0
+            municipality_percentage = validate_percentage(
+                aggregated_result.get(f"{ses['key']}_alcaldia", 0), 
+                f"Municipality {ses['level']}"
+            )
+            
             if municipality_percentage > municipality_max_percentage:
                 municipality_max_percentage = municipality_percentage
                 municipality_predominant_level = ses['level']
+        
+        # Log corrected values for debugging
+        logger.info(f"Socioeconomic analysis - Selected area predominant: {predominant_level} ({max_percentage}%)")
+        logger.info(f"Socioeconomic analysis - Municipality predominant: {municipality_predominant_level} ({municipality_max_percentage}%)")
         
         return {
             'predominant_socioeconomic_level': {
@@ -2070,10 +2093,13 @@ class AreaAnalysisController:
         
         # Always start from 0 unless explicitly overridden
         actual_min = min_value if min_value is not None else 0
-        actual_max = max_value if max_value is not None else data_max
+        # Restrict max to 6000
+        actual_max = min(max_value if max_value is not None else data_max, 6000)
         
-        # Calculate bucket range
-        bucket_range = (actual_max - actual_min) / bucket_size
+        # Calculate bucket range - each bucket is 500
+        bucket_range = 500
+        # Calculate number of buckets needed
+        bucket_size = int((actual_max - actual_min) / bucket_range) + 1
         
         # Create buckets
         buckets = []
