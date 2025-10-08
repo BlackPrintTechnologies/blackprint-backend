@@ -497,50 +497,18 @@ class ActiveSearchController:
             # Parse brand_list as JSON objects
             brand_list = []
             brand_list_json = row.get('brand_list', '')
-            logger.info(f"Raw brand_list_json: {brand_list_json}")
+            
             if brand_list_json:
-                try:
-                    import json
-                    import re
-                    
-                    # Use regex to find complete JSON objects instead of splitting by comma
-                    # Look for patterns like {"name":"...","address":"...","business_category":"...","rating":"...","date_opened":"..."}
-                    # This pattern handles commas within quoted strings
-                    json_pattern = r'\{(?:[^{}]|"[^"]*")*\}'
-                    json_matches = re.findall(json_pattern, brand_list_json)
-                    
-                    logger.info(f"Found {len(json_matches)} JSON objects")
-                    for json_str in json_matches:
-                        try:
-                            parsed_obj = json.loads(json_str)
-                            brand_list.append(parsed_obj)
-                            logger.info(f"Parsed brand object: {parsed_obj}")
-                        except Exception as parse_e:
-                            logger.warning(f"Failed to parse individual JSON: {parse_e}")
-                            logger.warning(f"JSON string: {json_str}")
-                    
-                    # If regex didn't work, try the old method as fallback
-                    if not brand_list:
-                        logger.info("Regex method failed, trying comma split method")
-                        json_strings = brand_list_json.split(',')
-                        for json_str in json_strings:
-                            if json_str.strip():
-                                parsed_obj = json.loads(json_str.strip())
-                                brand_list.append(parsed_obj)
-                                
-                except Exception as e:
-                    logger.warning(f"Error parsing brand list JSON: {e}")
-                    # Final fallback: extract just brand names
-                    try:
-                        import re
-                        brand_names = re.findall(r'"name":"([^"]*)"', brand_list_json)
-                        brand_list = [{"name": name, "address": "", "business_category": "", "rating": "0", "date_opened": ""} for name in brand_names]
-                        logger.info(f"Final fallback brand list: {brand_list}")
-                    except Exception as fallback_e:
-                        logger.warning(f"Final fallback parsing also failed: {fallback_e}")
-                        brand_list = []
-            else:
-                logger.warning("brand_list_json is empty or None")
+                import json
+                import re
+                
+                # Use regex to find complete JSON objects (handles commas within quoted strings)
+                json_pattern = r'\{(?:[^{}]|"[^"]*")*\}'
+                json_matches = re.findall(json_pattern, brand_list_json)
+                
+                for json_str in json_matches:
+                    parsed_obj = json.loads(json_str)
+                    brand_list.append(parsed_obj)
             
             if not cat1:
                 continue
