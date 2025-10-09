@@ -136,7 +136,7 @@ class ActiveSearchController:
             logger.info(f"Getting POIs data - lat: {lat}, lng: {lng}, radius: {radius}, city: {city}")
             
             query = self.qc._get_pois_query(lat, lng, radius)
-            # population_query = self.qc._get_total_population_query(lat, lng, radius, city)
+            population_query = self.qc._get_total_population_query(lat, lng, radius, city)
             
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
@@ -147,10 +147,10 @@ class ActiveSearchController:
             res = cursor.fetchall()
             
             #execute the population query
-            # cursor.execute(population_query)
-            # connection.commit()
-            # population_res = cursor.fetchall()
-            # print("population_res", population_res)
+            cursor.execute(population_query)
+            connection.commit()
+            population_res = cursor.fetchall()
+            print("population_res", population_res)
             
             
             logger.info(f"POIs results count: {len(res)}")
@@ -166,15 +166,15 @@ class ActiveSearchController:
                 processed_results.append(row_dict)
                 
             #get the total population of the selected area
-            # total_population  = 0
-            # if population_res and len(population_res) > 0:
-            #     total_population = population_res[0]["total_population"]
-            # else:
-            #     total_population = 0
+            total_population  = 0
+            if population_res and len(population_res) > 0:
+                total_population = population_res[0]["total_population"]
+            else:
+                total_population = 0
             
             
             # Calculate comprehensive area analysis metrics
-            analysis_metrics = self._calculate_pois_analysis_metrics(processed_results)
+            analysis_metrics = self._calculate_pois_analysis_metrics(processed_results,total_population)
             
             resp = Response.success(data={
                 "analysis_metrics": analysis_metrics
@@ -317,14 +317,18 @@ class ActiveSearchController:
                     
                 }
             
-            # Top 10 Brands by count
+            # Calculate total brand count for percentage calculation
+            total_brand_count = sum(brand_counts.values())
+            
+            # Top 10 Brands by count with percentage
             metrics["top_brands"] = [
                 {
                     "brand": brand,
-                    "count":data["count"],
+                    "count": data["count"],
+                    "percentage": round((data["count"] / total_brand_count) * 100, 2) if total_brand_count > 0 else 0,
                     "icon_url": IconMapper.get_brand_url(brand)
                 }
-                for brand , data in metrics["brand_analysis"].items()
+                for brand, data in metrics["brand_analysis"].items()
             ]
             metrics["top_brands"] = sorted(metrics["top_brands"], key=lambda x: x["count"], reverse=True)[:10]
             # Top 10 Brands by reviews
@@ -381,13 +385,46 @@ class ActiveSearchController:
                     ((high_rating_pois + high_popularity_pois) / len(pois_data)) * 100, 2
                 ) if pois_data else 0
             }
+            #calculation for the chains and independent pois
+            chain_count = 0
+            independent_count = 0
+            for poi in pois_data:
+                brand = poi.get('brand')
+                if brand and brand != 'None' and brand.strip() != '':
+                    chain_count += 1
+                else:
+                    independent_count += 1
+            #calcultate %s
+            chain_percentage = round((chain_count / len(pois_data)) * 100, 2)
+            independent_percentage = round((independent_count / len(pois_data)) * 100, 2)
+            
+            #add to the metrics
+            metrics["chain_analysis"] = {
+                "chains":{
+                    "count": chain_count,
+                    "percentage": chain_percentage
+                },
+                "independent":{
+                    "count": independent_count,
+                    "percentage": independent_percentage
+                },
+                "total_pois": len(pois_data)
+                }
+            
             #calculating the bussiness density rate per 1000 people
             bussiness_density_rate = 0
             if total_population > 0:
                 bussiness_density_rate = round((len(pois_data) / total_population) * 1000, 2)
             else:
                 bussiness_density_rate = 0
-            
+            #main categories with count and percentage
+            main_categories_detailed = {}
+            for category, count in main_category_counts.items():
+                percentage = round((count / len(pois_data)) * 100, 2)
+                main_categories_detailed[category] = {
+                    "count": count,
+                    "percentage": percentage
+                }
             # Additional insights
             metrics["insights"] = {
                 "most_common_category": max(main_category_counts.items(), key=lambda x: x[1]) if main_category_counts else ("None", 0),
@@ -400,7 +437,8 @@ class ActiveSearchController:
                     key=lambda x: x[1]
                 ) if metrics["brand_analysis"] else ("None", 0),
                 "area_density": round(len(pois_data) / 1000, 2),  # POIs per 1000m² (assuming radius is in meters)
-                "bussiness_density_rate": bussiness_density_rate # for bussiness density per 1000 people
+                "bussiness_density_rate": bussiness_density_rate, # for bussiness density per 1000 people,
+                "main_categories_detailed": main_categories_detailed #main categories with count and percentage
             }
             
             return metrics
@@ -411,3 +449,182 @@ class ActiveSearchController:
                 "error": f"Failed to calculate analysis metrics: {str(e)}",
                 "total_pois": len(pois_data) if pois_data else 0
             }
+
+
+    #get poi hierarchy with details
+    def get_pois_hierarchy_with_details(self, lat, lng, radius, city='queretaro'):
+        """Get POI category hierarchy with brand statistics within specified area."""
+        connection = None
+        cursor = None
+        resp = None
+        try:
+            logger.info(f"Getting POI hierarchy with brands - lat: {lat}, lng: {lng}, radius: {radius}, city: {city}")
+            
+            query = self.qc.get_pois_hierarchy_with_brands_query(lat, lng, radius, city)
+            connection = self.redshift_db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            logger.info(f"POI hierarchy with brands query: {query}")
+            
+            cursor.execute(query)
+            connection.commit()
+            res = cursor.fetchall()
+            
+            # Build hierarchy structure with brand data
+            hierarchy = self._build_hierarchy_with_brands_from_results(res)
+            
+            logger.info(f"POI hierarchy with brands built with {len(hierarchy)} top-level categories")
+            resp = Response.success(data={"hierarchy": hierarchy})
+            
+        except Exception as e:
+            logger.error(f"Error in get_pois_hierarchy_with_brands: {str(e)}", exc_info=True)
+            if connection:
+                connection.rollback()
+            resp = Response.internal_server_error(message=str(e))
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.redshift_db.disconnect(connection)
+            return resp
+
+    def _build_hierarchy_with_brands_from_results(self, results):
+        """Build hierarchical structure with brand statistics from database results."""
+        hierarchy = {}
+        
+        for row in results:
+            cat1 = row.get('category_1', '').strip()
+            cat2 = row.get('category_2', '').strip()
+            cat3 = row.get('category_3', '').strip()
+            unique_brands = row.get('unique_brands', 0)
+            total_pois = row.get('total_pois', 0)
+            # Parse brand_list as JSON objects
+            brand_list = []
+            brand_list_json = row.get('brand_list', '')
+            
+            if brand_list_json:
+                import json
+                import re
+                
+                # Use regex to find complete JSON objects (handles commas within quoted strings)
+                json_pattern = r'\{(?:[^{}]|"[^"]*")*\}'
+                json_matches = re.findall(json_pattern, brand_list_json)
+                
+                for json_str in json_matches:
+                    parsed_obj = json.loads(json_str)
+                    brand_list.append(parsed_obj)
+            
+            if not cat1:
+                continue
+                
+            # Create category_1 entry if it doesn't exist
+            if cat1 not in hierarchy:
+                hierarchy[cat1] = {
+                    'id': cat1.lower().replace(' ', '_').replace('&', 'and'),
+                    'name': cat1,
+                    'brand_stats': {
+                        'unique_brands': 0,
+                        'total_pois': 0,
+                        'brand_list': []
+                    },
+                    'subCategories': {}
+                }
+            
+            # Update category_1 brand stats
+            hierarchy[cat1]['brand_stats']['unique_brands'] += unique_brands
+            hierarchy[cat1]['brand_stats']['total_pois'] += total_pois
+            hierarchy[cat1]['brand_stats']['brand_list'].extend(brand_list)
+            
+            # Add category_2 if it exists
+            if cat2 and cat2 != cat1:
+                if cat2 not in hierarchy[cat1]['subCategories']:
+                    hierarchy[cat1]['subCategories'][cat2] = {
+                        'id': cat2.lower().replace(' ', '_').replace('&', 'and'),
+                        'name': cat2,
+                        'brand_stats': {
+                            'unique_brands': 0,
+                            'total_pois': 0,
+                            'brand_list': []
+                        },
+                        'subSubCategories': {}
+                    }
+                
+                # Update category_2 brand stats
+                hierarchy[cat1]['subCategories'][cat2]['brand_stats']['unique_brands'] += unique_brands
+                hierarchy[cat1]['subCategories'][cat2]['brand_stats']['total_pois'] += total_pois
+                hierarchy[cat1]['subCategories'][cat2]['brand_stats']['brand_list'].extend(brand_list)
+                
+                # Add category_3 if it exists
+                if cat3 and cat3 != cat2 and cat3 != cat1:
+                    if cat3 not in hierarchy[cat1]['subCategories'][cat2]['subSubCategories']:
+                        hierarchy[cat1]['subCategories'][cat2]['subSubCategories'][cat3] = {
+                            'id': cat3.lower().replace(' ', '_').replace('&', 'and'),
+                            'name': cat3,
+                            'brand_stats': {
+                                'unique_brands': unique_brands,
+                                'total_pois': total_pois,
+                                'brand_list': brand_list
+                            }
+                        }
+        
+        # Convert dictionaries to lists and clean up brand lists
+        final_hierarchy = []
+        for cat1_data in hierarchy.values():
+            # Remove duplicates from brand lists based on brand name
+            seen_brands = set()
+            unique_brands = []
+            for brand in cat1_data['brand_stats']['brand_list']:
+                brand_name = brand.get('name', '') if isinstance(brand, dict) else brand
+                if brand_name not in seen_brands:
+                    seen_brands.add(brand_name)
+                    unique_brands.append(brand)
+            cat1_data['brand_stats']['brand_list'] = unique_brands
+            
+            cat1_entry = {
+                'id': cat1_data['id'],
+                'name': cat1_data['name'],
+                'brand_stats': cat1_data['brand_stats'],
+                'subCategories': []
+            }
+            
+            for cat2_data in cat1_data['subCategories'].values():
+                # Remove duplicates from brand lists based on brand name
+                seen_brands = set()
+                unique_brands = []
+                for brand in cat2_data['brand_stats']['brand_list']:
+                    brand_name = brand.get('name', '') if isinstance(brand, dict) else brand
+                    if brand_name not in seen_brands:
+                        seen_brands.add(brand_name)
+                        unique_brands.append(brand)
+                cat2_data['brand_stats']['brand_list'] = unique_brands
+                
+                cat2_entry = {
+                    'id': cat2_data['id'],
+                    'name': cat2_data['name'],
+                    'brand_stats': cat2_data['brand_stats'],
+                    'subSubCategories': []
+                }
+                
+                for cat3_data in cat2_data['subSubCategories'].values():
+                    # Remove duplicates from brand lists based on brand name
+                    seen_brands = set()
+                    unique_brands = []
+                    for brand in cat3_data['brand_stats']['brand_list']:
+                        brand_name = brand.get('name', '') if isinstance(brand, dict) else brand
+                        if brand_name not in seen_brands:
+                            seen_brands.add(brand_name)
+                            unique_brands.append(brand)
+                    cat3_data['brand_stats']['brand_list'] = unique_brands
+                    
+                    cat2_entry['subSubCategories'].append({
+                        'id': cat3_data['id'],
+                        'name': cat3_data['name'],
+                        'brand_stats': cat3_data['brand_stats']
+                    })
+                
+                cat1_entry['subCategories'].append(cat2_entry)
+            
+            final_hierarchy.append(cat1_entry)
+        
+        return final_hierarchy
+        

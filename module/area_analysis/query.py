@@ -2,18 +2,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class AreaAnalysisQuery:
     """Query builder class for area analysis operations."""
-    
+
     def __init__(self):
         pass
-    
+
     def build_traffic_by_day_query(self, lat, lng, radius, user_type=None, config_city='queretaro'):
         """Build SQL query for traffic data by day of the week."""
         user_type_condition = ""
         if user_type:
             user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
-        
+
         if config_city == 'mexico':
             # Mexico City - aggregate hourly data by day of week using year/month/day columns
             # Map user_type to appropriate column
@@ -26,7 +27,7 @@ class AreaAnalysisQuery:
             else:
                 # Default to total for all types
                 column_name = 'a.total'
-            
+
             query = f"""
             WITH point_geom AS (
               SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
@@ -91,7 +92,7 @@ class AreaAnalysisQuery:
         user_type_condition = ""
         if user_type:
             user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
-        
+
         if config_city == 'mexico':
             # Mexico City uses dataset_mobility_data_v2 with pedestrian/motor_vehicle/at_rest/total columns
             # Map user_type to appropriate column
@@ -104,7 +105,7 @@ class AreaAnalysisQuery:
             else:
                 # Default to total for all types
                 column_name = 'a.total'
-            
+
             query = f"""
             WITH point_geom AS (
               SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
@@ -203,7 +204,7 @@ class AreaAnalysisQuery:
         user_type_condition = ""
         if user_type:
             user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
-        
+
         if config_city == 'mexico':
             # Mexico City uses dataset_mobility_data_v2 with pedestrian/motor_vehicle/at_rest/total columns
             # Map user_type to appropriate column
@@ -216,7 +217,7 @@ class AreaAnalysisQuery:
             else:
                 # Default to total for all types
                 column_name = 'a.total'
-            
+
             query = f"""
             WITH point_geom AS (
               SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
@@ -323,7 +324,7 @@ class AreaAnalysisQuery:
 
     def build_population_query(self, lat, lng, radius, config_city='queretaro'):
         """Build SQL query to get population data within the specified area using proper spatial calculations."""
-        
+
         if config_city == 'queretaro':
             query = f"""
             SELECT 
@@ -370,7 +371,7 @@ class AreaAnalysisQuery:
         user_type_condition = ""
         if user_type:
             user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
-        
+
         # Use the working approach - generate H3 hexagons dynamically from municipality polygons
         # This ensures H3 values match the traffic data region
         query = f"""
@@ -402,7 +403,7 @@ class AreaAnalysisQuery:
         # Convert radius from meters to degrees (approximate conversion for latitude)
         # 1 degree ≈ 111,000 meters
         radius_degrees = radius / 111000.0
-        
+
         if config_city == 'queretaro':
             # QRO socioeconomic query - use stg_demographic_socioeconomic_qro table
             query = f"""
@@ -1148,7 +1149,6 @@ class AreaAnalysisQuery:
         """
         return query
 
-
     def build_h3_distribution_query(self, lat, lng, radius):
         """Build SQL query for H3 distribution based on all user types traffic data."""
         query = f"""
@@ -1183,9 +1183,7 @@ class AreaAnalysisQuery:
         """
         return query
 
-
-
-    #to get the total population of the selected area for both the city
+    # to get the total population of the selected area for both the city
 
     def _get_total_population_query(self, lat, lng, radius, city='queretaro'):
         """Get population data within specified radius from coordinates using spatial calculations."""
@@ -1199,8 +1197,8 @@ class AreaAnalysisQuery:
                 AND ST_DWithin(
                     ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857),
                     ST_Transform(ST_SetSRID(ST_MakePoint(
-                        CAST(SPLIT_PART(d.centroid, ',', 2) AS FLOAT),
-                        CAST(SPLIT_PART(d.centroid, ',', 1) AS FLOAT)
+                        CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '0') AS FLOAT),
+                        CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '1') AS FLOAT)
                     ), 4326), 3857),
                     {radius}
                 )
@@ -1215,11 +1213,100 @@ class AreaAnalysisQuery:
                 AND ST_DWithin(
                     ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857),
                     ST_Transform(ST_SetSRID(ST_MakePoint(
-                        CAST(SPLIT_PART(d.centroid, ',', 2) AS FLOAT),
-                        CAST(SPLIT_PART(d.centroid, ',', 1) AS FLOAT)
+                        CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '0') AS FLOAT),
+                        CAST(JSON_EXTRACT_PATH_TEXT(d.centroid, 'coordinates', '1') AS FLOAT)
                     ), 4326), 3857),
                     {radius}
                 )
             """
         return query
 
+    # query for the poi hierarchy with details
+    def get_pois_hierarchy_with_brands_query(self, lat, lng, radius, config_city='queretaro'):
+        """Generate query to get POI category hierarchy with brand counts within specified area."""
+        if config_city == "queretaro" or config_city == "el_marques":
+            places_table = 'blackprint_db_prd.presentation.dim_pois_qro'
+        else:
+            places_table = 'blackprint_db_prd.presentation.dim_pois_cdmx'
+
+        query = f"""
+            WITH point_geom AS (
+                SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            point_projected AS (
+                SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            ),
+            buffered AS (
+                SELECT ST_Buffer(geom, {radius}) AS geom FROM point_projected
+            ),
+            h3_values AS (
+                SELECT H3_Polyfill(ST_Transform(geom, 4326),10) AS h3_indexes FROM buffered
+            ),
+            h3_index AS (
+                SELECT o AS h3_value
+                FROM h3_values i, i.h3_indexes o
+            ),
+            area_pois AS (
+                SELECT 
+                    main_category,
+                    sub_category,
+                    sub_sub_category,
+                    chain_id as brand,
+                    name as business_name,
+                    business_category,
+                    COALESCE(address, '') || CASE 
+                        WHEN address IS NOT NULL AND address2 IS NOT NULL THEN ', ' 
+                        ELSE '' 
+                    END || COALESCE(address2, '') as full_address,
+                    opened_on,
+                    average_stars,
+                    COUNT(*) as brand_count
+                FROM {places_table} a
+                INNER JOIN h3_index b ON a.h3_value = b.h3_value
+                WHERE main_category IS NOT NULL 
+                AND main_category != ''
+                AND chain_id IS NOT NULL
+                AND chain_id != 'None'
+                GROUP BY main_category, sub_category, sub_sub_category, chain_id, name, business_category, address, address2, opened_on, average_stars
+            ),
+            unique_brands_per_category AS (
+                SELECT
+                    main_category,
+                    sub_category,
+                    sub_sub_category,
+                    COUNT(DISTINCT brand) as unique_brands
+                FROM area_pois
+                GROUP BY main_category, sub_category, sub_sub_category
+            ),
+            category_stats AS (
+                SELECT
+                    main_category as category_1,
+                    sub_category as category_2,
+                    sub_sub_category as category_3,
+                    SUM(brand_count) as total_pois,
+                    LISTAGG(
+                        CASE
+                            WHEN brand IS NOT NULL AND brand != ''
+                            THEN '{{"name":"' || COALESCE(brand, '') || '","address":"' || COALESCE(full_address, '') || '","business_category":"' || COALESCE(business_category, '') || '","rating":"' || COALESCE(CAST(average_stars AS VARCHAR), '0') || '","date_opened":"' || COALESCE(CAST(opened_on AS VARCHAR), '') || '"}}'
+                            ELSE NULL
+                        END,
+                        ','
+                    ) WITHIN GROUP (ORDER BY brand) as brand_list
+                FROM area_pois
+                GROUP BY main_category, sub_category, sub_sub_category
+            )
+            SELECT 
+                cs.category_1,
+                cs.category_2,
+                cs.category_3,
+                ub.unique_brands,
+                cs.total_pois,
+                cs.brand_list
+            FROM category_stats cs
+            LEFT JOIN unique_brands_per_category ub 
+                ON cs.category_1 = ub.main_category 
+                AND cs.category_2 = ub.sub_category 
+                AND cs.category_3 = ub.sub_sub_category
+            ORDER BY cs.category_1, cs.category_2, cs.category_3
+        """
+        return query

@@ -8,6 +8,8 @@ import logging
 import time
 from psycopg2.extras import RealDictCursor
 import json
+#for avoiding cache in local
+import os 
 
 
 # Initialize logging
@@ -42,31 +44,35 @@ def fetch_properties_layer_data_raw(city='mexico'):
         return resp
 
 # Initialize caches for both cities - only cache successful responses
-logger.info("Initializing property layer caches...")
+if os.getenv('ENV') == 'local':
+    _property_layer_cache_mexico = None
+    _property_layer_cache_qro = None
+else:
+    logger.info("Initializing property layer caches...")
 
-_property_layer_cache_mexico = fetch_properties_layer_data_raw('mexico')
+    _property_layer_cache_mexico = fetch_properties_layer_data_raw('mexico')
 
-_property_layer_cache_mexico_json = None
-if isinstance(_property_layer_cache_mexico, tuple) and len(_property_layer_cache_mexico) == 2:
-    response_data, status_code = _property_layer_cache_mexico
-    if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
-        _property_layer_cache_mexico_json = json.dumps(response_data)
-        logger.info("Mexico property layer cache initialized")
-    else:
-        logger.warning(f"Mexico property layer data not cached - status: {status_code}")
+    _property_layer_cache_mexico_json = None
+    if isinstance(_property_layer_cache_mexico, tuple) and len(_property_layer_cache_mexico) == 2:
+        response_data, status_code = _property_layer_cache_mexico
+        if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+            _property_layer_cache_mexico_json = json.dumps(response_data)
+            logger.info("Mexico property layer cache initialized")
+        else:
+            logger.warning(f"Mexico property layer data not cached - status: {status_code}")
 
-_property_layer_cache_qro = fetch_properties_layer_data_raw('queretaro')
+    _property_layer_cache_qro = fetch_properties_layer_data_raw('queretaro')
 
-_property_layer_cache_qro_json = None
-if isinstance(_property_layer_cache_qro, tuple) and len(_property_layer_cache_qro) == 2:
-    response_data, status_code = _property_layer_cache_qro
-    if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
-        _property_layer_cache_qro_json = json.dumps(response_data)
-        logger.info("Queretaro property layer cache initialized")
-    else:
-        logger.warning(f"Queretaro property layer data not cached - status: {status_code}")
+    _property_layer_cache_qro_json = None
+    if isinstance(_property_layer_cache_qro, tuple) and len(_property_layer_cache_qro) == 2:
+        response_data, status_code = _property_layer_cache_qro
+        if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+            _property_layer_cache_qro_json = json.dumps(response_data)
+            logger.info("Queretaro property layer cache initialized")
+        else:
+            logger.warning(f"Queretaro property layer data not cached - status: {status_code}")
 
-logger.info("Cache initialization completed")
+    logger.info("Cache initialization completed")
 
 # {
 #     "search_name" : "test",
