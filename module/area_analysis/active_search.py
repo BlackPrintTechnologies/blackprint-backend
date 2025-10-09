@@ -317,14 +317,18 @@ class ActiveSearchController:
                     
                 }
             
-            # Top 10 Brands by count
+            # Calculate total brand count for percentage calculation
+            total_brand_count = sum(brand_counts.values())
+            
+            # Top 10 Brands by count with percentage
             metrics["top_brands"] = [
                 {
                     "brand": brand,
-                    "count":data["count"],
+                    "count": data["count"],
+                    "percentage": round((data["count"] / total_brand_count) * 100, 2) if total_brand_count > 0 else 0,
                     "icon_url": IconMapper.get_brand_url(brand)
                 }
-                for brand , data in metrics["brand_analysis"].items()
+                for brand, data in metrics["brand_analysis"].items()
             ]
             metrics["top_brands"] = sorted(metrics["top_brands"], key=lambda x: x["count"], reverse=True)[:10]
             # Top 10 Brands by reviews
