@@ -464,10 +464,16 @@ class ActiveSearchController:
                 # Limit brands to top 10 only
                 brands_list = brands_list[:10]
                 
+                # Calculate total business and brand counts (sum of all counts)
+                business_count = sum(business_category_counts_for_main.values())
+                brand_count = sum(brand_counts_for_category.values())
+                
                 main_categories_detailed.append({
                     "category": category,
                     "count": count,
                     "percentage": percentage,
+                    "business_count": business_count,
+                    "brand_count": brand_count,
                     "business": business_list,
                     "brands": brands_list
                 })
