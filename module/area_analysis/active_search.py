@@ -448,8 +448,9 @@ class ActiveSearchController:
                 
                 # Calculate brand percentages
                 brands_list = []
+                total_brand_count = sum(brand_counts_for_category.values())
                 for brand_name, brand_count in brand_counts_for_category.items():
-                    brand_percentage = round((brand_count / count) * 100, 2) if count > 0 else 0
+                    brand_percentage = round((brand_count / total_brand_count) * 100, 2) if total_brand_count > 0 else 0
                     brands_list.append({
                         "name": brand_name,
                         "count": brand_count,
