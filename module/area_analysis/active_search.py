@@ -461,6 +461,9 @@ class ActiveSearchController:
                 business_list.sort(key=lambda x: x["count"], reverse=True)
                 brands_list.sort(key=lambda x: x["count"], reverse=True)
                 
+                # Limit brands to top 10 only
+                brands_list = brands_list[:10]
+                
                 main_categories_detailed.append({
                     "category": category,
                     "count": count,
