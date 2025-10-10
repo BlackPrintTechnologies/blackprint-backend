@@ -417,14 +417,60 @@ class ActiveSearchController:
                 bussiness_density_rate = round((len(pois_data) / total_population) * 1000, 2)
             else:
                 bussiness_density_rate = 0
-            #main categories with count and percentage
-            main_categories_detailed = {}
+            # Main categories with detailed breakdown including business and brands
+            main_categories_detailed = []
             for category, count in main_category_counts.items():
                 percentage = round((count / len(pois_data)) * 100, 2)
-                main_categories_detailed[category] = {
+                
+                # Get business categories for this main category
+                business_in_category = [poi for poi in pois_data if poi.get('main_category') == category]
+                business_category_counts_for_main = {}
+                for poi in business_in_category:
+                    business_cat = poi.get('business_category', 'Unknown')
+                    business_category_counts_for_main[business_cat] = business_category_counts_for_main.get(business_cat, 0) + 1
+                
+                # Get brands for this main category
+                brand_counts_for_category = {}
+                for poi in business_in_category:
+                    brand = poi.get('brand')
+                    if brand and brand != 'None':
+                        brand_counts_for_category[brand] = brand_counts_for_category.get(brand, 0) + 1
+                
+                # Calculate business percentages
+                business_list = []
+                for business_name, business_count in business_category_counts_for_main.items():
+                    business_percentage = round((business_count / count) * 100, 2) if count > 0 else 0
+                    business_list.append({
+                        "name": business_name,
+                        "count": business_count,
+                        "percentage": business_percentage
+                    })
+                
+                # Calculate brand percentages
+                brands_list = []
+                for brand_name, brand_count in brand_counts_for_category.items():
+                    brand_percentage = round((brand_count / count) * 100, 2) if count > 0 else 0
+                    brands_list.append({
+                        "name": brand_name,
+                        "count": brand_count,
+                        "percentage": brand_percentage,
+                        "icon_url": IconMapper.get_brand_url(brand_name)
+                    })
+                
+                # Sort business and brands by count (descending)
+                business_list.sort(key=lambda x: x["count"], reverse=True)
+                brands_list.sort(key=lambda x: x["count"], reverse=True)
+                
+                main_categories_detailed.append({
+                    "category": category,
                     "count": count,
-                    "percentage": percentage
-                }
+                    "percentage": percentage,
+                    "business": business_list,
+                    "brands": brands_list
+                })
+
+            # Sort main categories by count (descending)
+            main_categories_detailed.sort(key=lambda x: x["count"], reverse=True)
             # Additional insights
             metrics["insights"] = {
                 "most_common_category": max(main_category_counts.items(), key=lambda x: x[1]) if main_category_counts else ("None", 0),
@@ -438,7 +484,7 @@ class ActiveSearchController:
                 ) if metrics["brand_analysis"] else ("None", 0),
                 "area_density": round(len(pois_data) / 1000, 2),  # POIs per 1000m² (assuming radius is in meters)
                 "bussiness_density_rate": bussiness_density_rate, # for bussiness density per 1000 people,
-                "main_categories_detailed": main_categories_detailed #main categories with count and percentage
+                "main_categories_detailed": main_categories_detailed # Updated format with business and brands
             }
             
             return metrics
