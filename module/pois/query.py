@@ -33,7 +33,7 @@ class POIsQueryController:
             SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
             ),
             point_projected AS (
-            SELECT ST_Transform(geom, 3857) AS geom FROM point_geom
+            SELECT ST_Transform(geom, 3857) AS geom FROM point_geom 
             ),
             buffered AS (
             -- radius n meters
@@ -52,7 +52,7 @@ class POIsQueryController:
             ;'''
 
         if not catchment:
-            query = f'''SELECT case when chain_id != 'None' then chain_id else null end as brand, name as names_pri, geometry_wkt, main_category as category_1  FROM {dim_places_table}
+            query = f'''SELECT case when chain_id != 'None' then chain_id else null end as brand, name as names_pri, geometry_wkt, main_category as category_1, sub_category , sub_sub_category, business_category , opened_on , average_stars, address  FROM {dim_places_table}
                         WHERE 1 = 1 '''
             if category_1:
                 category_1_list = "', '".join([name.strip() for name in category_1.split(',')])
@@ -65,7 +65,7 @@ class POIsQueryController:
                 query += f" AND sub_sub_category in ('{subsubcategories_list}')"
             if brand_names:  
                 brand_list = "', '".join([name.strip() for name in brand_names.split(',')])
-                query += f" AND chain_id in ('{brand_list}') "
+                query += f" AND name in ('{brand_list}') "
         return query    
 
     @staticmethod

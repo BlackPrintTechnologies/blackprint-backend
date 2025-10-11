@@ -71,9 +71,7 @@ api.add_resource(UpdateUser, '/user/updateuser')
 api.add_resource(GetUser, '/user/getuser')
 api.add_resource(SavedSearches, '/savesearch', '/savesearch/<int:search_id>')
 
-api.add_resource(ActiveSearch, '/area-analysis/active')
-api.add_resource(MobilityData, '/area-analysis/mobility')
-api.add_resource(POIsData, '/area-analysis/poisdata')
+
 
 api.add_resource(Group, '/group', '/group/<int:grp_id>')
 api.add_resource(GroupProperty, '/groupproperty')
@@ -120,6 +118,9 @@ api.add_resource(AreaAnalysisDemographics, '/area-analysis/demographics')
 api.add_resource(AreaAnalysisSocioeconomic, '/area-analysis/socioeconomic')
 api.add_resource(AreaAnalysisWeeklyTraffic, '/area-analysis/weekly-traffic')
 api.add_resource(AreaAnalysisPOIHierarchy, '/area-analysis/poi-hierarchy')
+api.add_resource(ActiveSearch, '/area-analysis/active')
+api.add_resource(MobilityData, '/area-analysis/mobility')
+api.add_resource(POIsData, '/area-analysis/poisdata')
 
 @app.after_request
 def after_request(response):
