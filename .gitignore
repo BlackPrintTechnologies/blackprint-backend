@@ -6,6 +6,9 @@
 /.vscode
 app.log
 .env
+converted.py
+h3_test.py
+
 __pycache__/
 .vscode/
 /module/properties/new_controller.py

@@ -1310,3 +1310,83 @@ class AreaAnalysisQuery:
             ORDER BY cs.category_1, cs.category_2, cs.category_3
         """
         return query
+    
+    def _get_municipality_info_query(self, lat, lng, city='queretaro'):
+        """Get municipality information from lat/lng coordinates."""
+        print("getting municipality info", lat, lng, city)
+        if city == 'queretaro':
+            query = f"""
+                SELECT 
+                    h3_indexes,
+                    cve_mun as municipality_code,
+                    nom_mun as municipality_name,
+                    pobtot_alcaldia as municipality_population
+                FROM blackprint_db_prd.data_product.v_qro 
+                WHERE ST_Contains(
+                    ST_GeomFromGeoJSON(geometry_geojson),
+                    ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326)
+                )
+                LIMIT 1
+            """
+        else:  # mexico
+            query = f"""
+                SELECT 
+                    h3_indexes,
+                    municipality_code,
+                    municipality_nm as municipality_name,
+                    pobtot as municipality_population
+                FROM blackprint_db_prd.data_product.v_parcel_v3 
+                WHERE ST_Contains(
+                    ST_GeomFromGeoJSON(geometry_geojson),
+                    ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326)
+                )
+                LIMIT 1
+            """
+        return query
+    
+    def _get_municipality_all_h3_query(self, municipality_code, city='queretaro'):
+        """Get all H3 indexes for a specific municipality."""
+        if city == 'queretaro':
+            query = f"""
+                SELECT 
+                    pobtot_alcaldia as municipality_population,
+                    h3_indexes
+                FROM blackprint_db_prd.data_product.v_qro 
+                WHERE cve_mun = '{municipality_code}'
+            """
+        else:  # mexico
+            query = f"""
+                SELECT 
+                    pobtot as municipality_population,
+                    h3_indexes
+                FROM blackprint_db_prd.data_product.v_parcel_v3 
+                WHERE municipality_code = '{municipality_code}'
+            """
+        return query
+    
+    def _get_municipality_pois_query(self, converted_h3_list):
+        """Get POI data for municipality using converted H3 values."""
+        if not converted_h3_list:
+            return None
+        print("length of converted_h3_list", len(converted_h3_list) )
+        h3_placeholders = ','.join(['%s'] * len(converted_h3_list))
+        
+        query = f"""
+            SELECT 
+                case when chain_id != 'None' then chain_id else null end as brand, 
+                "name" as names_pri, 
+                geometry_wkt, 
+                main_category,
+                sub_category, 
+                sub_sub_category, 
+                business_category, 
+                open_closed_status, 
+                popularity_score, 
+                average_stars, 
+                number_of_reviews, 
+                sentiment_score
+            FROM blackprint_db_prd.presentation.dim_pois_qro 
+            WHERE h3_value IN ({h3_placeholders})
+            ORDER BY main_category, sub_category
+        """
+        return query

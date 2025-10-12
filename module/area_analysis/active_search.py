@@ -128,56 +128,56 @@ class ActiveSearchController:
             return resp 
     
     def get_pois_data(self, lat, lng, radius, city='queretaro'):
-        """Get POIs data within specified radius from lat/lng coordinates with comprehensive area analysis."""
+        """Get POIs data with both area and municipality analysis."""
         connection = None
         cursor = None
         resp = None
         try:
             logger.info(f"Getting POIs data - lat: {lat}, lng: {lng}, radius: {radius}, city: {city}")
             
-            query = self.qc._get_pois_query(lat, lng, radius)
-            population_query = self.qc._get_total_population_query(lat, lng, radius, city)
+            # Get area-based POI data
+            area_query = self.qc._get_pois_query(lat, lng, radius)
+            area_population_query = self.qc._get_total_population_query(lat, lng, radius, city)
             
             connection = self.redshift_db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            logger.info(f"POIs query: {query}")
             
-            cursor.execute(query)
+            # Execute area queries
+            cursor.execute(area_query)
             connection.commit()
-            res = cursor.fetchall()
+            area_res = cursor.fetchall()
             
-            #execute the population query
-            cursor.execute(population_query)
+            cursor.execute(area_population_query)
             connection.commit()
-            population_res = cursor.fetchall()
-            print("population_res", population_res)
+            area_population_res = cursor.fetchall()
             
-            
-            logger.info(f"POIs results count: {len(res)}")
-            
-            # Process the results to ensure proper data types
-            processed_results = []
-            for row in res:
+            # Process area results
+            area_processed_results = []
+            for row in area_res:
                 row_dict = dict(row)
-                # Convert any Decimal fields to float for JSON serialization
                 for key, value in row_dict.items():
                     if isinstance(value, Decimal):
                         row_dict[key] = float(value)
-                processed_results.append(row_dict)
-                
-            #get the total population of the selected area
-            total_population  = 0
-            if population_res and len(population_res) > 0:
-                total_population = population_res[0]["total_population"]
-            else:
-                total_population = 0
+                area_processed_results.append(row_dict)
             
+            area_population = area_population_res[0]["total_population"] if area_population_res and len(area_population_res) > 0 else 0
             
-            # Calculate comprehensive area analysis metrics
-            analysis_metrics = self._calculate_pois_analysis_metrics(processed_results,total_population)
+            # Calculate area analysis metrics
+            area_analysis = self._calculate_pois_analysis_metrics(area_processed_results, area_population)
+            
+            # Handle case where area analysis fails
+            if "error" in area_analysis:
+                area_analysis = {
+                    "total_pois": len(area_processed_results),
+                    "error": area_analysis["error"]
+                }
+            
+            # Get municipality data
+            municipality_data = self._get_municipality_analysis(lat, lng, city, cursor)
             
             resp = Response.success(data={
-                "analysis_metrics": analysis_metrics
+                "analysis_metrics": area_analysis,
+                "analysis_metrics_municipality": municipality_data
             })
             
         except Exception as e:
@@ -191,6 +191,130 @@ class ActiveSearchController:
             if connection:
                 self.redshift_db.disconnect(connection)
             return resp
+    
+    def _get_municipality_analysis(self, lat, lng, city, cursor):
+        """Get municipality analysis with business density calculation."""
+        try:
+            # Step 1: Get municipality info from coordinates
+            print("getting municipality info", lat, lng, city)
+            municipality_query = self.qc._get_municipality_info_query(lat, lng, city)
+            print("municipality_query", municipality_query)
+            cursor.execute(municipality_query)
+            municipality_res = cursor.fetchall()
+            
+            if not municipality_res or len(municipality_res) == 0:
+                return {
+                    "error": "No municipality found for the given coordinates",
+                    "business_density_rate": 0
+                }
+            
+            municipality_info = dict(municipality_res[0])
+            municipality_code = municipality_info['municipality_code']
+            municipality_name = municipality_info['municipality_name']
+            
+            logger.info(f"Found municipality: {municipality_name} (code: {municipality_code})")
+            
+            # Step 2: Get ALL H3 indexes for this municipality
+            print("getting all H3 indexes for municipality", municipality_code)
+            municipality_all_h3_query = self.qc._get_municipality_all_h3_query(municipality_code, city)
+            print("municipality_all_h3_query", municipality_all_h3_query)
+            cursor.execute(municipality_all_h3_query)
+            municipality_h3_res = cursor.fetchall()
+            
+            if not municipality_h3_res or len(municipality_h3_res) == 0:
+                return {
+                    "error": "No H3 indexes found for municipality",
+                    "business_density_rate": 0
+                }
+            
+            # Step 3: Combine all H3 indexes from all records
+            all_h3_indexes = []
+            municipality_population = 0
+            
+            for row in municipality_h3_res:
+                row_dict = dict(row)
+                h3_indexes_str = row_dict.get('h3_indexes', '')
+                municipality_population = row_dict.get('municipality_population', 0)
+                
+                if h3_indexes_str:
+                    # Split comma-separated H3 indexes and add to list
+                    h3_list = [h3.strip() for h3 in h3_indexes_str.split(',') if h3.strip()]
+                    all_h3_indexes.extend(h3_list)
+            
+            # Remove duplicates and convert to string
+            unique_h3_indexes = list(set(all_h3_indexes))
+            combined_h3_str = ','.join(unique_h3_indexes)
+            
+            print(f"Found {len(unique_h3_indexes)} unique H3 indexes for municipality {municipality_name}")
+            print(f"Municipality population: {municipality_population}")
+            
+            # Step 4: Convert H3 indexes using h3_conversion_utils
+            from utils.h3_conversion_utils import convert_h3_resolution
+            converted_h3_str = convert_h3_resolution(combined_h3_str, from_resolution=12, to_resolution=10)
+            
+            if not converted_h3_str:
+                return {
+                    "error": "Failed to convert H3 indexes for municipality",
+                    "business_density_rate": 0
+                }
+            
+            # Step 5: Get municipality POI data
+            converted_h3_list = [int(h3.strip()) for h3 in converted_h3_str.split(',') if h3.strip()]
+            municipality_pois_query = self.qc._get_municipality_pois_query(converted_h3_list)
+            # print("municipality_pois_query", municipality_pois_query)
+            print(f"Converted H3 count: {len(converted_h3_list)}")
+            
+            if municipality_pois_query:
+                cursor.execute(municipality_pois_query, converted_h3_list)
+                municipality_pois_res = cursor.fetchall()
+                
+                # Process municipality POI results
+                municipality_processed_results = []
+                for row in municipality_pois_res:
+                    row_dict = dict(row)
+                    for key, value in row_dict.items():
+                        if isinstance(value, Decimal):
+                            row_dict[key] = float(value)
+                    municipality_processed_results.append(row_dict)
+                
+                # Calculate business density rate (POIs per 1000 population)
+                business_density_rate = 0
+                if municipality_population and municipality_population > 0:
+                    business_density_rate = round((len(municipality_processed_results) / municipality_population) * 1000, 2)
+                
+                # Calculate municipality analysis metrics
+                municipality_analysis = self._calculate_pois_analysis_metrics(municipality_processed_results, municipality_population)
+                
+                # Handle case where analysis fails
+                if "error" in municipality_analysis:
+                    return {
+                        "total_pois": len(municipality_processed_results),
+                        "municipality_code": municipality_code,
+                        "municipality_name": municipality_name,
+                        "municipality_population": municipality_population,
+                        "bussiness_density_rate": business_density_rate,
+                        "error": municipality_analysis["error"]
+                    }
+                
+                # Add municipality context to the analysis metrics
+                municipality_analysis['municipality_code'] = municipality_code
+                municipality_analysis['municipality_name'] = municipality_name
+                municipality_analysis['municipality_population'] = municipality_population
+                municipality_analysis['bussiness_density_rate'] = business_density_rate
+                
+                return municipality_analysis
+            else:
+                return {
+                    "error": "Failed to generate municipality POI query",
+                    "business_density_rate": 0
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in _get_municipality_analysis: {str(e)}", exc_info=True)
+            return {
+                "error": f"Municipality analysis failed: {str(e)}",
+                "business_density_rate": 0
+            }
     
     def _calculate_pois_analysis_metrics(self, pois_data,total_population=0):
         """Calculate comprehensive area analysis metrics from POIs data."""
@@ -395,8 +519,8 @@ class ActiveSearchController:
                 else:
                     independent_count += 1
             #calcultate %s
-            chain_percentage = round((chain_count / len(pois_data)) * 100, 2)
-            independent_percentage = round((independent_count / len(pois_data)) * 100, 2)
+            chain_percentage = round((chain_count / len(pois_data)) * 100, 2) if pois_data else 0
+            independent_percentage = round((independent_count / len(pois_data)) * 100, 2) if pois_data else 0
             
             #add to the metrics
             metrics["chain_analysis"] = {
@@ -420,7 +544,7 @@ class ActiveSearchController:
             # Main categories with detailed breakdown including business and brands
             main_categories_detailed = []
             for category, count in main_category_counts.items():
-                percentage = round((count / len(pois_data)) * 100, 2)
+                percentage = round((count / len(pois_data)) * 100, 2) if pois_data else 0
                 
                 # Get business categories for this main category
                 business_in_category = [poi for poi in pois_data if poi.get('main_category') == category]
@@ -482,16 +606,29 @@ class ActiveSearchController:
             # Sort main categories by count (descending)
             main_categories_detailed.sort(key=lambda x: x["count"], reverse=True)
             # Additional insights
+            # Safely get most common category
+            most_common_category = ("None", 0)
+            if main_category_counts:
+                most_common_category = max(main_category_counts.items(), key=lambda x: x[1])
+            
+            # Safely get most reviewed brand
+            most_reviewed_brand = ("None", 0)
+            if metrics["brand_analysis"]:
+                reviewed_brands = [(brand, data["total_reviews"]) for brand, data in metrics["brand_analysis"].items() if data["total_reviews"] > 0]
+                if reviewed_brands:
+                    most_reviewed_brand = max(reviewed_brands, key=lambda x: x[1])
+            
+            # Safely get highest rated brand
+            highest_rated_brand = ("None", 0)
+            if metrics["brand_analysis"]:
+                rated_brands = [(brand, data["average_rating"]) for brand, data in metrics["brand_analysis"].items() if data["average_rating"] > 0]
+                if rated_brands:
+                    highest_rated_brand = max(rated_brands, key=lambda x: x[1])
+            
             metrics["insights"] = {
-                "most_common_category": max(main_category_counts.items(), key=lambda x: x[1]) if main_category_counts else ("None", 0),
-                "most_reviewed_brand": max(
-                    [(brand, data["total_reviews"]) for brand, data in metrics["brand_analysis"].items()],
-                    key=lambda x: x[1]
-                ) if metrics["brand_analysis"] else ("None", 0),
-                "highest_rated_brand": max(
-                    [(brand, data["average_rating"]) for brand, data in metrics["brand_analysis"].items() if data["average_rating"] > 0],
-                    key=lambda x: x[1]
-                ) if metrics["brand_analysis"] else ("None", 0),
+                "most_common_category": most_common_category,
+                "most_reviewed_brand": most_reviewed_brand,
+                "highest_rated_brand": highest_rated_brand,
                 "area_density": round(len(pois_data) / 1000, 2),  # POIs per 1000m² (assuming radius is in meters)
                 "bussiness_density_rate": bussiness_density_rate, # for bussiness density per 1000 people,
                 "main_categories_detailed": main_categories_detailed # Updated format with business and brands
@@ -683,4 +820,5 @@ class ActiveSearchController:
             final_hierarchy.append(cat1_entry)
         
         return final_hierarchy
+    
         
