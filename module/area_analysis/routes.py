@@ -186,7 +186,7 @@ class MobilityData(Resource):
 
 
 class POIsData(Resource):
-    """Resource to get POIs data within specified radius from coordinates with comprehensive area analysis."""
+    """Resource to get POIs data with both area and municipality analysis."""
     
     post_parser = reqparse.RequestParser()
     post_parser.add_argument('lat', type=float, required=True, help='Latitude is required', location='json')
@@ -196,7 +196,7 @@ class POIsData(Resource):
     
     @authenticate
     def post(self, current_user):
-        """POST /area-analysis/pois - Get POIs data within specified radius from coordinates with comprehensive area analysis."""
+        """POST /area-analysis/poisdata - Get POIs data with both area and municipality analysis."""
         args = self.post_parser.parse_args()
         lat = args.get('lat')
         lng = args.get('lng')
@@ -206,6 +206,7 @@ class POIsData(Resource):
         logger.info("User %s requesting POIs data for lat=%s, lng=%s, radius=%s, city=%s", 
                     current_user, lat, lng, radius, city)
         
+        # Always analyze both area and municipality
         response = active_search_controller.get_pois_data(lat, lng, radius, city)
         
         return response
