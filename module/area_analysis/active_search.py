@@ -164,13 +164,10 @@ class ActiveSearchController:
             
             # Calculate area analysis metrics
             area_analysis = self._calculate_pois_analysis_metrics(area_processed_results, area_population)
-            area_analysis['analysis_type'] = 'area'
-            area_analysis['total_pois'] = len(area_processed_results)
             
             # Handle case where area analysis fails
             if "error" in area_analysis:
                 area_analysis = {
-                    "analysis_type": "area",
                     "total_pois": len(area_processed_results),
                     "error": area_analysis["error"]
                 }
@@ -179,8 +176,8 @@ class ActiveSearchController:
             municipality_data = self._get_municipality_analysis(lat, lng, city, cursor)
             
             resp = Response.success(data={
-                "area": area_analysis,
-                "municipality": municipality_data
+                "analysis_metrics": area_analysis,
+                "analysis_metrics_municipality": municipality_data
             })
             
         except Exception as e:
@@ -291,24 +288,21 @@ class ActiveSearchController:
                 # Handle case where analysis fails
                 if "error" in municipality_analysis:
                     return {
+                        "total_pois": len(municipality_processed_results),
                         "municipality_code": municipality_code,
                         "municipality_name": municipality_name,
                         "municipality_population": municipality_population,
-                        "total_pois": len(municipality_processed_results),
-                        "business_density_rate": business_density_rate,
-                        "analysis_type": "municipality",
+                        "bussiness_density_rate": business_density_rate,
                         "error": municipality_analysis["error"]
                     }
                 
-                return {
-                    "municipality_code": municipality_code,
-                    "municipality_name": municipality_name,
-                    "municipality_population": municipality_population,
-                    "total_pois": len(municipality_processed_results),
-                    "business_density_rate": business_density_rate,
-                    "analysis_type": "municipality",
-                    **municipality_analysis
-                }
+                # Add municipality context to the analysis metrics
+                municipality_analysis['municipality_code'] = municipality_code
+                municipality_analysis['municipality_name'] = municipality_name
+                municipality_analysis['municipality_population'] = municipality_population
+                municipality_analysis['bussiness_density_rate'] = business_density_rate
+                
+                return municipality_analysis
             else:
                 return {
                     "error": "Failed to generate municipality POI query",
