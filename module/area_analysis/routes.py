@@ -201,7 +201,7 @@ class POIsData(Resource):
         lat = args.get('lat')
         lng = args.get('lng')
         radius = args.get('radius', 1000)
-        city = args.get('city', 'queretaro')
+        city = args.get('config_city', 'queretaro')
         
         logger.info("User %s requesting POIs data for lat=%s, lng=%s, radius=%s, city=%s", 
                     current_user, lat, lng, radius, city)
