@@ -818,9 +818,41 @@ class AreaAnalysisQuery:
               -- ===== CURRENT POPULATION AND HOUSEHOLDS (Direct sum from colonia level) =====
               -- Sum population directly from all colonias that intersect with the radius
               SUM(d.tot_vivien) as vivtot,                    -- Total households in selected area
-              SUM(COALESCE(d.pobtot, 0)) as pobtot,   -- Total population from all intersecting colonias
-              SUM(COALESCE(d.pobmas_colonia, 0)) as pobmas,   -- Total male population from all intersecting colonias
-              SUM(COALESCE(d.pobfem_colonia, 0)) as pobfem,   -- Total female population from all intersecting colonias
+              SUM(COALESCE(d.pobtot, 0)) as pobtot,   -- Total population from all intersecting colonias (block level)
+              
+              -- ===== COLONIA LEVEL GENDER DATA (for ratio calculation) =====
+              SUM(COALESCE(d.pobmas_colonia, 0)) as total_pobmas_colonia,   -- Total male population from all intersecting colonias
+              SUM(COALESCE(d.pobfem_colonia, 0)) as total_pobfem_colonia,   -- Total female population from all intersecting colonias
+              SUM(COALESCE(d.pobtot_colonia, 0)) as total_pobtot_colonia,   -- Total population from all intersecting colonias (colonia level)
+              
+              -- ===== CALCULATED GENDER DISTRIBUTION (using colonia ratios applied to block-level total) =====
+              -- Calculate colonia-level gender ratios
+              CASE 
+                  WHEN SUM(COALESCE(d.pobtot_colonia, 0)) > 0 THEN 
+                      ROUND(CAST(SUM(COALESCE(d.pobmas_colonia, 0)) AS DECIMAL(15,2)) / CAST(SUM(COALESCE(d.pobtot_colonia, 0)) AS DECIMAL(15,2)), 4)
+                  ELSE 0 
+              END as colonia_male_ratio,  -- Male ratio from colonia data
+              
+              CASE 
+                  WHEN SUM(COALESCE(d.pobtot_colonia, 0)) > 0 THEN 
+                      ROUND(CAST(SUM(COALESCE(d.pobfem_colonia, 0)) AS DECIMAL(15,2)) / CAST(SUM(COALESCE(d.pobtot_colonia, 0)) AS DECIMAL(15,2)), 4)
+                  ELSE 0 
+              END as colonia_female_ratio,  -- Female ratio from colonia data
+              
+              -- Apply colonia gender ratios to block-level total population for consistency
+              CASE 
+                  WHEN SUM(COALESCE(d.pobtot, 0)) > 0 AND SUM(COALESCE(d.pobtot_colonia, 0)) > 0 THEN
+                      ROUND(CAST(SUM(COALESCE(d.pobtot, 0)) AS DECIMAL(15,2)) * 
+                            (CAST(SUM(COALESCE(d.pobmas_colonia, 0)) AS DECIMAL(15,2)) / CAST(SUM(COALESCE(d.pobtot_colonia, 0)) AS DECIMAL(15,2))), 0)
+                  ELSE 0 
+              END as pobmas,  -- Estimated male population using colonia ratio
+              
+              CASE 
+                  WHEN SUM(COALESCE(d.pobtot, 0)) > 0 AND SUM(COALESCE(d.pobtot_colonia, 0)) > 0 THEN
+                      ROUND(CAST(SUM(COALESCE(d.pobtot, 0)) AS DECIMAL(15,2)) * 
+                            (CAST(SUM(COALESCE(d.pobfem_colonia, 0)) AS DECIMAL(15,2)) / CAST(SUM(COALESCE(d.pobtot_colonia, 0)) AS DECIMAL(15,2))), 0)
+                  ELSE 0 
+              END as pobfem,  -- Estimated female population using colonia ratio
               
               -- ===== SOCIOECONOMIC LEVELS (CORRECTED: Weighted average based on household counts) =====
               CASE 
