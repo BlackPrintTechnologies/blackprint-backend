@@ -1376,51 +1376,79 @@ class AreaAnalysisQuery:
             """
         return query
     
-    def _get_municipality_all_h3_query(self, municipality_code, city='queretaro'):
-        """Get all H3 indexes for a specific municipality."""
+    
+    def _get_municipality_pois_query_direct(self, lat, lng, city='queretaro'):
+        """Get POI data for municipality using direct H3_Polyfill without Python conversion."""
         if city == 'queretaro':
             query = f"""
+                WITH point_geom AS (
+                    SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+                ),
+                buffered AS (
+                    SELECT geometry
+                    FROM blackprint_db_prd.integration.int_state_municipality_shapefile
+                    WHERE ST_Within((SELECT geom FROM point_geom), geometry)
+                ),
+                h3_values AS (
+                    SELECT H3_Polyfill(ST_Transform(geometry, 4326), 10) AS h3_indexes
+                    FROM buffered
+                ),
+                h3_index AS (
+                    SELECT o AS h3_value
+                    FROM h3_values i, i.h3_indexes o
+                )
                 SELECT 
-                    pobtot_alcaldia as municipality_population,
-                    h3_indexes
-                FROM blackprint_db_prd.data_product.v_qro 
-                WHERE cve_mun = '{municipality_code}'
+                    case when p.chain_id != 'None' then p.chain_id else null end as brand, 
+                    p."name" as names_pri, 
+                    p.geometry_wkt, 
+                    p.main_category,
+                    p.sub_category, 
+                    p.sub_sub_category, 
+                    p.business_category, 
+                    p.open_closed_status, 
+                    p.popularity_score, 
+                    p.average_stars, 
+                    p.number_of_reviews, 
+                    p.sentiment_score
+                FROM blackprint_db_prd.presentation.dim_pois_qro p
+                INNER JOIN h3_index h ON p.h3_value::VARCHAR = h.h3_value::VARCHAR
+                ORDER BY p.main_category, p.sub_category
             """
         else:  # mexico
             query = f"""
+                WITH point_geom AS (
+                    SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+                ),
+                buffered AS (
+                    SELECT geometry
+                    FROM blackprint_db_prd.integration.int_state_municipality_shapefile_mexico
+                    WHERE ST_Within((SELECT geom FROM point_geom), geometry)
+                ),
+                h3_values AS (
+                    SELECT H3_Polyfill(ST_Transform(geometry, 4326), 10) AS h3_indexes
+                    FROM buffered
+                ),
+                h3_index AS (
+                    SELECT o AS h3_value
+                    FROM h3_values i, i.h3_indexes o
+                )
                 SELECT 
-                    pobtot as municipality_population,
-                    h3_indexes
-                FROM blackprint_db_prd.data_product.v_parcel_v3 
-                WHERE municipality_code = '{municipality_code}'
+                    case when p.chain_id != 'None' then p.chain_id else null end as brand, 
+                    p."name" as names_pri, 
+                    p.geometry_wkt, 
+                    p.main_category,
+                    p.sub_category, 
+                    p.sub_sub_category, 
+                    p.business_category, 
+                    p.open_closed_status, 
+                    p.popularity_score, 
+                    p.average_stars, 
+                    p.number_of_reviews, 
+                    p.sentiment_score
+                FROM blackprint_db_prd.presentation.dim_pois_mexico p
+                INNER JOIN h3_index h ON p.h3_value::VARCHAR = h.h3_value::VARCHAR
+                ORDER BY p.main_category, p.sub_category
             """
-        return query
-    
-    def _get_municipality_pois_query(self, converted_h3_list):
-        """Get POI data for municipality using converted H3 values."""
-        if not converted_h3_list:
-            return None
-        print("length of converted_h3_list", len(converted_h3_list) )
-        h3_placeholders = ','.join(['%s'] * len(converted_h3_list))
-        
-        query = f"""
-            SELECT 
-                case when chain_id != 'None' then chain_id else null end as brand, 
-                "name" as names_pri, 
-                geometry_wkt, 
-                main_category,
-                sub_category, 
-                sub_sub_category, 
-                business_category, 
-                open_closed_status, 
-                popularity_score, 
-                average_stars, 
-                number_of_reviews, 
-                sentiment_score
-            FROM blackprint_db_prd.presentation.dim_pois_qro 
-            WHERE h3_value IN ({h3_placeholders})
-            ORDER BY main_category, sub_category
-        """
         return query
 
     def build_socioeconomic_income_analysis_query(self, lat, lng, radius, entity_code=22):

@@ -193,7 +193,7 @@ class ActiveSearchController:
             return resp
     
     def _get_municipality_analysis(self, lat, lng, city, cursor):
-        """Get municipality analysis with business density calculation."""
+        """Get municipality analysis with business density calculation using direct H3_Polyfill."""
         try:
             # Step 1: Get municipality info from coordinates
             print("getting municipality info", lat, lng, city)
@@ -211,104 +211,54 @@ class ActiveSearchController:
             municipality_info = dict(municipality_res[0])
             municipality_code = municipality_info['municipality_code']
             municipality_name = municipality_info['municipality_name']
+            municipality_population = municipality_info['municipality_population']
             
             logger.info(f"Found municipality: {municipality_name} (code: {municipality_code})")
             
-            # Step 2: Get ALL H3 indexes for this municipality
-            print("getting all H3 indexes for municipality", municipality_code)
-            municipality_all_h3_query = self.qc._get_municipality_all_h3_query(municipality_code, city)
-            print("municipality_all_h3_query", municipality_all_h3_query)
-            cursor.execute(municipality_all_h3_query)
-            municipality_h3_res = cursor.fetchall()
+            # Step 2: Get municipality POI data using direct H3_Polyfill
+            print("getting municipality POIs using direct H3_Polyfill")
+            municipality_pois_query = self.qc._get_municipality_pois_query_direct(lat, lng, city)
+            print("municipality_pois_query", municipality_pois_query)
             
-            if not municipality_h3_res or len(municipality_h3_res) == 0:
-                return {
-                    "error": "No H3 indexes found for municipality",
-                    "business_density_rate": 0
-                }
+            cursor.execute(municipality_pois_query)
+            municipality_pois_res = cursor.fetchall()
             
-            # Step 3: Combine all H3 indexes from all records
-            all_h3_indexes = []
-            municipality_population = 0
-            
-            for row in municipality_h3_res:
+            # Process municipality POI results
+            municipality_processed_results = []
+            for row in municipality_pois_res:
                 row_dict = dict(row)
-                h3_indexes_str = row_dict.get('h3_indexes', '')
-                municipality_population = row_dict.get('municipality_population', 0)
-                
-                if h3_indexes_str:
-                    # Split comma-separated H3 indexes and add to list
-                    h3_list = [h3.strip() for h3 in h3_indexes_str.split(',') if h3.strip()]
-                    all_h3_indexes.extend(h3_list)
+                for key, value in row_dict.items():
+                    if isinstance(value, Decimal):
+                        row_dict[key] = float(value)
+                municipality_processed_results.append(row_dict)
             
-            # Remove duplicates and convert to string
-            unique_h3_indexes = list(set(all_h3_indexes))
-            combined_h3_str = ','.join(unique_h3_indexes)
+            # Calculate business density rate (POIs per 1000 population)
+            business_density_rate = 0
+            if municipality_population and municipality_population > 0:
+                business_density_rate = round((len(municipality_processed_results) / municipality_population) * 1000, 2)
             
-            print(f"Found {len(unique_h3_indexes)} unique H3 indexes for municipality {municipality_name}")
-            print(f"Municipality population: {municipality_population}")
+            # Calculate municipality analysis metrics
+            municipality_analysis = self._calculate_pois_analysis_metrics(municipality_processed_results, municipality_population)
             
-            # Step 4: Convert H3 indexes using h3_conversion_utils
-            from utils.h3_conversion_utils import convert_h3_resolution
-            converted_h3_str = convert_h3_resolution(combined_h3_str, from_resolution=12, to_resolution=10)
-            
-            if not converted_h3_str:
+            # Handle case where analysis fails
+            if "error" in municipality_analysis:
                 return {
-                    "error": "Failed to convert H3 indexes for municipality",
-                    "business_density_rate": 0
+                    "total_pois": len(municipality_processed_results),
+                    "municipality_code": municipality_code,
+                    "municipality_name": municipality_name,
+                    "municipality_population": municipality_population,
+                    "bussiness_density_rate": business_density_rate,
+                    "error": municipality_analysis["error"]
                 }
             
-            # Step 5: Get municipality POI data
-            converted_h3_list = [int(h3.strip()) for h3 in converted_h3_str.split(',') if h3.strip()]
-            municipality_pois_query = self.qc._get_municipality_pois_query(converted_h3_list)
-            # print("municipality_pois_query", municipality_pois_query)
-            print(f"Converted H3 count: {len(converted_h3_list)}")
+            # Add municipality context to the analysis metrics
+            municipality_analysis['municipality_code'] = municipality_code
+            municipality_analysis['municipality_name'] = municipality_name
+            municipality_analysis['municipality_population'] = municipality_population
+            municipality_analysis['bussiness_density_rate'] = business_density_rate
             
-            if municipality_pois_query:
-                cursor.execute(municipality_pois_query, converted_h3_list)
-                municipality_pois_res = cursor.fetchall()
-                
-                # Process municipality POI results
-                municipality_processed_results = []
-                for row in municipality_pois_res:
-                    row_dict = dict(row)
-                    for key, value in row_dict.items():
-                        if isinstance(value, Decimal):
-                            row_dict[key] = float(value)
-                    municipality_processed_results.append(row_dict)
-                
-                # Calculate business density rate (POIs per 1000 population)
-                business_density_rate = 0
-                if municipality_population and municipality_population > 0:
-                    business_density_rate = round((len(municipality_processed_results) / municipality_population) * 1000, 2)
-                
-                # Calculate municipality analysis metrics
-                municipality_analysis = self._calculate_pois_analysis_metrics(municipality_processed_results, municipality_population)
-                
-                # Handle case where analysis fails
-                if "error" in municipality_analysis:
-                    return {
-                        "total_pois": len(municipality_processed_results),
-                        "municipality_code": municipality_code,
-                        "municipality_name": municipality_name,
-                        "municipality_population": municipality_population,
-                        "bussiness_density_rate": business_density_rate,
-                        "error": municipality_analysis["error"]
-                    }
-                
-                # Add municipality context to the analysis metrics
-                municipality_analysis['municipality_code'] = municipality_code
-                municipality_analysis['municipality_name'] = municipality_name
-                municipality_analysis['municipality_population'] = municipality_population
-                municipality_analysis['bussiness_density_rate'] = business_density_rate
-                
-                return municipality_analysis
-            else:
-                return {
-                    "error": "Failed to generate municipality POI query",
-                    "business_density_rate": 0
-                }
-                
+            return municipality_analysis
+            
         except Exception as e:
             logger.error(f"Error in _get_municipality_analysis: {str(e)}", exc_info=True)
             return {
