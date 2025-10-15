@@ -293,6 +293,7 @@ class ActiveSearchController:
             brand_reviews = {}
             brand_ratings = {}
             brand_popularity = {}
+            brand_categories = {}  # Track categories for each brand
             
             # Category Analysis
             main_category_counts = {}
@@ -317,6 +318,12 @@ class ActiveSearchController:
                 brand = poi.get('brand')
                 if brand and brand != 'None':
                     brand_counts[brand] = brand_counts.get(brand, 0) + 1
+                    
+                    # Track brand categories (use most common category for each brand)
+                    main_cat = poi.get('main_category', 'Unknown')
+                    if brand not in brand_categories:
+                        brand_categories[brand] = {}
+                    brand_categories[brand][main_cat] = brand_categories[brand].get(main_cat, 0) + 1
                     
                     # Brand reviews and ratings
                     reviews = poi.get('num_reviews', 0) or 0
@@ -394,16 +401,21 @@ class ActiveSearchController:
             # Calculate total brand count for percentage calculation
             total_brand_count = sum(brand_counts.values())
             
-            # Top 10 Brands by count with percentage
-            metrics["top_brands"] = [
-                {
+            # Top 10 Brands by count with percentage and category
+            metrics["top_brands"] = []
+            for brand, data in metrics["brand_analysis"].items():
+                # Get the most common category for this brand
+                primary_category = "Unknown"
+                if brand in brand_categories:
+                    primary_category = max(brand_categories[brand].items(), key=lambda x: x[1])[0]
+                
+                metrics["top_brands"].append({
                     "brand": brand,
                     "count": data["count"],
                     "percentage": round((data["count"] / total_brand_count) * 100, 2) if total_brand_count > 0 else 0,
+                    "category": primary_category,
                     "icon_url": IconMapper.get_brand_url(brand)
-                }
-                for brand, data in metrics["brand_analysis"].items()
-            ]
+                })
             metrics["top_brands"] = sorted(metrics["top_brands"], key=lambda x: x["count"], reverse=True)[:10]
             # Top 10 Brands by reviews
             metrics["top_brands_by_reviews"] = sorted(
@@ -525,10 +537,17 @@ class ActiveSearchController:
                 total_brand_count = sum(brand_counts_for_category.values())
                 for brand_name, brand_count in brand_counts_for_category.items():
                     brand_percentage = round((brand_count / total_brand_count) * 100, 2) if total_brand_count > 0 else 0
+                    
+                    # Get the most common category for this brand
+                    primary_category = "Unknown"
+                    if brand_name in brand_categories:
+                        primary_category = max(brand_categories[brand_name].items(), key=lambda x: x[1])[0]
+                    
                     brands_list.append({
                         "name": brand_name,
                         "count": brand_count,
                         "percentage": brand_percentage,
+                        "category": primary_category,
                         "icon_url": IconMapper.get_brand_url(brand_name)
                     })
                 
