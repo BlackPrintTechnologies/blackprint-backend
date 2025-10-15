@@ -890,20 +890,39 @@ class AreaAnalysisController:
                 "female": female_count
             })
         
-        # Add missing age groups (not available in data)
-        age_groups.extend([
-            {"range": "25-34", "male": 0, "female": 0},
-            {"range": "35-44", "male": 0, "female": 0},
-            {"range": "45-54", "male": 0, "female": 0},
-            {"range": "55-64", "male": 0, "female": 0}
-        ])
+        # Calculate missing 25-64 age range population
+        total_population = aggregated_result.get("pobtot", 0) or 0
+        existing_population = sum(block_age_totals.values())
+        missing_population = max(0, total_population - existing_population)
+        
+        # Get municipality-level gender ratio for 25-64 age range (use 18-24 as proxy)
+        muni_18_24_data = municipality_gender_data["18a24"]
+        if muni_18_24_data["total"] > 0:
+            male_ratio_25_64 = muni_18_24_data["male"] / muni_18_24_data["total"]
+            female_ratio_25_64 = muni_18_24_data["female"] / muni_18_24_data["total"]
+        else:
+            male_ratio_25_64 = 0.5  # Default 50/50 split if no data
+            female_ratio_25_64 = 0.5
+        
+        # Calculate male and female counts for 25-64 age range
+        male_25_64 = round(missing_population * male_ratio_25_64)
+        female_25_64 = round(missing_population * female_ratio_25_64)
+        
+        # Add single 25-64 age group with calculated population
+        age_groups.append({
+            "range": "25-65",
+            "male": male_25_64,
+            "female": female_25_64
+        })
         
         # Debug: Log the calculated values
+        logger.info(f"Age pyramid - Total population: {total_population}")
+        logger.info(f"Age pyramid - Existing population: {existing_population}")
+        logger.info(f"Age pyramid - Missing population (25-64): {missing_population}")
         logger.info(f"Age pyramid - Block totals: {block_age_totals}")
         logger.info(f"Age pyramid - Calculated groups: {[(g['range'], g['male'], g['female']) for g in age_groups[:7]]}")
         
         # Calculate percentages for each age group
-        total_population = aggregated_result.get("pobtot", 1) or 1
         for group in age_groups:
             group["male_percentage"] = round((group["male"] / total_population * 100), 2) if total_population > 0 else 0
             group["female_percentage"] = round((group["female"] / total_population * 100), 2) if total_population > 0 else 0
