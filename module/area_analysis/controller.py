@@ -722,11 +722,23 @@ class AreaAnalysisController:
                 else:
                     logger.error(f"Unsupported city configuration for processing: {config_city}")
                     return Response.error("Unsupported city configuration. Supported cities: mexico, queretaro")
+                
+                # ADD SOCIOECONOMIC INCOME ANALYSIS
+                if config_city == 'queretaro':
+                    # Get entity code for Queretaro
+                    entity_code = 22  # Queretaro entity code
+                    
+                    # Get income analysis data
+                    income_analysis = self._get_socioeconomic_income_analysis(connection, lat, lng, radius, entity_code)
+                    demographics_data['socioeconomic_income_analysis'] = income_analysis
+                
                 logger.info(f"Demographics analysis completed for pre-aggregated query result in {config_city}")
                 resp = Response.success(data=demographics_data)
             else:
                 # Return empty demographics structure
                 demographics_data = self._get_empty_demographics_structure(lat, lng, radius)
+                if config_city == 'queretaro':
+                    demographics_data['socioeconomic_income_analysis'] = self._get_empty_income_analysis_structure(lat, lng, radius)
                 logger.info(f"No demographic data found for {config_city}, returning empty structure")
                 resp = Response.success(data=demographics_data)
             
@@ -2246,7 +2258,97 @@ class AreaAnalysisController:
         
         return round(percentile, 1)
 
+    def _get_socioeconomic_income_analysis(self, connection, lat, lng, radius, entity_code):
+        """Get socioeconomic income analysis data using existing connection."""
+        try:
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            # Get income summary
+            income_query = self.query_builder.build_socioeconomic_income_analysis_query(lat, lng, radius, entity_code)
+            cursor.execute(income_query)
+            income_data = cursor.fetchall()
+            
+            # Get income breakdown
+            breakdown_query = self.query_builder.build_socioeconomic_breakdown_query(lat, lng, radius, entity_code)
+            cursor.execute(breakdown_query)
+            breakdown_data = cursor.fetchall()
+            
+            # Get growth trends
+            trends_query = self.query_builder.build_socioeconomic_growth_trends_query(lat, lng, radius, entity_code)
+            cursor.execute(trends_query)
+            trends_data = cursor.fetchall()
+            
+            cursor.close()
+            
+            # Process the data
+            return self._process_socioeconomic_income_data(income_data, breakdown_data, trends_data, lat, lng, radius)
+            
+        except Exception as e:
+            logger.error(f"Error in _get_socioeconomic_income_analysis: {str(e)}")
+            return self._get_empty_income_analysis_structure(lat, lng, radius)
 
+    def _process_socioeconomic_income_data(self, income_data, breakdown_data, trends_data, lat, lng, radius):
+        """Process socioeconomic income analysis data."""
+        if not income_data:
+            return self._get_empty_income_analysis_structure(lat, lng, radius)
+        
+        income_summary = income_data[0] if income_data else {}
+        breakdown = breakdown_data if breakdown_data else []
+        trends = trends_data if trends_data else []
+        
+        # Process breakdown data
+        income_levels = []
+        for level_data in breakdown:
+            income_levels.append({
+                "level": level_data.get("level"),
+                "households": int(level_data.get("households", 0)),
+                "household_percentage": float(level_data.get("pct_households", 0)),
+                "total_income": int(level_data.get("total_income_level", 0)),
+                "income_percentage": float(level_data.get("pct_income", 0))
+            })
+        
+        # Process trends data
+        growth_trends = []
+        for trend_data in trends:
+            growth_trends.append({
+                "level": trend_data.get("level"),
+                "growth_2016_2018": int(trend_data.get("growth_2016_2018", 0)),
+                "growth_2018_2020": int(trend_data.get("growth_2018_2020", 0)),
+                "growth_2020_2022": int(trend_data.get("growth_2020_2022", 0)),
+                "growth_2022_2024": int(trend_data.get("growth_2022_2024", 0)),
+                "growth_pct_2016_2018": float(trend_data.get("growth_pct_2016_2018", 0)),
+                "growth_pct_2018_2020": float(trend_data.get("growth_pct_2018_2020", 0)),
+                "growth_pct_2020_2022": float(trend_data.get("growth_pct_2020_2022", 0)),
+                "growth_pct_2022_2024": float(trend_data.get("growth_pct_2022_2024", 0))
+            })
+        
+        return {
+            "income_summary": {
+                "total_households": int(income_summary.get("total_households", 0)),
+                "total_household_income": int(income_summary.get("total_household_income", 0)),
+                "average_household_income": float(income_summary.get("avg_household_income", 0))
+            },
+            "income_distribution": {
+                "levels": income_levels
+            },
+            "historical_trends": {
+                "growth_by_level": growth_trends
+            }
+        }
 
-
+    def _get_empty_income_analysis_structure(self, lat, lng, radius):
+        """Return empty income analysis structure when no data is found."""
+        return {
+            "income_summary": {
+                "total_households": 0,
+                "total_household_income": 0,
+                "average_household_income": 0
+            },
+            "income_distribution": {
+                "levels": []
+            },
+            "historical_trends": {
+                "growth_by_level": []
+            }
+        }
 
