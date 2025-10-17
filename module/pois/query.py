@@ -22,7 +22,7 @@ class POIsQueryController:
         return query
 
     @staticmethod
-    def get_brand_query(catchment, lat, lng, category_1=None, subcategories=None, subsubcategories=None, brand_names=None, city="mexico"):
+    def get_brand_query(catchment, lat, lng, category_1=None, subcategories=None, subsubcategories=None, brand_names=None, business_names=None, city="mexico"):
         """Generate brand query based on catchment radius and city."""
         if city == "mexico":
             dim_places_table = 'blackprint_db_prd.presentation.dim_pois_cdmx'
@@ -65,7 +65,10 @@ class POIsQueryController:
                 query += f" AND sub_sub_category in ('{subsubcategories_list}')"
             if brand_names:  
                 brand_list = "', '".join([name.strip() for name in brand_names.split(',')])
-                query += f" AND name in ('{brand_list}') "
+                query += f" AND chain_id in ('{brand_list}') "
+            if business_names:
+                business_list = "', '".join([name.strip() for name in business_names.split(',')])
+                query += f" AND name in ('{business_list}') "
         return query    
 
     @staticmethod
@@ -78,11 +81,14 @@ class POIsQueryController:
         
         # Build WHERE conditions based on provided parameters
         where_conditions = []
+        distinct_by = "chain_id"
         
         if brand_name:
+            distinct_by = "name"
             where_conditions.append(f"chain_id ILIKE '%{brand_name}%'")
         
         if chain_id:
+            distinct_by = "chain_id"
             where_conditions.append(f"name ILIKE '%{chain_id}%'")
         
         # If no search parameters provided, return empty result
@@ -91,7 +97,14 @@ class POIsQueryController:
         
         where_clause = " OR ".join(where_conditions)
         
-        query = f'''SELECT DISTINCT chain_id as brand, name 
+        # Determine distinct column
+        if distinct_by == 'name':
+            select_clause = "SELECT DISTINCT name as name, chain_id as brand"
+        else:
+            # default to distinct by chain_id
+            select_clause = "SELECT DISTINCT chain_id as brand, name"
+        
+        query = f'''{select_clause}
                     FROM {places_table} 
                     WHERE {where_clause}
                     LIMIT 50'''
