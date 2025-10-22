@@ -702,10 +702,10 @@ class AreaAnalysisQuery:
         SELECT 
             *,
             -- ===== CALCULATED METRICS =====
-            ROUND(CAST(({radius} / 1000.0) * ({radius} / 1000.0) * 3.14159 AS DECIMAL(10,2)), 2) as area_km2,  -- Area in km² using provided radius
+            ROUND(PI() * POWER({radius} / 1000.0, 2), 2) as area_km2,  -- Area in km² using provided radius
             CASE 
-                WHEN pobtot > 0 AND ({radius} / 1000.0) * ({radius} / 1000.0) * 3.14159 > 0 
-                THEN ROUND(CAST(pobtot AS DECIMAL(15,2)) / CAST(({radius} / 1000.0) * ({radius} / 1000.0) * 3.14159 AS DECIMAL(10,2)), 2) 
+                WHEN pobtot > 0 AND PI() * POWER({radius} / 1000.0, 2) > 0 
+                THEN ROUND(CAST(pobtot AS DECIMAL(15,2)) / CAST(PI() * POWER({radius} / 1000.0, 2) AS DECIMAL(10,2)), 2) 
                 ELSE 0 
             END as population_density,  -- Population density (persons/km²)
             CASE 
@@ -1048,10 +1048,10 @@ class AreaAnalysisQuery:
         SELECT 
             *,
             -- ===== CALCULATED METRICS =====
-            ROUND(CAST(({radius} / 1000.0) * ({radius} / 1000.0) * 3.14159 AS DECIMAL(10,2)), 2) as area_km2,  -- Area in km² using provided radius
+            ROUND(PI() * POWER({radius} / 1000.0, 2), 2) as area_km2,  -- Area in km² using provided radius
             CASE 
-                WHEN pobtot > 0 AND ({radius} / 1000.0) * ({radius} / 1000.0) * 3.14159 > 0 
-                THEN ROUND(CAST(pobtot AS DECIMAL(15,2)) / CAST(({radius} / 1000.0) * ({radius} / 1000.0) * 3.14159 AS DECIMAL(10,2)), 2) 
+                WHEN pobtot > 0 AND PI() * POWER({radius} / 1000.0, 2) > 0 
+                THEN ROUND(CAST(pobtot AS DECIMAL(15,2)) / CAST(PI() * POWER({radius} / 1000.0, 2) AS DECIMAL(10,2)), 2) 
                 ELSE 0 
             END as population_density,  -- Population density (persons/km²)
             CASE 
