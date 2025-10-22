@@ -29,6 +29,15 @@ class AreaAnalysisController:
         Returns:
             dict: Response with traffic data by day
         """
+        # Create cache key based on parameters
+        cache_key = f"traffic_by_day_{config_city}_{lat}_{lng}_{radius}_{user_type or 'all'}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached traffic by day data for {config_city} at ({lat}, {lng}) with radius {radius}, user_type {user_type}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -88,6 +97,10 @@ class AreaAnalysisController:
             logger.info(f"Traffic by day aggregated_results: {traffic_data['summary']['total_unique_users']} total users")
             resp = Response.success(data=traffic_data)
             
+            # Cache the successful response
+            set_in_cache('demographic', cache_key, resp)
+            logger.info(f"Cached traffic by day data for {config_city} at ({lat}, {lng}) with radius {radius}, user_type {user_type}")
+            
         except Exception as e:
             logger.error(f"Error in get_traffic_by_day: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
@@ -115,6 +128,15 @@ class AreaAnalysisController:
         Returns:
             dict: Response with traffic data by hour
         """
+        # Create cache key based on parameters
+        cache_key = f"traffic_by_hour_{config_city}_{lat}_{lng}_{radius}_{user_type or 'all'}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached traffic by hour data for {config_city} at ({lat}, {lng}) with radius {radius}, user_type {user_type}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -164,6 +186,10 @@ class AreaAnalysisController:
             logger.info(f"Traffic by hour aggregated_results: {traffic_data['summary']['total_unique_users']} total users")
             resp = Response.success(data=traffic_data)
             
+            # Cache the successful response
+            set_in_cache('demographic', cache_key, resp)
+            logger.info(f"Cached traffic by hour data for {config_city} at ({lat}, {lng}) with radius {radius}, user_type {user_type}")
+            
         except Exception as e:
             logger.error(f"Error in get_traffic_by_hour: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
@@ -191,6 +217,15 @@ class AreaAnalysisController:
         Returns:
             dict: Response with total traffic summary
         """
+        # Create cache key based on parameters
+        cache_key = f"traffic_summary_{config_city}_{lat}_{lng}_{radius}_{user_type or 'all'}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached traffic summary data for {config_city} at ({lat}, {lng}) with radius {radius}, user_type {user_type}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -228,6 +263,10 @@ class AreaAnalysisController:
             
             logger.info(f"Traffic summary aggregated_results: {traffic_data['summary']['total_unique_users']} total users")
             resp = Response.success(data=traffic_data)
+            
+            # Cache the successful response
+            set_in_cache('demographic', cache_key, resp)
+            logger.info(f"Cached traffic summary data for {config_city} at ({lat}, {lng}) with radius {radius}, user_type {user_type}")
             
         except Exception as e:
             logger.error(f"Error in get_traffic_summary: {str(e)}")
@@ -535,6 +574,15 @@ class AreaAnalysisController:
         Returns:
             dict: Response with traffic pattern data for charts
         """
+        # Create cache key based on parameters
+        cache_key = f"traffic_patterns_{config_city}_{lat}_{lng}_{radius}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached traffic patterns data for {config_city} at ({lat}, {lng}) with radius {radius}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -677,6 +725,10 @@ class AreaAnalysisController:
             
             logger.info("Traffic patterns completed with all user types")
             resp = Response.success(data=patterns_data)
+            
+            # Cache the successful response
+            set_in_cache('demographic', cache_key, resp)
+            logger.info(f"Cached traffic patterns data for {config_city} at ({lat}, {lng}) with radius {radius}")
             
         except Exception as e:
             logger.error(f"Error in get_traffic_patterns: {str(e)}")
@@ -2048,6 +2100,15 @@ class AreaAnalysisController:
         Returns:
             dict: Response with weekly traffic data by municipality
         """
+        # Create cache key based on parameters
+        cache_key = f"weekly_traffic_municipality_{lat}_{lng}_{radius}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached weekly traffic by municipality data at ({lat}, {lng}) with radius {radius}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -2110,6 +2171,10 @@ class AreaAnalysisController:
             logger.info(f"Weekly traffic by municipality: {len(municipalities_list) if res else 0} municipalities found")
             resp = Response.success(data=traffic_data)
             
+            # Cache the successful response
+            set_in_cache('demographic', cache_key, resp)
+            logger.info(f"Cached weekly traffic by municipality data at ({lat}, {lng}) with radius {radius}")
+            
         except Exception as e:
             logger.error(f"Error in get_weekly_traffic_by_municipality: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
@@ -2135,6 +2200,15 @@ class AreaAnalysisController:
         Returns:
             dict: Response with H3 distribution data including frequency percentages
         """
+        # Create cache key based on parameters
+        cache_key = f"h3_distribution_{lat}_{lng}_{radius}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached H3 distribution data at ({lat}, {lng}) with radius {radius}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -2172,6 +2246,10 @@ class AreaAnalysisController:
             }
             
             resp = Response.success(data=distribution_data)
+            
+            # Cache the successful response
+            set_in_cache('demographic', cache_key, resp)
+            logger.info(f"Cached H3 distribution data at ({lat}, {lng}) with radius {radius}")
             
         except Exception as e:
             logger.error(f"Error in get_h3_distribution: {str(e)}")

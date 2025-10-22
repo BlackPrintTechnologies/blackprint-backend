@@ -1,6 +1,7 @@
 from utils.dbUtils import Database, RedshiftDatabase
 from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
+from utils.app_cache import set_in_cache, get_from_cache
 from datetime import datetime
 from decimal import Decimal
 import logging
@@ -19,6 +20,15 @@ class ActiveSearchController:
     
     def get_active_search(self, user_id):
         """Get active search data for a user."""
+        # Create cache key based on user_id
+        cache_key = f"active_search_{user_id}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached active search data for user {user_id}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -49,6 +59,10 @@ class ActiveSearchController:
             
             resp = Response.success(data={"response": processed_results})
             
+            # Cache the successful response
+            set_in_cache('demographic', cache_key, resp)
+            logger.info(f"Cached active search data for user {user_id}")
+            
         except Exception as e:
             logger.error(f"Error in get_active_search: {str(e)}", exc_info=True)
             if connection:
@@ -63,6 +77,15 @@ class ActiveSearchController:
     
     def get_mobility_data(self, lat, lng, radius, city='queretaro'):
         """Get mobility data within specified radius from lat/lng coordinates."""
+        # Create cache key based on parameters
+        cache_key = f"mobility_data_{city}_{lat}_{lng}_{radius}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached mobility data for {city} at ({lat}, {lng}) with radius {radius}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -92,6 +115,10 @@ class ActiveSearchController:
                 processed_results.append(row_dict)
             
             resp = Response.success(data={"response": processed_results})
+            
+            # Cache the successful response
+            set_in_cache('demographic', cache_key, resp)
+            logger.info(f"Cached mobility data for {city} at ({lat}, {lng}) with radius {radius}")
             
         except Exception as e:
             logger.error(f"Error in get_mobility_data: {str(e)}", exc_info=True)
@@ -129,6 +156,15 @@ class ActiveSearchController:
     
     def get_pois_data(self, lat, lng, radius, city='queretaro'):
         """Get POIs data with both area and municipality analysis."""
+        # Create cache key based on parameters
+        cache_key = f"pois_data_{city}_{lat}_{lng}_{radius}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached POIs data for {city} at ({lat}, {lng}) with radius {radius}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -179,6 +215,10 @@ class ActiveSearchController:
                 "analysis_metrics": area_analysis,
                 "analysis_metrics_municipality": municipality_data
             })
+            
+            # Cache the successful response
+            set_in_cache('demographic', cache_key, resp)
+            logger.info(f"Cached POIs data for {city} at ({lat}, {lng}) with radius {radius}")
             
         except Exception as e:
             logger.error(f"Error in get_pois_data: {str(e)}", exc_info=True)
@@ -616,6 +656,15 @@ class ActiveSearchController:
     #get poi hierarchy with details
     def get_pois_hierarchy_with_details(self, lat, lng, radius, city='queretaro'):
         """Get POI category hierarchy with brand statistics within specified area."""
+        # Create cache key based on parameters
+        cache_key = f"pois_hierarchy_{city}_{lat}_{lng}_{radius}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached POI hierarchy data for {city} at ({lat}, {lng}) with radius {radius}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -637,6 +686,10 @@ class ActiveSearchController:
             
             logger.info(f"POI hierarchy with brands built with {len(hierarchy)} top-level categories")
             resp = Response.success(data={"hierarchy": hierarchy})
+            
+            # Cache the successful response
+            set_in_cache('demographic', cache_key, resp)
+            logger.info(f"Cached POI hierarchy data for {city} at ({lat}, {lng}) with radius {radius}")
             
         except Exception as e:
             logger.error(f"Error in get_pois_hierarchy_with_brands: {str(e)}", exc_info=True)
