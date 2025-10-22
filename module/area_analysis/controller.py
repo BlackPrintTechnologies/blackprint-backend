@@ -4,6 +4,7 @@ import traceback
 from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
 from utils.dbUtils import Database, RedshiftDatabase
+from utils.app_cache import set_in_cache, get_from_cache
 from module.area_analysis.query import AreaAnalysisQuery
 
 logger = logging.getLogger(__name__)
@@ -255,6 +256,15 @@ class AreaAnalysisController:
         Returns:
             dict: Response with area summary data matching UI structure
         """
+        # Create cache key based on parameters
+        cache_key = f"area_summary_{config_city}_{lat}_{lng}_{radius}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached area summary data for {config_city} at ({lat}, {lng}) with radius {radius}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -495,6 +505,10 @@ class AreaAnalysisController:
             logger.info(f"Area summary completed for {total_all_users} total users")
             resp = Response.success(data=summary_data)
             
+            # Cache the successful response
+            set_in_cache('demographic', cache_key, resp)
+            logger.info(f"Cached area summary data for {config_city} at ({lat}, {lng}) with radius {radius}")
+            
         except Exception as e:
             logger.error(f"Error in get_area_summary: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
@@ -691,6 +705,15 @@ class AreaAnalysisController:
         Returns:
             dict: Response with demographic analysis data matching UI structure
         """
+        # Create cache key based on parameters
+        cache_key = f"demographics_{config_city}_{lat}_{lng}_{radius}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached demographics data for {config_city} at ({lat}, {lng}) with radius {radius}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -734,6 +757,10 @@ class AreaAnalysisController:
                 
                 logger.info(f"Demographics analysis completed for pre-aggregated query result in {config_city}")
                 resp = Response.success(data=demographics_data)
+                
+                # Cache the successful response
+                set_in_cache('demographic', cache_key, resp)
+                logger.info(f"Cached demographics data for {config_city} at ({lat}, {lng}) with radius {radius}")
             else:
                 # Return empty demographics structure
                 demographics_data = self._get_empty_demographics_structure(lat, lng, radius)
@@ -741,6 +768,10 @@ class AreaAnalysisController:
                     demographics_data['socioeconomic_income_analysis'] = self._get_empty_income_analysis_structure(lat, lng, radius)
                 logger.info(f"No demographic data found for {config_city}, returning empty structure")
                 resp = Response.success(data=demographics_data)
+                
+                # Cache the empty response as well to avoid repeated queries for areas with no data
+                set_in_cache('demographic', cache_key, resp)
+                logger.info(f"Cached empty demographics data for {config_city} at ({lat}, {lng}) with radius {radius}")
             
         except Exception as e:
             logger.error(f"Error in get_area_demographics for {config_city}: {str(e)}")
@@ -769,6 +800,15 @@ class AreaAnalysisController:
         Returns:
             dict: Response with socioeconomic analysis data matching UI structure
         """
+        # Create cache key based on parameters
+        cache_key = f"socioeconomic_{config_city}_{lat}_{lng}_{radius}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached socioeconomic data for {config_city} at ({lat}, {lng}) with radius {radius}")
+            return cached_response
+        
         connection = None
         cursor = None
         resp = None
@@ -790,11 +830,19 @@ class AreaAnalysisController:
                 socioeconomic_data = self._process_socioeconomic_data(res, lat, lng, radius, config_city)
                 logger.info(f"Socioeconomic analysis completed for {len(res)} records in {config_city}")
                 resp = Response.success(data=socioeconomic_data)
+                
+                # Cache the successful response
+                set_in_cache('demographic', cache_key, resp)
+                logger.info(f"Cached socioeconomic data for {config_city} at ({lat}, {lng}) with radius {radius}")
             else:
                 # Return empty socioeconomic structure
                 socioeconomic_data = self._get_empty_socioeconomic_structure(lat, lng, radius)
                 logger.info(f"No socioeconomic data found for {config_city}, returning empty structure")
                 resp = Response.success(data=socioeconomic_data)
+                
+                # Cache the empty response as well to avoid repeated queries for areas with no data
+                set_in_cache('demographic', cache_key, resp)
+                logger.info(f"Cached empty socioeconomic data for {config_city} at ({lat}, {lng}) with radius {radius}")
             
         except Exception as e:
             logger.error(f"Error in get_area_socioeconomic for {config_city}: {str(e)}")
