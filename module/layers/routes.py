@@ -10,6 +10,7 @@ from psycopg2.extras import RealDictCursor
 import json
 #for avoiding cache in local
 import os 
+os.environ['ENV'] = 'local'
 
 
 # Initialize logging

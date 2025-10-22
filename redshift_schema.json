@@ -1,0 +1,49 @@
+{
+  "download_timestamp": "2025-10-16T01:03:05.439119",
+  "tables": {
+    "presentation.dim_property_qro": {
+      "error": "relation \"presentation.dim_property_qro\" does not exist\n",
+      "columns": [],
+      "row_count": 0,
+      "sample_data": []
+    },
+    "presentation.dim_market_data_combined": {
+      "error": "current transaction is aborted, commands ignored until end of transaction block\n",
+      "columns": [],
+      "row_count": 0,
+      "sample_data": []
+    },
+    "presentation.dim_municipality_qro": {
+      "error": "current transaction is aborted, commands ignored until end of transaction block\n",
+      "columns": [],
+      "row_count": 0,
+      "sample_data": []
+    },
+    "data_product.v_property_mexico": {
+      "error": "current transaction is aborted, commands ignored until end of transaction block\n",
+      "columns": [],
+      "row_count": 0,
+      "sample_data": []
+    },
+    "data_product.v_demographic_mexico": {
+      "error": "current transaction is aborted, commands ignored until end of transaction block\n",
+      "columns": [],
+      "row_count": 0,
+      "sample_data": []
+    },
+    "data_product.v_traffic_mexico": {
+      "error": "current transaction is aborted, commands ignored until end of transaction block\n",
+      "columns": [],
+      "row_count": 0,
+      "sample_data": []
+    },
+    "data_product.v_municipality": {
+      "error": "current transaction is aborted, commands ignored until end of transaction block\n",
+      "columns": [],
+      "row_count": 0,
+      "sample_data": []
+    }
+  },
+  "relationships": [],
+  "sample_data": {}
+}
