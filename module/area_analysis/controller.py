@@ -1228,35 +1228,48 @@ class AreaAnalysisController:
         return 32.44
 
     def _get_municipality_area_km2(self, municipality_code, connection):
-        """Calculate municipality area in km² from database data."""
+        """Calculate municipality area in km² using direct ST_Area calculation from v_qro table."""
         cursor = None
         try:
             cursor = connection.cursor()
             
-            # Query to get total area of all parcels in the municipality
+            # Query to get total area using ST_Area calculation from v_qro table
             query = """
-            SELECT SUM(total_area) as total_area_m2
-            FROM blackprint_db_prd.data_product.v_parcel_v3 
-            WHERE municipality_code = %s
-            AND total_area IS NOT NULL
-            AND total_area > 0
+            SELECT SUM(ST_Area(ST_GeomFromGeoJSON(bbox))) AS total_area_deg2
+            FROM data_product.v_qro
+            WHERE cve_mun = %s
             """
             
+            logger.info(f"Calculating municipality area for municipality_code: {municipality_code}")
             cursor.execute(query, (municipality_code,))
             aggregated_result = cursor.fetchone()
             
             if aggregated_result and aggregated_result[0]:
-                # Convert from square meters to square kilometers
-                total_area_m2 = float(aggregated_result[0])
-                total_area_km2 = total_area_m2 / 1_000_000  # Convert m² to km²
+                # Convert from square degrees to square kilometers
+                # Approximate conversion: 1 degree ≈ 111 km at equator
+                # For more accurate conversion, we'd need to consider latitude
+                total_area_deg2 = float(aggregated_result[0])
+                # Rough conversion: 1 deg² ≈ 12,364 km² at the equator
+                # For Queretaro (around 20°N), multiply by cos(20°) ≈ 0.94
+                total_area_km2 = total_area_deg2 * 12364 * 0.94
+                
+                logger.info(f"Municipality area calculation - municipality_code: {municipality_code}, "
+                           f"total_area_deg2: {total_area_deg2}, "
+                           f"total_area_km2: {round(total_area_km2, 2)}")
+                
                 return round(total_area_km2, 2)
             else:
+                logger.warning(f"No area data found for municipality_code: {municipality_code}, using fallback")
                 # Fallback: estimate based on population density patterns
-                return self._estimate_municipality_area_from_population(aggregated_result.get("pobtot_alcaldia", 0))
+                fallback_area = self._estimate_municipality_area_from_population(0)
+                logger.info(f"Using fallback area: {fallback_area} km²")
+                return fallback_area
                 
         except Exception as e:
-            logger.error(f"Error calculating municipality area: {str(e)}")
-            return self._estimate_municipality_area_from_population(0)
+            logger.error(f"Error calculating municipality area for municipality_code {municipality_code}: {str(e)}")
+            fallback_area = self._estimate_municipality_area_from_population(0)
+            logger.info(f"Using fallback area due to error: {fallback_area} km²")
+            return fallback_area
         finally:
             if cursor:
                 cursor.close()
@@ -1277,6 +1290,9 @@ class AreaAnalysisController:
         # All calculations are now done in the SQL query, just extract the values
         area_km2 = aggregated_result.get("area_km2", 0)
         area_population_density = aggregated_result.get("population_density", 0)
+        
+        logger.info(f"Area analysis - lat: {lat}, lng: {lng}, radius: {radius}, "
+                   f"area_km2: {area_km2}, area_population_density: {area_population_density}")
         male_percentage = aggregated_result.get("male_percentage")
         female_percentage = aggregated_result.get("female_percentage")
         municipality_male_percentage = aggregated_result.get("municipality_male_percentage")
@@ -1287,10 +1303,19 @@ class AreaAnalysisController:
         municipality_code = aggregated_result.get("municipality_code")
         if municipality_code and connection:
             municipality_area_km2 = self._get_municipality_area_km2(municipality_code, connection)
-            municipality_population_density = round(aggregated_result["pobtot_alcaldia"] / municipality_area_km2, 2) if municipality_area_km2 > 0 and aggregated_result.get("pobtot_alcaldia") else 0
+            pobtot_alcaldia = aggregated_result.get("pobtot_alcaldia", 0)
+            municipality_population_density = round(pobtot_alcaldia / municipality_area_km2, 2) if municipality_area_km2 > 0 and pobtot_alcaldia else 0
+            
+            logger.info(f"Municipality population density calculation - "
+                       f"municipality_code: {municipality_code}, "
+                       f"pobtot_alcaldia: {pobtot_alcaldia}, "
+                       f"municipality_area_km2: {municipality_area_km2}, "
+                       f"municipality_population_density: {municipality_population_density}")
         else:
             # Use a reasonable estimate for municipality density
             municipality_population_density = area_population_density * 0.8  # Approximate fallback
+            logger.info(f"Using fallback municipality population density: {municipality_population_density} "
+                       f"(based on area_population_density: {area_population_density})")
         
         # Create age pyramid data
         age_pyramid_data = self._create_age_pyramid_data(aggregated_result)
