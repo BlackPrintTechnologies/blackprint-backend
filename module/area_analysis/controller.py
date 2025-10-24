@@ -625,7 +625,13 @@ class AreaAnalysisController:
                     for hour in range(24):
                         hour_key = f"hour_{hour}"
                         value = hourly_data.get(hour_key, 0)
+                        # Handle None values from database
+                        if value is None:
+                            value = 0
                         hourly_array.append(value)
+                        # Additional safety check for max_value
+                        if max_value is None:
+                            max_value = 0
                         max_value = max(max_value, value)
                     
                     # Calculate average visits per hour
@@ -683,7 +689,13 @@ class AreaAnalysisController:
                     max_value = 0
                     for day in days:
                         value = daily_data.get(day, 0)
+                        # Handle None values from database
+                        if value is None:
+                            value = 0
                         daily_array.append(value)
+                        # Additional safety check for max_value
+                        if max_value is None:
+                            max_value = 0
                         max_value = max(max_value, value)
                     
                     # Calculate average visits per day
@@ -1245,7 +1257,9 @@ class AreaAnalysisController:
                        f"municipality_population_density: {municipality_population_density}")
         else:
             # Use a reasonable estimate for municipality density
-            municipality_population_density = area_population_density * 0.8  # Approximate fallback
+            # Convert decimal to float to avoid type mismatch
+            area_population_density_float = float(area_population_density) if area_population_density is not None else 0
+            municipality_population_density = area_population_density_float * 0.8  # Approximate fallback
             logger.info(f"Using fallback municipality population density: {municipality_population_density} "
                        f"(based on area_population_density: {area_population_density})")
         
@@ -1469,13 +1483,13 @@ class AreaAnalysisController:
             "comparison": {
                 "selected_area": {
                     "population_density": area_population_density,
-                    "population_density_trend": "down" if area_population_density < municipality_population_density else "up",
+                    "population_density_trend": "down" if float(area_population_density) < municipality_population_density else "up",
                     "male_population": aggregated_result["pobmas"],
                     "male_percentage": f"{male_percentage}%",
-                    "male_trend": "down" if male_percentage < municipality_male_percentage else "up",
+                    "male_trend": "down" if (male_percentage or 0) < (municipality_male_percentage or 0) else "up",
                     "female_population": aggregated_result["pobfem"],
                     "female_percentage": f"{female_percentage}%",
-                    "female_trend": "up" if female_percentage > municipality_female_percentage else "down",
+                    "female_trend": "up" if (female_percentage or 0) > (municipality_female_percentage or 0) else "down",
                     "total_households": aggregated_result["vivtot"],
                     "households_trend": "up"  # Default trend
                 },
