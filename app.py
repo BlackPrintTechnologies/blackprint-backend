@@ -117,7 +117,6 @@ api.add_resource(PropertyTypes, '/market/propertytypes')
 api.add_resource(AreaAnalysisSummary, '/area-analysis/traffic-summary')
 api.add_resource(AreaAnalysisTrafficPatterns, '/area-analysis/traffic-patterns')
 api.add_resource(AreaAnalysisDemographics, '/area-analysis/demographics')
-api.add_resource(AreaAnalysisSocioeconomic, '/area-analysis/socioeconomic')
 api.add_resource(AreaAnalysisWeeklyTraffic, '/area-analysis/weekly-traffic')
 api.add_resource(AreaAnalysisPOIHierarchy, '/area-analysis/poi-hierarchy')
 

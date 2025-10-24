@@ -1499,6 +1499,273 @@ class AreaAnalysisQuery:
         """
         return query
 
+    def build_socioeconomic_municipality_analysis_query(self, lat, lng, radius, entity_code=22):
+        """Build query for municipality-level socioeconomic analysis using H3-based approach."""
+        query = f"""
+        WITH point_geom AS (
+          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+        ),
+        buffered AS (
+            SELECT geometry
+            FROM blackprint_db_prd.integration.int_state_municipality_shapefile
+            WHERE ST_Within((SELECT geom FROM point_geom), geometry)
+        ),
+        h3_values AS (
+          SELECT H3_Polyfill(ST_Transform(geometry, 4326), 10) AS h3_indexes
+          FROM buffered
+        ),
+        h3_index AS (
+            SELECT o AS h3_value
+            FROM h3_values i, i.h3_indexes o
+        ),
+        municipality_socioeconomic AS (
+            SELECT 
+                a.*,
+                -- Calculate fraction of each AGEB that falls within the municipality
+                CASE 
+                    WHEN ST_Area(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857)) > 0 
+                    THEN ST_Area(ST_Intersection(
+                        ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857),
+                        ST_Transform(b.geometry, 3857)
+                    )) / ST_Area(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857))
+                    ELSE 0
+                END AS fraction_in_municipality
+            FROM presentation.dim_socioeconomic_level_ageb a
+            CROSS JOIN buffered b
+            WHERE entity_code = {entity_code}
+            AND ST_Intersects(
+                ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857),
+                ST_Transform(b.geometry, 3857)
+            )
+        ),
+        municipality_totals AS (
+            SELECT
+                SUM(total_housing * fraction_in_municipality) AS total_households,
+                SUM(
+                    (
+                        ab*ab_2024 + cplus*cplus_2024 + c*c_2024 + cminus*cminus_2024 + 
+                        dplus*dplus_2024 + d*d_2024 + e*e_2024
+                    ) * fraction_in_municipality
+                ) AS total_household_income
+            FROM municipality_socioeconomic
+        )
+        SELECT
+            ROUND(mt.total_households::NUMERIC, 0) AS total_households,
+            ROUND(mt.total_household_income::NUMERIC, 0) AS total_household_income,
+            ROUND(mt.total_household_income::NUMERIC / NULLIF(mt.total_households, 0), 2) AS avg_household_income
+        FROM municipality_totals mt
+        """
+        return query
+
+    def build_socioeconomic_municipality_breakdown_query(self, lat, lng, radius, entity_code=22):
+        """Build query for municipality-level income breakdown using H3-based approach."""
+        query = f"""
+        WITH point_geom AS (
+          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+        ),
+        buffered AS (
+            SELECT geometry
+            FROM blackprint_db_prd.integration.int_state_municipality_shapefile
+            WHERE ST_Within((SELECT geom FROM point_geom), geometry)
+        ),
+        h3_values AS (
+          SELECT H3_Polyfill(ST_Transform(geometry, 4326), 10) AS h3_indexes
+          FROM buffered
+        ),
+        h3_index AS (
+            SELECT o AS h3_value
+            FROM h3_values i, i.h3_indexes o
+        ),
+        municipality_socioeconomic AS (
+            SELECT 
+                a.*,
+                -- Calculate fraction of each AGEB that falls within the municipality
+                CASE 
+                    WHEN ST_Area(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857)) > 0 
+                    THEN ST_Area(ST_Intersection(
+                        ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857),
+                        ST_Transform(b.geometry, 3857)
+                    )) / ST_Area(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857))
+                    ELSE 0
+                END AS fraction_in_municipality
+            FROM presentation.dim_socioeconomic_level_ageb a
+            CROSS JOIN buffered b
+            WHERE entity_code = {entity_code}
+            AND ST_Intersects(
+                ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857),
+                ST_Transform(b.geometry, 3857)
+            )
+        ),
+        municipality_totals AS (
+            SELECT 
+                SUM((ab + cplus + c + cminus + dplus + d + e) * fraction_in_municipality) AS total_households,
+                SUM((ab_2024 + cplus_2024 + c_2024 + cminus_2024 + dplus_2024 + d_2024 + e_2024) * fraction_in_municipality) AS total_income
+            FROM municipality_socioeconomic
+        )
+        SELECT 
+            breakdown.level,
+            ROUND(breakdown.households::NUMERIC, 0) AS households,
+            ROUND((breakdown.households::NUMERIC / NULLIF(mt.total_households::NUMERIC, 0)) * 100, 2) AS pct_households,
+            ROUND(breakdown.total_income_level::NUMERIC, 0) AS total_income_level,
+            ROUND((breakdown.total_income_level::NUMERIC / NULLIF(mt.total_income::NUMERIC, 0)) * 100, 2) AS pct_income
+        FROM (
+            SELECT 'AB' AS level, SUM(ab * fraction_in_municipality) AS households, SUM(ab_2024 * fraction_in_municipality) AS total_income_level FROM municipality_socioeconomic
+            UNION ALL
+            SELECT 'C+' AS level, SUM(cplus * fraction_in_municipality), SUM(cplus_2024 * fraction_in_municipality) FROM municipality_socioeconomic
+            UNION ALL
+            SELECT 'C' AS level, SUM(c * fraction_in_municipality), SUM(c_2024 * fraction_in_municipality) FROM municipality_socioeconomic
+            UNION ALL
+            SELECT 'C-' AS level, SUM(cminus * fraction_in_municipality), SUM(cminus_2024 * fraction_in_municipality) FROM municipality_socioeconomic
+            UNION ALL
+            SELECT 'D+' AS level, SUM(dplus * fraction_in_municipality), SUM(dplus_2024 * fraction_in_municipality) FROM municipality_socioeconomic
+            UNION ALL
+            SELECT 'D' AS level, SUM(d * fraction_in_municipality), SUM(d_2024 * fraction_in_municipality) FROM municipality_socioeconomic
+            UNION ALL
+            SELECT 'E' AS level, SUM(e * fraction_in_municipality), SUM(e_2024 * fraction_in_municipality) FROM municipality_socioeconomic
+        ) AS breakdown
+        CROSS JOIN municipality_totals mt
+        """
+        return query
+
+    def build_socioeconomic_municipality_growth_trends_query(self, lat, lng, radius, entity_code=22):
+        """Build query for municipality-level historical growth trends analysis using H3-based approach."""
+        query = f"""
+        WITH point_geom AS (
+          SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+        ),
+        buffered AS (
+            SELECT geometry
+            FROM blackprint_db_prd.integration.int_state_municipality_shapefile
+            WHERE ST_Within((SELECT geom FROM point_geom), geometry)
+        ),
+        h3_values AS (
+          SELECT H3_Polyfill(ST_Transform(geometry, 4326), 10) AS h3_indexes
+          FROM buffered
+        ),
+        h3_index AS (
+            SELECT o AS h3_value
+            FROM h3_values i, i.h3_indexes o
+        ),
+        municipality_socioeconomic AS (
+            SELECT 
+                a.*,
+                -- Calculate fraction of each AGEB that falls within the municipality
+                CASE 
+                    WHEN ST_Area(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857)) > 0 
+                    THEN ST_Area(ST_Intersection(
+                        ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857),
+                        ST_Transform(b.geometry, 3857)
+                    )) / ST_Area(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857))
+                    ELSE 0
+                END AS fraction_in_municipality
+            FROM presentation.dim_socioeconomic_level_ageb a
+            CROSS JOIN buffered b
+            WHERE entity_code = {entity_code}
+            AND ST_Intersects(
+                ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857),
+                ST_Transform(b.geometry, 3857)
+            )
+        ),
+        municipality_totals AS (
+            SELECT 
+                SUM(ab_2016 * fraction_in_municipality) AS ab_2016, SUM(cplus_2016 * fraction_in_municipality) AS cplus_2016, SUM(c_2016 * fraction_in_municipality) AS c_2016,
+                SUM(cminus_2016 * fraction_in_municipality) AS cminus_2016, SUM(dplus_2016 * fraction_in_municipality) AS dplus_2016, SUM(d_2016 * fraction_in_municipality) AS d_2016, SUM(e_2016 * fraction_in_municipality) AS e_2016,
+                SUM(ab_2018 * fraction_in_municipality) AS ab_2018, SUM(cplus_2018 * fraction_in_municipality) AS cplus_2018, SUM(c_2018 * fraction_in_municipality) AS c_2018,
+                SUM(cminus_2018 * fraction_in_municipality) AS cminus_2018, SUM(dplus_2018 * fraction_in_municipality) AS dplus_2018, SUM(d_2018 * fraction_in_municipality) AS d_2018, SUM(e_2018 * fraction_in_municipality) AS e_2018,
+                SUM(ab_2020 * fraction_in_municipality) AS ab_2020, SUM(cplus_2020 * fraction_in_municipality) AS cplus_2020, SUM(c_2020 * fraction_in_municipality) AS c_2020,
+                SUM(cminus_2020 * fraction_in_municipality) AS cminus_2020, SUM(dplus_2020 * fraction_in_municipality) AS dplus_2020, SUM(d_2020 * fraction_in_municipality) AS d_2020, SUM(e_2020 * fraction_in_municipality) AS e_2020,
+                SUM(ab_2022 * fraction_in_municipality) AS ab_2022, SUM(cplus_2022 * fraction_in_municipality) AS cplus_2022, SUM(c_2022 * fraction_in_municipality) AS c_2022,
+                SUM(cminus_2022 * fraction_in_municipality) AS cminus_2022, SUM(dplus_2022 * fraction_in_municipality) AS dplus_2022, SUM(d_2022 * fraction_in_municipality) AS d_2022, SUM(e_2022 * fraction_in_municipality) AS e_2022,
+                SUM(ab_2024 * fraction_in_municipality) AS ab_2024, SUM(cplus_2024 * fraction_in_municipality) AS cplus_2024, SUM(c_2024 * fraction_in_municipality) AS c_2024,
+                SUM(cminus_2024 * fraction_in_municipality) AS cminus_2024, SUM(dplus_2024 * fraction_in_municipality) AS dplus_2024, SUM(d_2024 * fraction_in_municipality) AS d_2024, SUM(e_2024 * fraction_in_municipality) AS e_2024
+            FROM municipality_socioeconomic
+        )
+        SELECT
+            'AB' AS level,
+            ROUND(ab_2018 - ab_2016, 0) AS growth_2016_2018,
+            ROUND(ab_2020 - ab_2018, 0) AS growth_2018_2020,
+            ROUND(ab_2022 - ab_2020, 0) AS growth_2020_2022,
+            ROUND(ab_2024 - ab_2022, 0) AS growth_2022_2024,
+            ROUND(((ab_2018 - ab_2016)::NUMERIC / NULLIF(ab_2016,0)) * 100, 2) AS growth_pct_2016_2018,
+            ROUND(((ab_2020 - ab_2018)::NUMERIC / NULLIF(ab_2018,0)) * 100, 2) AS growth_pct_2018_2020,
+            ROUND(((ab_2022 - ab_2020)::NUMERIC / NULLIF(ab_2020,0)) * 100, 2) AS growth_pct_2020_2022,
+            ROUND(((ab_2024 - ab_2022)::NUMERIC / NULLIF(ab_2022,0)) * 100, 2) AS growth_pct_2022_2024
+        FROM municipality_totals
+        UNION ALL
+        SELECT
+            'C+',
+            ROUND(cplus_2018 - cplus_2016, 0),
+            ROUND(cplus_2020 - cplus_2018, 0),
+            ROUND(cplus_2022 - cplus_2020, 0),
+            ROUND(cplus_2024 - cplus_2022, 0),
+            ROUND(((cplus_2018 - cplus_2016)::NUMERIC / NULLIF(cplus_2016,0)) * 100, 2),
+            ROUND(((cplus_2020 - cplus_2018)::NUMERIC / NULLIF(cplus_2018,0)) * 100, 2),
+            ROUND(((cplus_2022 - cplus_2020)::NUMERIC / NULLIF(cplus_2020,0)) * 100, 2),
+            ROUND(((cplus_2024 - cplus_2022)::NUMERIC / NULLIF(cplus_2022,0)) * 100, 2)
+        FROM municipality_totals
+        UNION ALL
+        SELECT
+            'C',
+            ROUND(c_2018 - c_2016, 0),
+            ROUND(c_2020 - c_2018, 0),
+            ROUND(c_2022 - c_2020, 0),
+            ROUND(c_2024 - c_2022, 0),
+            ROUND(((c_2018 - c_2016)::NUMERIC / NULLIF(c_2016,0)) * 100, 2),
+            ROUND(((c_2020 - c_2018)::NUMERIC / NULLIF(c_2018,0)) * 100, 2),
+            ROUND(((c_2022 - c_2020)::NUMERIC / NULLIF(c_2020,0)) * 100, 2),
+            ROUND(((c_2024 - c_2022)::NUMERIC / NULLIF(c_2022,0)) * 100, 2)
+        FROM municipality_totals
+        UNION ALL
+        SELECT
+            'C-',
+            ROUND(cminus_2018 - cminus_2016, 0),
+            ROUND(cminus_2020 - cminus_2018, 0),
+            ROUND(cminus_2022 - cminus_2020, 0),
+            ROUND(cminus_2024 - cminus_2022, 0),
+            ROUND(((cminus_2018 - cminus_2016)::NUMERIC / NULLIF(cminus_2016,0)) * 100, 2),
+            ROUND(((cminus_2020 - cminus_2018)::NUMERIC / NULLIF(cminus_2018,0)) * 100, 2),
+            ROUND(((cminus_2022 - cminus_2020)::NUMERIC / NULLIF(cminus_2020,0)) * 100, 2),
+            ROUND(((cminus_2024 - cminus_2022)::NUMERIC / NULLIF(cminus_2022,0)) * 100, 2)
+        FROM municipality_totals
+        UNION ALL
+        SELECT
+            'D+',
+            ROUND(dplus_2018 - dplus_2016, 0),
+            ROUND(dplus_2020 - dplus_2018, 0),
+            ROUND(dplus_2022 - dplus_2020, 0),
+            ROUND(dplus_2024 - dplus_2022, 0),
+            ROUND(((dplus_2018 - dplus_2016)::NUMERIC / NULLIF(dplus_2016,0)) * 100, 2),
+            ROUND(((dplus_2020 - dplus_2018)::NUMERIC / NULLIF(dplus_2018,0)) * 100, 2),
+            ROUND(((dplus_2022 - dplus_2020)::NUMERIC / NULLIF(dplus_2020,0)) * 100, 2),
+            ROUND(((dplus_2024 - dplus_2022)::NUMERIC / NULLIF(dplus_2022,0)) * 100, 2)
+        FROM municipality_totals
+        UNION ALL
+        SELECT
+            'D',
+            ROUND(d_2018 - d_2016, 0),
+            ROUND(d_2020 - d_2018, 0),
+            ROUND(d_2022 - d_2020, 0),
+            ROUND(d_2024 - d_2022, 0),
+            ROUND(((d_2018 - d_2016)::NUMERIC / NULLIF(d_2016,0)) * 100, 2),
+            ROUND(((d_2020 - d_2018)::NUMERIC / NULLIF(d_2018,0)) * 100, 2),
+            ROUND(((d_2022 - d_2020)::NUMERIC / NULLIF(d_2020,0)) * 100, 2),
+            ROUND(((d_2024 - d_2022)::NUMERIC / NULLIF(d_2022,0)) * 100, 2)
+        FROM municipality_totals
+        UNION ALL
+        SELECT
+            'E',
+            ROUND(e_2018 - e_2016, 0),
+            ROUND(e_2020 - e_2018, 0),
+            ROUND(e_2022 - e_2020, 0),
+            ROUND(e_2024 - e_2022, 0),
+            ROUND(((e_2018 - e_2016)::NUMERIC / NULLIF(e_2016,0)) * 100, 2),
+            ROUND(((e_2020 - e_2018)::NUMERIC / NULLIF(e_2018,0)) * 100, 2),
+            ROUND(((e_2022 - e_2020)::NUMERIC / NULLIF(e_2020,0)) * 100, 2),
+            ROUND(((e_2024 - e_2022)::NUMERIC / NULLIF(e_2022,0)) * 100, 2)
+        FROM municipality_totals
+        """
+        return query
+
     def build_socioeconomic_breakdown_query(self, lat, lng, radius, entity_code=22):
         """Build query for income level breakdown with percentages using area-weighted calculations."""
         query = f"""

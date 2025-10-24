@@ -838,76 +838,6 @@ class AreaAnalysisController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    def get_area_socioeconomic(self, lat, lng, radius=2000, config_city='mexico'):
-        """
-        Get socioeconomic analysis for a specific area matching the UI mockup.
-        Returns income levels, predominant socioeconomic level, and household distribution.
-        
-        Args:
-            lat (float): Latitude of the center point
-            lng (float): Longitude of the center point
-            radius (int): Radius in meters (default: 2000)
-            config_city (str): City configuration - 'mexico' or 'queretaro'
-            
-        Returns:
-            dict: Response with socioeconomic analysis data matching UI structure
-        """
-        # Create cache key based on parameters
-        cache_key = f"socioeconomic_{config_city}_{lat}_{lng}_{radius}"
-        
-        # Check cache first
-        cached_response = get_from_cache('demographic', cache_key)
-        if cached_response:
-            logger.info(f"Returning cached socioeconomic data for {config_city} at ({lat}, {lng}) with radius {radius}")
-            return cached_response
-        
-        connection = None
-        cursor = None
-        resp = None
-        
-        try:
-            connection = self.redshift_db.connect()
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
-            
-            # Build query to get socioeconomic data within the specified area
-            query = self.query_builder.build_socioeconomic_query(lat, lng, radius, config_city)
-            logger.info(f"Executing socioeconomic query for city={config_city}: {query}")
-            
-            cursor.execute(query)
-            connection.commit()
-            res = cursor.fetchall()
-            
-            if res and len(res) > 0:
-                # Process socioeconomic data
-                socioeconomic_data = self._process_socioeconomic_data(res, lat, lng, radius, config_city)
-                logger.info(f"Socioeconomic analysis completed for {len(res)} records in {config_city}")
-                resp = Response.success(data=socioeconomic_data)
-                
-                # Cache the successful response
-                set_in_cache('demographic', cache_key, resp)
-                logger.info(f"Cached socioeconomic data for {config_city} at ({lat}, {lng}) with radius {radius}")
-            else:
-                # Return empty socioeconomic structure
-                socioeconomic_data = self._get_empty_socioeconomic_structure(lat, lng, radius)
-                logger.info(f"No socioeconomic data found for {config_city}, returning empty structure")
-                resp = Response.success(data=socioeconomic_data)
-                
-                # Cache the empty response as well to avoid repeated queries for areas with no data
-                set_in_cache('demographic', cache_key, resp)
-                logger.info(f"Cached empty socioeconomic data for {config_city} at ({lat}, {lng}) with radius {radius}")
-            
-        except Exception as e:
-            logger.error(f"Error in get_area_socioeconomic for {config_city}: {str(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            if connection:
-                connection.rollback()
-            resp = Response.internal_server_error(message=str(e))
-        finally:
-            if cursor:
-                cursor.close()
-            if connection:
-                self.redshift_db.disconnect(connection)
-            return resp
 
     def _create_age_pyramid_data(self, aggregated_result):
         """Create age pyramid data structure for 2024 visualization using proportional scaling."""
@@ -2448,17 +2378,36 @@ class AreaAnalysisController:
             cursor.execute(trends_query)
             trends_data = cursor.fetchall()
             
+            # Get municipality-level analysis
+            municipality_income_query = self.query_builder.build_socioeconomic_municipality_analysis_query(lat, lng, radius, entity_code)
+            cursor.execute(municipality_income_query)
+            municipality_income_data = cursor.fetchall()
+            
+            # Get municipality-level breakdown
+            municipality_breakdown_query = self.query_builder.build_socioeconomic_municipality_breakdown_query(lat, lng, radius, entity_code)
+            cursor.execute(municipality_breakdown_query)
+            municipality_breakdown_data = cursor.fetchall()
+            
+            # Get municipality-level growth trends
+            municipality_trends_query = self.query_builder.build_socioeconomic_municipality_growth_trends_query(lat, lng, radius, entity_code)
+            cursor.execute(municipality_trends_query)
+            municipality_trends_data = cursor.fetchall()
+            
             cursor.close()
             
             # Process the data
-            return self._process_socioeconomic_income_data(income_data, breakdown_data, trends_data, lat, lng, radius)
+            return self._process_socioeconomic_income_data(
+                income_data, breakdown_data, trends_data, 
+                municipality_income_data, municipality_breakdown_data, municipality_trends_data,
+                lat, lng, radius
+            )
             
         except Exception as e:
             logger.error(f"Error in _get_socioeconomic_income_analysis: {str(e)}")
             return self._get_empty_income_analysis_structure(lat, lng, radius)
 
-    def _process_socioeconomic_income_data(self, income_data, breakdown_data, trends_data, lat, lng, radius):
-        """Process socioeconomic income analysis data."""
+    def _process_socioeconomic_income_data(self, income_data, breakdown_data, trends_data, municipality_income_data, municipality_breakdown_data, municipality_trends_data, lat, lng, radius):
+        """Process socioeconomic income analysis data including municipality-level analysis."""
         if not income_data:
             return self._get_empty_income_analysis_structure(lat, lng, radius)
         
@@ -2492,6 +2441,37 @@ class AreaAnalysisController:
                 "growth_pct_2022_2024": float(trend_data.get("growth_pct_2022_2024", 0))
             })
         
+        # Process municipality-level data
+        municipality_summary = municipality_income_data[0] if municipality_income_data else {}
+        municipality_breakdown = municipality_breakdown_data if municipality_breakdown_data else []
+        municipality_trends = municipality_trends_data if municipality_trends_data else []
+        
+        # Process municipality breakdown data
+        municipality_income_levels = []
+        for level_data in municipality_breakdown:
+            municipality_income_levels.append({
+                "level": level_data.get("level"),
+                "households": int(level_data.get("households", 0)),
+                "household_percentage": float(level_data.get("pct_households", 0)),
+                "total_income": int(level_data.get("total_income_level", 0)),
+                "income_percentage": float(level_data.get("pct_income", 0))
+            })
+        
+        # Process municipality trends data
+        municipality_growth_trends = []
+        for trend_data in municipality_trends:
+            municipality_growth_trends.append({
+                "level": trend_data.get("level"),
+                "growth_2016_2018": int(trend_data.get("growth_2016_2018", 0)),
+                "growth_2018_2020": int(trend_data.get("growth_2018_2020", 0)),
+                "growth_2020_2022": int(trend_data.get("growth_2020_2022", 0)),
+                "growth_2022_2024": int(trend_data.get("growth_2022_2024", 0)),
+                "growth_pct_2016_2018": float(trend_data.get("growth_pct_2016_2018", 0)),
+                "growth_pct_2018_2020": float(trend_data.get("growth_pct_2018_2020", 0)),
+                "growth_pct_2020_2022": float(trend_data.get("growth_pct_2020_2022", 0)),
+                "growth_pct_2022_2024": float(trend_data.get("growth_pct_2022_2024", 0))
+            })
+        
         return {
             "income_summary": {
                 "total_households": int(income_summary.get("total_households", 0)),
@@ -2503,6 +2483,19 @@ class AreaAnalysisController:
             },
             "historical_trends": {
                 "growth_by_level": growth_trends
+            },
+            "municipality_analysis": {
+                "income_summary": {
+                    "total_households": int(municipality_summary.get("total_households", 0)),
+                    "total_household_income": int(municipality_summary.get("total_household_income", 0)),
+                    "average_household_income": float(municipality_summary.get("avg_household_income", 0))
+                },
+                "income_distribution": {
+                    "levels": municipality_income_levels
+                },
+                "historical_trends": {
+                    "growth_by_level": municipality_growth_trends
+                }
             }
         }
 
@@ -2519,6 +2512,19 @@ class AreaAnalysisController:
             },
             "historical_trends": {
                 "growth_by_level": []
+            },
+            "municipality_analysis": {
+                "income_summary": {
+                    "total_households": 0,
+                    "total_household_income": 0,
+                    "average_household_income": 0
+                },
+                "income_distribution": {
+                    "levels": []
+                },
+                "historical_trends": {
+                    "growth_by_level": []
+                }
             }
         }
 
