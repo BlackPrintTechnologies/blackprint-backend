@@ -2363,9 +2363,10 @@ class AreaAnalysisController:
     def _get_socioeconomic_income_analysis(self, connection, lat, lng, radius, entity_code):
         """Get optimized socioeconomic income analysis data using parallel query execution."""
         try:
-            # Define query execution functions for parallel execution
+            # Define query execution functions for parallel execution with separate connections
             def execute_radius_analysis():
-                cursor = connection.cursor(cursor_factory=RealDictCursor)
+                thread_connection = self.redshift_db.connect()
+                cursor = thread_connection.cursor(cursor_factory=RealDictCursor)
                 query = self.query_builder.build_socioeconomic_income_analysis_query(lat, lng, radius, entity_code)
                 cursor.execute(query)
                 result = cursor.fetchall()
@@ -2373,26 +2374,32 @@ class AreaAnalysisController:
                 for row in result:
                     row['analysis_type'] = 'radius'
                 cursor.close()
+                thread_connection.close()
                 return result
             
             def execute_breakdown():
-                cursor = connection.cursor(cursor_factory=RealDictCursor)
+                thread_connection = self.redshift_db.connect()
+                cursor = thread_connection.cursor(cursor_factory=RealDictCursor)
                 query = self.query_builder.build_socioeconomic_breakdown_query(lat, lng, radius, entity_code)
                 cursor.execute(query)
                 result = cursor.fetchall()
                 cursor.close()
+                thread_connection.close()
                 return result
             
             def execute_trends():
-                cursor = connection.cursor(cursor_factory=RealDictCursor)
+                thread_connection = self.redshift_db.connect()
+                cursor = thread_connection.cursor(cursor_factory=RealDictCursor)
                 query = self.query_builder.build_socioeconomic_growth_trends_query(lat, lng, radius, entity_code)
                 cursor.execute(query)
                 result = cursor.fetchall()
                 cursor.close()
+                thread_connection.close()
                 return result
             
             def execute_municipality_analysis():
-                cursor = connection.cursor(cursor_factory=RealDictCursor)
+                thread_connection = self.redshift_db.connect()
+                cursor = thread_connection.cursor(cursor_factory=RealDictCursor)
                 query = self.query_builder.build_socioeconomic_municipality_analysis_query(lat, lng, radius, entity_code)
                 cursor.execute(query)
                 result = cursor.fetchall()
@@ -2400,22 +2407,27 @@ class AreaAnalysisController:
                 for row in result:
                     row['analysis_type'] = 'municipality'
                 cursor.close()
+                thread_connection.close()
                 return result
             
             def execute_municipality_breakdown():
-                cursor = connection.cursor(cursor_factory=RealDictCursor)
+                thread_connection = self.redshift_db.connect()
+                cursor = thread_connection.cursor(cursor_factory=RealDictCursor)
                 query = self.query_builder.build_socioeconomic_municipality_breakdown_query(lat, lng, radius, entity_code)
                 cursor.execute(query)
                 result = cursor.fetchall()
                 cursor.close()
+                thread_connection.close()
                 return result
             
             def execute_municipality_trends():
-                cursor = connection.cursor(cursor_factory=RealDictCursor)
+                thread_connection = self.redshift_db.connect()
+                cursor = thread_connection.cursor(cursor_factory=RealDictCursor)
                 query = self.query_builder.build_socioeconomic_municipality_growth_trends_query(lat, lng, radius, entity_code)
                 cursor.execute(query)
                 result = cursor.fetchall()
                 cursor.close()
+                thread_connection.close()
                 return result
             
             # Execute all queries in parallel
