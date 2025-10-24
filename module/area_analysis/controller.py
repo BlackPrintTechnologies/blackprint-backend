@@ -2430,8 +2430,8 @@ class AreaAnalysisController:
                 thread_connection.close()
                 return result
             
-            # Execute all queries in parallel
-            with ThreadPoolExecutor(max_workers=6) as executor:
+            # Execute all queries in parallel with limited workers to avoid connection pool exhaustion
+            with ThreadPoolExecutor(max_workers=2) as executor:
                 # Submit all queries
                 radius_future = executor.submit(execute_radius_analysis)
                 breakdown_future = executor.submit(execute_breakdown)
