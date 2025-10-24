@@ -1453,6 +1453,8 @@ class AreaAnalysisQuery:
 
     def build_socioeconomic_income_analysis_query(self, lat, lng, radius, entity_code=22):
         """Build optimized query for comprehensive socioeconomic income analysis."""
+        # Convert radius from meters to degrees (approximate: 1 degree ≈ 111,320 meters at equator)
+        radius_degrees = radius / 111320.0
         query = f"""
         SELECT
           ROUND(SUM(total_housing)::NUMERIC, 0) AS total_households,
@@ -1462,7 +1464,7 @@ class AreaAnalysisQuery:
           WHERE ST_DWithin(
                 ST_SetSRID(geometry_coords, 4326),
                 ST_SetSRID(ST_Point({lng}, {lat}), 4326),
-                  {radius}
+                  {radius_degrees}
                 )
             AND entity_code = {entity_code}
         """
@@ -1661,6 +1663,8 @@ class AreaAnalysisQuery:
 
     def build_socioeconomic_breakdown_query(self, lat, lng, radius, entity_code=22):
         """Build optimized query for income level breakdown with percentages."""
+        # Convert radius from meters to degrees
+        radius_degrees = radius / 111320.0
         query = f"""
         WITH area_data AS (
           SELECT 
@@ -1670,7 +1674,7 @@ class AreaAnalysisQuery:
           WHERE ST_DWithin(
                   ST_SetSRID(geometry_coords, 4326),
                   ST_SetSRID(ST_Point({lng}, {lat}), 4326),
-                  {radius}
+                  {radius_degrees}
                 )
             AND entity_code = {entity_code}
         ),
@@ -1707,6 +1711,8 @@ class AreaAnalysisQuery:
 
     def build_socioeconomic_growth_trends_query(self, lat, lng, radius, entity_code=22):
         """Build optimized query for historical growth trends analysis."""
+        # Convert radius from meters to degrees
+        radius_degrees = radius / 111320.0
         query = f"""
         WITH area_data AS (
           SELECT 
@@ -1719,7 +1725,7 @@ class AreaAnalysisQuery:
           WHERE ST_DWithin(
                   ST_SetSRID(geometry_coords, 4326),
                   ST_SetSRID(ST_Point({lng}, {lat}), 4326),
-                  {radius}
+                  {radius_degrees}
                 )
             AND entity_code = {entity_code}
         ),
