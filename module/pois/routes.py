@@ -18,7 +18,7 @@ class Brands(Resource):
     post_parser.add_argument('subsubcategories', type=str, required=False, location='json')
     post_parser.add_argument('brand_names', type=str, required=False, location='json')
     post_parser.add_argument('config_city', type=str, default='mexico', required=False, location='json')
-    
+    post_parser.add_argument('business_names', type=str, required=False, location='json')
     # @authenticate
     def post(self):
         """POST /pois/brands - Get brands within specified catchment radius."""
@@ -30,13 +30,14 @@ class Brands(Resource):
             lng = args.get('lng')
             category = args.get('category')
             brand_names = args.get('brand_names')
+            business_names = args.get('business_names')
             config_city = args.get('config_city', 'mexico')
             
             logger.info("Requesting brands for fid=%s, radius=%s, config_city=%s", 
                         fid, radius, config_city)
             
             poi_controller = POIsController()
-            response = poi_controller.get_brands(radius, lat, lng, category, args.get('subcategories'), args.get('subsubcategories'), brand_names, config_city)
+            response = poi_controller.get_brands(radius, lat, lng, category, args.get('subcategories'), args.get('subsubcategories'), brand_names, business_names, config_city)
             
             return response
             
