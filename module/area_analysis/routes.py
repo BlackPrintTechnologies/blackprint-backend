@@ -103,37 +103,6 @@ class AreaAnalysisDemographics(Resource):
             logger.error("Error in AreaAnalysisDemographics POST: %s", str(e))
             return {'message': 'Internal server error', 'status_code': 500}, 500
 
-class AreaAnalysisSocioeconomic(Resource):
-    """Resource to get socioeconomic analysis matching the UI mockup exactly."""
-    
-    post_parser = reqparse.RequestParser()
-    post_parser.add_argument('lat', type=float, required=True, help='Latitude is required', location='json')
-    post_parser.add_argument('lng', type=float, required=True, help='Longitude is required', location='json')
-    post_parser.add_argument('radius', type=int, default=2000, required=False, location='json')
-    post_parser.add_argument('config_city', type=str, default='mexico', required=False, location='json',
-                           help='City configuration - mexico or queretaro')
-    
-    @authenticate
-    def post(self, current_user):
-        """POST /area-analysis/socioeconomic - Get socioeconomic analysis for the UI."""
-        try:
-            args = self.post_parser.parse_args()
-            lat = args.get('lat')
-            lng = args.get('lng')
-            radius = args.get('radius', 2000)
-            config_city = args.get('config_city', 'mexico')
-            
-            logger.info("User %s requesting socioeconomic analysis for lat=%s, lng=%s, radius=%s, config_city=%s", 
-                       current_user, lat, lng, radius, config_city)
-            
-            controller = AreaAnalysisController()
-            response = controller.get_area_socioeconomic(lat, lng, radius, config_city)
-            
-            return response
-            
-        except Exception as e:
-            logger.error("Error in AreaAnalysisSocioeconomic POST: %s", str(e))
-            return {'message': 'Internal server error', 'status_code': 500}, 500
 
 
 class ActiveSearch(Resource):
