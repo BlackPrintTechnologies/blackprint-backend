@@ -49,11 +49,11 @@ class POIsQueryController:
             SELECT case when chain_id != 'None' then chain_id else null end as brand, name as names_pri, geometry_wkt, main_category as category_1 
             FROM {dim_places_table} a
             INNER JOIN h3_index b ON a.h3_value = b.h3_value
-            ;'''
+            WHERE a.open_closed_status = 'open';'''
 
         if not catchment:
             query = f'''SELECT case when chain_id != 'None' then chain_id else null end as brand, name as names_pri, geometry_wkt, main_category as category_1, sub_category , sub_sub_category, business_category , opened_on , average_stars, address  FROM {dim_places_table}
-                        WHERE 1 = 1 '''
+                        WHERE 1 = 1 AND open_closed_status = 'open' '''
             if category_1:
                 category_1_list = "', '".join([name.strip() for name in category_1.split(',')])
                 query += f" AND main_category in ('{category_1_list}')"
