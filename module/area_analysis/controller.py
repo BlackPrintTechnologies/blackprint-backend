@@ -1,6 +1,8 @@
 import json
 import logging
 import traceback
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
 from utils.dbUtils import Database, RedshiftDatabase
@@ -2359,52 +2361,182 @@ class AreaAnalysisController:
         return round(percentile, 1)
 
     def _get_socioeconomic_income_analysis(self, connection, lat, lng, radius, entity_code):
-        """Get socioeconomic income analysis data using existing connection."""
+        """Get optimized socioeconomic income analysis data using parallel query execution."""
         try:
-            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            # Define query execution functions for parallel execution
+            def execute_radius_analysis():
+                cursor = connection.cursor(cursor_factory=RealDictCursor)
+                query = self.query_builder.build_socioeconomic_income_analysis_query(lat, lng, radius, entity_code)
+                cursor.execute(query)
+                result = cursor.fetchall()
+                # Add analysis_type field for processing
+                for row in result:
+                    row['analysis_type'] = 'radius'
+                cursor.close()
+                return result
             
-            # Get income summary
-            income_query = self.query_builder.build_socioeconomic_income_analysis_query(lat, lng, radius, entity_code)
-            cursor.execute(income_query)
-            income_data = cursor.fetchall()
+            def execute_breakdown():
+                cursor = connection.cursor(cursor_factory=RealDictCursor)
+                query = self.query_builder.build_socioeconomic_breakdown_query(lat, lng, radius, entity_code)
+                cursor.execute(query)
+                result = cursor.fetchall()
+                cursor.close()
+                return result
             
-            # Get income breakdown
-            breakdown_query = self.query_builder.build_socioeconomic_breakdown_query(lat, lng, radius, entity_code)
-            cursor.execute(breakdown_query)
-            breakdown_data = cursor.fetchall()
+            def execute_trends():
+                cursor = connection.cursor(cursor_factory=RealDictCursor)
+                query = self.query_builder.build_socioeconomic_growth_trends_query(lat, lng, radius, entity_code)
+                cursor.execute(query)
+                result = cursor.fetchall()
+                cursor.close()
+                return result
             
-            # Get growth trends
-            trends_query = self.query_builder.build_socioeconomic_growth_trends_query(lat, lng, radius, entity_code)
-            cursor.execute(trends_query)
-            trends_data = cursor.fetchall()
+            def execute_municipality_analysis():
+                cursor = connection.cursor(cursor_factory=RealDictCursor)
+                query = self.query_builder.build_socioeconomic_municipality_analysis_query(lat, lng, radius, entity_code)
+                cursor.execute(query)
+                result = cursor.fetchall()
+                # Add analysis_type field for processing
+                for row in result:
+                    row['analysis_type'] = 'municipality'
+                cursor.close()
+                return result
             
-            # Get municipality-level analysis
-            municipality_income_query = self.query_builder.build_socioeconomic_municipality_analysis_query(lat, lng, radius, entity_code)
-            cursor.execute(municipality_income_query)
-            municipality_income_data = cursor.fetchall()
+            def execute_municipality_breakdown():
+                cursor = connection.cursor(cursor_factory=RealDictCursor)
+                query = self.query_builder.build_socioeconomic_municipality_breakdown_query(lat, lng, radius, entity_code)
+                cursor.execute(query)
+                result = cursor.fetchall()
+                cursor.close()
+                return result
             
-            # Get municipality-level breakdown
-            municipality_breakdown_query = self.query_builder.build_socioeconomic_municipality_breakdown_query(lat, lng, radius, entity_code)
-            cursor.execute(municipality_breakdown_query)
-            municipality_breakdown_data = cursor.fetchall()
+            def execute_municipality_trends():
+                cursor = connection.cursor(cursor_factory=RealDictCursor)
+                query = self.query_builder.build_socioeconomic_municipality_growth_trends_query(lat, lng, radius, entity_code)
+                cursor.execute(query)
+                result = cursor.fetchall()
+                cursor.close()
+                return result
             
-            # Get municipality-level growth trends
-            municipality_trends_query = self.query_builder.build_socioeconomic_municipality_growth_trends_query(lat, lng, radius, entity_code)
-            cursor.execute(municipality_trends_query)
-            municipality_trends_data = cursor.fetchall()
+            # Execute all queries in parallel
+            with ThreadPoolExecutor(max_workers=6) as executor:
+                # Submit all queries
+                radius_future = executor.submit(execute_radius_analysis)
+                breakdown_future = executor.submit(execute_breakdown)
+                trends_future = executor.submit(execute_trends)
+                municipality_future = executor.submit(execute_municipality_analysis)
+                municipality_breakdown_future = executor.submit(execute_municipality_breakdown)
+                municipality_trends_future = executor.submit(execute_municipality_trends)
+                
+                # Get results
+                radius_data = radius_future.result()
+                breakdown_data = breakdown_future.result()
+                trends_data = trends_future.result()
+                municipality_data = municipality_future.result()
+                municipality_breakdown_data = municipality_breakdown_future.result()
+                municipality_trends_data = municipality_trends_future.result()
             
-            cursor.close()
+            # Combine radius and municipality data for processing
+            combined_data = radius_data + municipality_data
             
-            # Process the data
-            return self._process_socioeconomic_income_data(
-                income_data, breakdown_data, trends_data, 
-                municipality_income_data, municipality_breakdown_data, municipality_trends_data,
+            # Process the combined data
+            return self._process_combined_socioeconomic_data(
+                combined_data, breakdown_data, trends_data, 
+                municipality_breakdown_data, municipality_trends_data,
                 lat, lng, radius
             )
             
         except Exception as e:
             logger.error(f"Error in _get_socioeconomic_income_analysis: {str(e)}")
             return self._get_empty_income_analysis_structure(lat, lng, radius)
+
+    def _process_combined_socioeconomic_data(self, combined_data, breakdown_data, trends_data, municipality_breakdown_data, municipality_trends_data, lat, lng, radius):
+        """Process combined socioeconomic data for both radius and municipality analysis."""
+        if not combined_data:
+            return self._get_empty_income_analysis_structure(lat, lng, radius)
+        
+        # Separate radius and municipality data
+        radius_data = next((row for row in combined_data if row.get('analysis_type') == 'radius'), {})
+        municipality_data = next((row for row in combined_data if row.get('analysis_type') == 'municipality'), {})
+        
+        # Process breakdown data
+        income_levels = []
+        for level_data in breakdown_data:
+            income_levels.append({
+                "level": level_data.get("level"),
+                "households": int(level_data.get("households", 0)),
+                "household_percentage": float(level_data.get("pct_households", 0)),
+                "total_income": int(level_data.get("total_income_level", 0)),
+                "income_percentage": float(level_data.get("pct_income", 0))
+            })
+        
+        # Process trends data
+        growth_trends = []
+        for trend_data in trends_data:
+            growth_trends.append({
+                "level": trend_data.get("level"),
+                "growth_2016_2018": int(trend_data.get("growth_2016_2018", 0)),
+                "growth_2018_2020": int(trend_data.get("growth_2018_2020", 0)),
+                "growth_2020_2022": int(trend_data.get("growth_2020_2022", 0)),
+                "growth_2022_2024": int(trend_data.get("growth_2022_2024", 0)),
+                "growth_pct_2016_2018": float(trend_data.get("growth_pct_2016_2018", 0)),
+                "growth_pct_2018_2020": float(trend_data.get("growth_pct_2018_2020", 0)),
+                "growth_pct_2020_2022": float(trend_data.get("growth_pct_2020_2022", 0)),
+                "growth_pct_2022_2024": float(trend_data.get("growth_pct_2022_2024", 0))
+            })
+        
+        # Process municipality breakdown data
+        municipality_income_levels = []
+        for level_data in municipality_breakdown_data:
+            municipality_income_levels.append({
+                "level": level_data.get("level"),
+                "households": int(level_data.get("households", 0)),
+                "household_percentage": float(level_data.get("pct_households", 0)),
+                "total_income": int(level_data.get("total_income_level", 0)),
+                "income_percentage": float(level_data.get("pct_income", 0))
+            })
+        
+        # Process municipality trends data
+        municipality_growth_trends = []
+        for trend_data in municipality_trends_data:
+            municipality_growth_trends.append({
+                "level": trend_data.get("level"),
+                "growth_2016_2018": int(trend_data.get("growth_2016_2018", 0)),
+                "growth_2018_2020": int(trend_data.get("growth_2018_2020", 0)),
+                "growth_2020_2022": int(trend_data.get("growth_2020_2022", 0)),
+                "growth_2022_2024": int(trend_data.get("growth_2022_2024", 0)),
+                "growth_pct_2016_2018": float(trend_data.get("growth_pct_2016_2018", 0)),
+                "growth_pct_2018_2020": float(trend_data.get("growth_pct_2018_2020", 0)),
+                "growth_pct_2020_2022": float(trend_data.get("growth_pct_2020_2022", 0)),
+                "growth_pct_2022_2024": float(trend_data.get("growth_pct_2022_2024", 0))
+            })
+        
+        return {
+            "income_summary": {
+                "total_households": int(radius_data.get("total_households", 0)),
+                "total_household_income": int(radius_data.get("total_household_income", 0)),
+                "average_household_income": float(radius_data.get("avg_household_income", 0))
+            },
+            "income_distribution": {
+                "levels": income_levels
+            },
+            "historical_trends": {
+                "growth_by_level": growth_trends
+            },
+            "municipality_analysis": {
+                "income_summary": {
+                    "total_households": int(municipality_data.get("total_households", 0)),
+                    "total_household_income": int(municipality_data.get("total_household_income", 0)),
+                    "average_household_income": float(municipality_data.get("avg_household_income", 0))
+                },
+                "income_distribution": {
+                    "levels": municipality_income_levels
+                },
+                "historical_trends": {
+                    "growth_by_level": municipality_growth_trends
+                }
+            }
+        }
 
     def _process_socioeconomic_income_data(self, income_data, breakdown_data, trends_data, municipality_income_data, municipality_breakdown_data, municipality_trends_data, lat, lng, radius):
         """Process socioeconomic income analysis data including municipality-level analysis."""
