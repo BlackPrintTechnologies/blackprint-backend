@@ -2361,92 +2361,46 @@ class AreaAnalysisController:
         return round(percentile, 1)
 
     def _get_socioeconomic_income_analysis(self, connection, lat, lng, radius, entity_code):
-        """Get optimized socioeconomic income analysis data using parallel query execution."""
+        """Get optimized socioeconomic income analysis data using sequential execution to avoid connection pool issues."""
         try:
-            # Define query execution functions for parallel execution with separate connections
-            def execute_radius_analysis():
-                thread_connection = self.redshift_db.connect()
-                cursor = thread_connection.cursor(cursor_factory=RealDictCursor)
-                query = self.query_builder.build_socioeconomic_income_analysis_query(lat, lng, radius, entity_code)
-                cursor.execute(query)
-                result = cursor.fetchall()
-                # Add analysis_type field for processing
-                for row in result:
-                    row['analysis_type'] = 'radius'
-                cursor.close()
-                thread_connection.close()
-                return result
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
             
-            def execute_breakdown():
-                thread_connection = self.redshift_db.connect()
-                cursor = thread_connection.cursor(cursor_factory=RealDictCursor)
-                query = self.query_builder.build_socioeconomic_breakdown_query(lat, lng, radius, entity_code)
-                cursor.execute(query)
-                result = cursor.fetchall()
-                cursor.close()
-                thread_connection.close()
-                return result
+            # Execute queries sequentially to avoid connection pool exhaustion
+            # Radius analysis
+            radius_query = self.query_builder.build_socioeconomic_income_analysis_query(lat, lng, radius, entity_code)
+            cursor.execute(radius_query)
+            radius_data = cursor.fetchall()
+            for row in radius_data:
+                row['analysis_type'] = 'radius'
             
-            def execute_trends():
-                thread_connection = self.redshift_db.connect()
-                cursor = thread_connection.cursor(cursor_factory=RealDictCursor)
-                query = self.query_builder.build_socioeconomic_growth_trends_query(lat, lng, radius, entity_code)
-                cursor.execute(query)
-                result = cursor.fetchall()
-                cursor.close()
-                thread_connection.close()
-                return result
+            # Breakdown data
+            breakdown_query = self.query_builder.build_socioeconomic_breakdown_query(lat, lng, radius, entity_code)
+            cursor.execute(breakdown_query)
+            breakdown_data = cursor.fetchall()
             
-            def execute_municipality_analysis():
-                thread_connection = self.redshift_db.connect()
-                cursor = thread_connection.cursor(cursor_factory=RealDictCursor)
-                query = self.query_builder.build_socioeconomic_municipality_analysis_query(lat, lng, radius, entity_code)
-                cursor.execute(query)
-                result = cursor.fetchall()
-                # Add analysis_type field for processing
-                for row in result:
-                    row['analysis_type'] = 'municipality'
-                cursor.close()
-                thread_connection.close()
-                return result
+            # Trends data
+            trends_query = self.query_builder.build_socioeconomic_growth_trends_query(lat, lng, radius, entity_code)
+            cursor.execute(trends_query)
+            trends_data = cursor.fetchall()
             
-            def execute_municipality_breakdown():
-                thread_connection = self.redshift_db.connect()
-                cursor = thread_connection.cursor(cursor_factory=RealDictCursor)
-                query = self.query_builder.build_socioeconomic_municipality_breakdown_query(lat, lng, radius, entity_code)
-                cursor.execute(query)
-                result = cursor.fetchall()
-                cursor.close()
-                thread_connection.close()
-                return result
+            # Municipality analysis
+            municipality_query = self.query_builder.build_socioeconomic_municipality_analysis_query(lat, lng, radius, entity_code)
+            cursor.execute(municipality_query)
+            municipality_data = cursor.fetchall()
+            for row in municipality_data:
+                row['analysis_type'] = 'municipality'
             
-            def execute_municipality_trends():
-                thread_connection = self.redshift_db.connect()
-                cursor = thread_connection.cursor(cursor_factory=RealDictCursor)
-                query = self.query_builder.build_socioeconomic_municipality_growth_trends_query(lat, lng, radius, entity_code)
-                cursor.execute(query)
-                result = cursor.fetchall()
-                cursor.close()
-                thread_connection.close()
-                return result
+            # Municipality breakdown
+            municipality_breakdown_query = self.query_builder.build_socioeconomic_municipality_breakdown_query(lat, lng, radius, entity_code)
+            cursor.execute(municipality_breakdown_query)
+            municipality_breakdown_data = cursor.fetchall()
             
-            # Execute all queries in parallel with limited workers to avoid connection pool exhaustion
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                # Submit all queries
-                radius_future = executor.submit(execute_radius_analysis)
-                breakdown_future = executor.submit(execute_breakdown)
-                trends_future = executor.submit(execute_trends)
-                municipality_future = executor.submit(execute_municipality_analysis)
-                municipality_breakdown_future = executor.submit(execute_municipality_breakdown)
-                municipality_trends_future = executor.submit(execute_municipality_trends)
-                
-                # Get results
-                radius_data = radius_future.result()
-                breakdown_data = breakdown_future.result()
-                trends_data = trends_future.result()
-                municipality_data = municipality_future.result()
-                municipality_breakdown_data = municipality_breakdown_future.result()
-                municipality_trends_data = municipality_trends_future.result()
+            # Municipality trends
+            municipality_trends_query = self.query_builder.build_socioeconomic_municipality_growth_trends_query(lat, lng, radius, entity_code)
+            cursor.execute(municipality_trends_query)
+            municipality_trends_data = cursor.fetchall()
+            
+            cursor.close()
             
             # Combine radius and municipality data for processing
             combined_data = radius_data + municipality_data
