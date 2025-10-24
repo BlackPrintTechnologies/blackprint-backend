@@ -1452,110 +1452,156 @@ class AreaAnalysisQuery:
         return query
 
     def build_socioeconomic_income_analysis_query(self, lat, lng, radius, entity_code=22):
-        """Build query for comprehensive socioeconomic income analysis."""
+        """Build query for comprehensive socioeconomic income analysis with proper area-weighted calculations."""
         query = f"""
         WITH point AS (
-          SELECT ST_SetSRID(ST_Point({lng}, {lat}), 4326) AS center_point
+          SELECT ST_Transform(
+                   ST_SetSRID(ST_Point({lng}, {lat}), 4326),
+                   3857
+                 ) AS center_point
         ),
         area_data AS (
-          SELECT a.*
-          FROM presentation.dim_socioeconomic_level_ageb a, point p
-          WHERE ST_DWithin(
-                  ST_SetSRID(a.geometry_coords, 4326),
-                  p.center_point,
-                  {radius}
+          SELECT
+            a.*,
+            -- transform polygon to 3857 for meters
+            ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857) AS geom_m,
+            p.center_point,
+            -- buffer the point for specified radius
+            ST_Buffer(p.center_point, {radius}.0) AS circle_buffer,
+            -- compute intersection area
+            ST_Area(ST_Intersection(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857), ST_Buffer(p.center_point, {radius}.0))) AS intersect_area,
+            -- compute fraction of polygon inside the circle
+            ST_Area(ST_Intersection(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857), ST_Buffer(p.center_point, {radius}.0))) 
+              / NULLIF(ST_Area(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857)),0) AS fraction_inside
+          FROM presentation.dim_socioeconomic_level_ageb a
+          CROSS JOIN point p
+          WHERE ST_Intersects(
+                  ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857),
+                  ST_Buffer(p.center_point, {radius}.0)
                 )
             AND entity_code = {entity_code}
         ),
         totals AS (
-          SELECT 
-            SUM(total_housing) AS total_households,
-            SUM(ab_2024 + cplus_2024 + c_2024 + cminus_2024 + dplus_2024 + d_2024 + e_2024) AS total_household_income
+          SELECT
+            SUM(total_housing * fraction_inside) AS total_households,
+            SUM(
+              (
+                ab*ab_2024 + cplus*cplus_2024 + c*c_2024 + cminus*cminus_2024 + dplus*dplus_2024 + d*d_2024 + e*e_2024
+              ) * fraction_inside
+            ) AS total_household_income
           FROM area_data
         )
-        SELECT 
-          t.total_households,
-          t.total_household_income,
-          ROUND((t.total_household_income::NUMERIC / NULLIF(t.total_households, 0)), 2) AS avg_household_income
+        SELECT
+          ROUND(t.total_households::NUMERIC, 0) AS total_households,
+          ROUND(t.total_household_income::NUMERIC, 0) AS total_household_income,
+          ROUND(t.total_household_income::NUMERIC / NULLIF(t.total_households, 0), 2) AS avg_household_income
         FROM totals t
         """
         return query
 
     def build_socioeconomic_breakdown_query(self, lat, lng, radius, entity_code=22):
-        """Build query for income level breakdown with percentages."""
+        """Build query for income level breakdown with percentages using area-weighted calculations."""
         query = f"""
         WITH point AS (
-          SELECT ST_SetSRID(ST_Point({lng}, {lat}), 4326) AS center_point
+          SELECT ST_Transform(
+                   ST_SetSRID(ST_Point({lng}, {lat}), 4326),
+                   3857
+                 ) AS center_point
         ),
         area_data AS (
-          SELECT a.*
-          FROM presentation.dim_socioeconomic_level_ageb a, point p
-          WHERE ST_DWithin(
-                  ST_SetSRID(a.geometry_coords, 4326),
-                  p.center_point,
-                  {radius}
+          SELECT
+            a.*,
+            -- transform polygon to 3857 for meters
+            ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857) AS geom_m,
+            p.center_point,
+            -- buffer the point for specified radius
+            ST_Buffer(p.center_point, {radius}.0) AS circle_buffer,
+            -- compute intersection area
+            ST_Area(ST_Intersection(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857), ST_Buffer(p.center_point, {radius}.0))) AS intersect_area,
+            -- compute fraction of polygon inside the circle
+            ST_Area(ST_Intersection(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857), ST_Buffer(p.center_point, {radius}.0))) 
+              / NULLIF(ST_Area(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857)),0) AS fraction_inside
+          FROM presentation.dim_socioeconomic_level_ageb a
+          CROSS JOIN point p
+          WHERE ST_Intersects(
+                  ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857),
+                  ST_Buffer(p.center_point, {radius}.0)
                 )
             AND entity_code = {entity_code}
         ),
         totals AS (
           SELECT 
-            SUM(ab + cplus + c + cminus + dplus + d + e) AS total_households,
-            SUM(ab_2024 + cplus_2024 + c_2024 + cminus_2024 + dplus_2024 + d_2024 + e_2024) AS total_income
+            SUM((ab + cplus + c + cminus + dplus + d + e) * fraction_inside) AS total_households,
+            SUM((ab_2024 + cplus_2024 + c_2024 + cminus_2024 + dplus_2024 + d_2024 + e_2024) * fraction_inside) AS total_income
           FROM area_data
         )
         SELECT 
           breakdown.level,
-          breakdown.households,
-          ROUND((breakdown.households::NUMERIC / totals.total_households::NUMERIC) * 100, 2) AS pct_households,
-          breakdown.total_income_level,
-          ROUND((breakdown.total_income_level::NUMERIC / totals.total_income::NUMERIC) * 100, 2) AS pct_income
+          ROUND(breakdown.households::NUMERIC, 0) AS households,
+          ROUND((breakdown.households::NUMERIC / NULLIF(totals.total_households::NUMERIC, 0)) * 100, 2) AS pct_households,
+          ROUND(breakdown.total_income_level::NUMERIC, 0) AS total_income_level,
+          ROUND((breakdown.total_income_level::NUMERIC / NULLIF(totals.total_income::NUMERIC, 0)) * 100, 2) AS pct_income
         FROM (
-          SELECT 'AB' AS level, SUM(ab) AS households, SUM(ab_2024) AS total_income_level FROM area_data
+          SELECT 'AB' AS level, SUM(ab * fraction_inside) AS households, SUM(ab_2024 * fraction_inside) AS total_income_level FROM area_data
           UNION ALL
-          SELECT 'C+' AS level, SUM(cplus), SUM(cplus_2024) FROM area_data
+          SELECT 'C+' AS level, SUM(cplus * fraction_inside), SUM(cplus_2024 * fraction_inside) FROM area_data
           UNION ALL
-          SELECT 'C' AS level, SUM(c), SUM(c_2024) FROM area_data
+          SELECT 'C' AS level, SUM(c * fraction_inside), SUM(c_2024 * fraction_inside) FROM area_data
           UNION ALL
-          SELECT 'C-' AS level, SUM(cminus), SUM(cminus_2024) FROM area_data
+          SELECT 'C-' AS level, SUM(cminus * fraction_inside), SUM(cminus_2024 * fraction_inside) FROM area_data
           UNION ALL
-          SELECT 'D+' AS level, SUM(dplus), SUM(dplus_2024) FROM area_data
+          SELECT 'D+' AS level, SUM(dplus * fraction_inside), SUM(dplus_2024 * fraction_inside) FROM area_data
           UNION ALL
-          SELECT 'D' AS level, SUM(d), SUM(d_2024) FROM area_data
+          SELECT 'D' AS level, SUM(d * fraction_inside), SUM(d_2024 * fraction_inside) FROM area_data
           UNION ALL
-          SELECT 'E' AS level, SUM(e), SUM(e_2024) FROM area_data
+          SELECT 'E' AS level, SUM(e * fraction_inside), SUM(e_2024 * fraction_inside) FROM area_data
         ) AS breakdown
         CROSS JOIN totals
         """
         return query
 
     def build_socioeconomic_growth_trends_query(self, lat, lng, radius, entity_code=22):
-        """Build query for historical growth trends analysis."""
+        """Build query for historical growth trends analysis using area-weighted calculations."""
         query = f"""
         WITH point AS (
-          SELECT ST_SetSRID(ST_Point({lng}, {lat}), 4326) AS center_point
+          SELECT ST_Transform(
+                   ST_SetSRID(ST_Point({lng}, {lat}), 4326),
+                   3857
+                 ) AS center_point
         ),
         area_data AS (
-          SELECT a.*
-          FROM presentation.dim_socioeconomic_level_ageb a, point p
-          WHERE ST_DWithin(
-                  ST_SetSRID(a.geometry_coords, 4326),
-                  p.center_point,
-                  {radius}
+          SELECT
+            a.*,
+            -- transform polygon to 3857 for meters
+            ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857) AS geom_m,
+            p.center_point,
+            -- buffer the point for specified radius
+            ST_Buffer(p.center_point, {radius}.0) AS circle_buffer,
+            -- compute intersection area
+            ST_Area(ST_Intersection(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857), ST_Buffer(p.center_point, {radius}.0))) AS intersect_area,
+            -- compute fraction of polygon inside the circle
+            ST_Area(ST_Intersection(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857), ST_Buffer(p.center_point, {radius}.0))) 
+              / NULLIF(ST_Area(ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857)),0) AS fraction_inside
+          FROM presentation.dim_socioeconomic_level_ageb a
+          CROSS JOIN point p
+          WHERE ST_Intersects(
+                  ST_Transform(ST_SetSRID(a.geometry_coords, 4326), 3857),
+                  ST_Buffer(p.center_point, {radius}.0)
                 )
             AND entity_code = {entity_code}
         ),
         totals AS (
           SELECT 
-            SUM(ab_2016) AS ab_2016, SUM(cplus_2016) AS cplus_2016, SUM(c_2016) AS c_2016,
-            SUM(cminus_2016) AS cminus_2016, SUM(dplus_2016) AS dplus_2016, SUM(d_2016) AS d_2016, SUM(e_2016) AS e_2016,
-            SUM(ab_2018) AS ab_2018, SUM(cplus_2018) AS cplus_2018, SUM(c_2018) AS c_2018,
-            SUM(cminus_2018) AS cminus_2018, SUM(dplus_2018) AS dplus_2018, SUM(d_2018) AS d_2018, SUM(e_2018) AS e_2018,
-            SUM(ab_2020) AS ab_2020, SUM(cplus_2020) AS cplus_2020, SUM(c_2020) AS c_2020,
-            SUM(cminus_2020) AS cminus_2020, SUM(dplus_2020) AS dplus_2020, SUM(d_2020) AS d_2020, SUM(e_2020) AS e_2020,
-            SUM(ab_2022) AS ab_2022, SUM(cplus_2022) AS cplus_2022, SUM(c_2022) AS c_2022,
-            SUM(cminus_2022) AS cminus_2022, SUM(dplus_2022) AS dplus_2022, SUM(d_2022) AS d_2022, SUM(e_2022) AS e_2022,
-            SUM(ab_2024) AS ab_2024, SUM(cplus_2024) AS cplus_2024, SUM(c_2024) AS c_2024,
-            SUM(cminus_2024) AS cminus_2024, SUM(dplus_2024) AS dplus_2024, SUM(d_2024) AS d_2024, SUM(e_2024) AS e_2024
+            SUM(ab_2016 * fraction_inside) AS ab_2016, SUM(cplus_2016 * fraction_inside) AS cplus_2016, SUM(c_2016 * fraction_inside) AS c_2016,
+            SUM(cminus_2016 * fraction_inside) AS cminus_2016, SUM(dplus_2016 * fraction_inside) AS dplus_2016, SUM(d_2016 * fraction_inside) AS d_2016, SUM(e_2016 * fraction_inside) AS e_2016,
+            SUM(ab_2018 * fraction_inside) AS ab_2018, SUM(cplus_2018 * fraction_inside) AS cplus_2018, SUM(c_2018 * fraction_inside) AS c_2018,
+            SUM(cminus_2018 * fraction_inside) AS cminus_2018, SUM(dplus_2018 * fraction_inside) AS dplus_2018, SUM(d_2018 * fraction_inside) AS d_2018, SUM(e_2018 * fraction_inside) AS e_2018,
+            SUM(ab_2020 * fraction_inside) AS ab_2020, SUM(cplus_2020 * fraction_inside) AS cplus_2020, SUM(c_2020 * fraction_inside) AS c_2020,
+            SUM(cminus_2020 * fraction_inside) AS cminus_2020, SUM(dplus_2020 * fraction_inside) AS dplus_2020, SUM(d_2020 * fraction_inside) AS d_2020, SUM(e_2020 * fraction_inside) AS e_2020,
+            SUM(ab_2022 * fraction_inside) AS ab_2022, SUM(cplus_2022 * fraction_inside) AS cplus_2022, SUM(c_2022 * fraction_inside) AS c_2022,
+            SUM(cminus_2022 * fraction_inside) AS cminus_2022, SUM(dplus_2022 * fraction_inside) AS dplus_2022, SUM(d_2022 * fraction_inside) AS d_2022, SUM(e_2022 * fraction_inside) AS e_2022,
+            SUM(ab_2024 * fraction_inside) AS ab_2024, SUM(cplus_2024 * fraction_inside) AS cplus_2024, SUM(c_2024 * fraction_inside) AS c_2024,
+            SUM(cminus_2024 * fraction_inside) AS cminus_2024, SUM(dplus_2024 * fraction_inside) AS dplus_2024, SUM(d_2024 * fraction_inside) AS d_2024, SUM(e_2024 * fraction_inside) AS e_2024
           FROM area_data
         )
         SELECT
