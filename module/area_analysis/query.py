@@ -1148,6 +1148,8 @@ class AreaAnalysisQuery:
 
     def _get_socioeconomic_query(self, lat, lng, radius):
         """Get socioeconomic data query within specified radius from coordinates."""
+        # Convert radius from meters to degrees
+        radius_degrees = radius / 111320.0
         query = f"""
             SELECT
             id_ses_ageb AS "id_ses_ageb",
@@ -1177,7 +1179,7 @@ class AreaAnalysisQuery:
                     ')', 4326
                 ),
                 ST_GeomFromText('POINT({lng} {lat})', 4326)
-            ) <= {radius}
+            ) <= {radius_degrees}
         """
         return query
 
