@@ -18,19 +18,7 @@ class AreaAnalysisController:
         self.query_builder = AreaAnalysisQuery()
 
     def get_traffic_by_day(self, lat, lng, radius=2000, user_type=None, config_city='queretaro'):
-        """
-        Get traffic data aggregated by day of the week within a specified radius.
-        
-        Args:
-            lat (float): Latitude of the center point
-            lng (float): Longitude of the center point
-            radius (int): Radius in meters (default: 2000)
-            user_type (str): User type filter ('estacionario', 'vehiculo', 'peaton') or None for all
-            config_city (str): City configuration - 'queretaro' or 'mexico'
-            
-        Returns:
-            dict: Response with traffic data by day
-        """
+        """Get traffic data aggregated by day of the week."""
         # Create cache key based on parameters
         cache_key = f"traffic_by_day_{config_city}_{lat}_{lng}_{radius}_{user_type or 'all'}"
         
@@ -117,19 +105,7 @@ class AreaAnalysisController:
             return resp
 
     def get_traffic_by_hour(self, lat, lng, radius=2000, user_type=None, config_city='queretaro'):
-        """
-        Get traffic data aggregated by hour of the day within a specified radius.
-        
-        Args:
-            lat (float): Latitude of the center point
-            lng (float): Longitude of the center point
-            radius (int): Radius in meters (default: 2000)
-            user_type (str): User type filter ('estacionario', 'vehiculo', 'peaton') or None for all
-            config_city (str): City configuration - 'queretaro' or 'mexico'
-            
-        Returns:
-            dict: Response with traffic data by hour
-        """
+        """Get traffic data aggregated by hour of the day."""
         # Create cache key based on parameters
         cache_key = f"traffic_by_hour_{config_city}_{lat}_{lng}_{radius}_{user_type or 'all'}"
         
@@ -206,19 +182,7 @@ class AreaAnalysisController:
             return resp
 
     def get_traffic_summary(self, lat, lng, radius=2000, user_type=None, config_city='queretaro'):
-        """
-        Get total traffic summary within a specified radius.
-        
-        Args:
-            lat (float): Latitude of the center point
-            lng (float): Longitude of the center point
-            radius (int): Radius in meters (default: 2000)
-            user_type (str): User type filter ('estacionario', 'vehiculo', 'peaton') or None for all
-            config_city (str): City configuration - 'queretaro' or 'mexico'
-            
-        Returns:
-            dict: Response with total traffic summary
-        """
+        """Get total traffic summary within a specified radius."""
         # Create cache key based on parameters
         cache_key = f"traffic_summary_{config_city}_{lat}_{lng}_{radius}_{user_type or 'all'}"
         
@@ -284,19 +248,7 @@ class AreaAnalysisController:
             return resp
 
     def get_area_summary(self, lat, lng, radius=2000, config_city='queretaro'):
-        """
-        Get area analysis summary matching the UI mockup exactly.
-        Returns all the summary data needed for the main UI panel.
-        
-        Args:
-            lat (float): Latitude of the center point
-            lng (float): Longitude of the center point
-            radius (int): Radius in meters (default: 2000)
-            config_city (str): City configuration - 'queretaro' or 'mexico'
-            
-        Returns:
-            dict: Response with area summary data matching UI structure
-        """
+        """Get area analysis summary matching the UI mockup."""
         # Create cache key based on parameters
         cache_key = f"area_summary_{config_city}_{lat}_{lng}_{radius}"
         
@@ -564,18 +516,7 @@ class AreaAnalysisController:
             return resp
 
     def get_traffic_patterns(self, lat, lng, radius=2000, config_city='queretaro'):
-        """
-        Get detailed traffic patterns for charts (both hourly and daily).
-        
-        Args:
-            lat (float): Latitude of the center point
-            lng (float): Longitude of the center point
-            radius (int): Radius in meters (default: 2000)
-            config_city (str): City configuration - 'queretaro' or 'mexico'
-            
-        Returns:
-            dict: Response with traffic pattern data for charts
-        """
+        """Get detailed traffic patterns for charts (both hourly and daily)."""
         # Create cache key based on parameters
         cache_key = f"traffic_patterns_{config_city}_{lat}_{lng}_{radius}"
         
@@ -758,19 +699,7 @@ class AreaAnalysisController:
             return resp
 
     def get_area_demographics(self, lat, lng, radius=2000, config_city='mexico'):
-        """
-        Get demographic and socioeconomic analysis for a specific area.
-        Returns population demographics, income levels, and socioeconomic distribution.
-        
-        Args:
-            lat (float): Latitude of the center point
-            lng (float): Longitude of the center point
-            radius (int): Radius in meters (default: 2000)
-            config_city (str): City configuration - 'mexico' or 'queretaro'
-            
-        Returns:
-            dict: Response with demographic analysis data matching UI structure
-        """
+        """Get demographic and socioeconomic analysis for a specific area."""
         # Create cache key based on parameters
         cache_key = f"demographics_{config_city}_{lat}_{lng}_{radius}"
         
@@ -828,16 +757,9 @@ class AreaAnalysisController:
                 set_in_cache('demographic', cache_key, resp)
                 logger.info(f"Cached demographics data for {config_city} at ({lat}, {lng}) with radius {radius}")
             else:
-                # Return empty demographics structure
-                demographics_data = self._get_empty_demographics_structure(lat, lng, radius)
-                if config_city == 'queretaro':
-                    demographics_data['socioeconomic_income_analysis'] = self._get_empty_income_analysis_structure(lat, lng, radius)
-                logger.info(f"No demographic data found for {config_city}, returning empty structure")
-                resp = Response.success(data=demographics_data)
-                
-                # Cache the empty response as well to avoid repeated queries for areas with no data
-                set_in_cache('demographic', cache_key, resp)
-                logger.info(f"Cached empty demographics data for {config_city} at ({lat}, {lng}) with radius {radius}")
+                # No data found - return error instead of empty structure
+                logger.warning(f"No demographic data found for {config_city} at ({lat}, {lng}) with radius {radius}")
+                resp = Response.error(f"No demographic data found for the specified location")
             
         except Exception as e:
             logger.error(f"Error in get_area_demographics for {config_city}: {str(e)}")
@@ -854,7 +776,7 @@ class AreaAnalysisController:
 
 
     def _create_age_pyramid_data(self, aggregated_result):
-        """Create age pyramid data structure for 2024 visualization using proportional scaling."""
+        """Create age pyramid data structure for visualization."""
         # Debug: Log available columns
         logger.info(f"Available columns in aggregated_result: {list(aggregated_result.keys())}")
         
@@ -977,7 +899,7 @@ class AreaAnalysisController:
         }
 
     def _create_population_growth_data(self, aggregated_result):
-        """Create population growth data structure using only years available from database."""
+        """Create population growth data structure."""
         # Only use years that actually exist in the database
         # Based on the query: 2000, 2005, 2010, 2020 (no 2015, no interpolated 2007)
         
@@ -1108,30 +1030,8 @@ class AreaAnalysisController:
             "years": years
         }
 
-    def _calculate_fallback_municipality_area(self, aggregated_result):
-        """Calculate fallback municipality area when database query fails."""
-        # Try to estimate based on population density patterns
-        population = aggregated_result.get("pobtot_alcaldia", 0)
-        if population > 0:
-            # Estimate area based on typical population density patterns
-            # Mexico City average density is around 6,000 people/km²
-            estimated_area = population / 6000
-            return max(estimated_area, 10.0)  # Minimum 10 km²
-        else:
-            return self._get_default_municipality_area()
-
-    def _estimate_municipality_area_from_population(self, population):
-        """Estimate municipality area based on population size."""
-        if population > 0:
-            # Estimate area based on typical population density patterns
-            # Mexico City average density is around 6,000 people/km²
-            estimated_area = population / 6000
-            return max(estimated_area, 10.0)  # Minimum 10 km²
-        else:
-            return self._get_default_municipality_area()
-
     def _interpolate_growth_for_year(self, growth_data, target_year):
-        """Interpolate growth percentage for a specific year based on available data."""
+        """Interpolate growth percentage for a specific year."""
         # Get available years and their growth rates
         available_years = []
         growth_rates = []
@@ -1165,14 +1065,43 @@ class AreaAnalysisController:
         
         return 0.0
 
-    def _get_default_municipality_area(self):
-        """Get default municipality area based on typical Mexico City patterns."""
-        # Use a reasonable default based on typical Mexico City municipality sizes
-        # Most municipalities range from 20-50 km², with 32.44 being a reasonable median
-        return 32.44
+    def _interpolate_growth_for_year(self, growth_data, target_year):
+        """Interpolate growth percentage for a specific year."""
+        # Get available years and their growth rates
+        available_years = []
+        growth_rates = []
+        
+        for year_str, data in growth_data.items():
+            if len(data) > 1 and data[1] is not None:
+                available_years.append(int(year_str))
+                growth_rates.append(data[1])
+        
+        if len(available_years) < 2:
+            return 0.0  # Not enough data for interpolation
+        
+        # Sort by year
+        sorted_data = sorted(zip(available_years, growth_rates))
+        years, rates = zip(*sorted_data)
+        
+        # Find the two closest years for interpolation
+        if target_year <= years[0]:
+            return rates[0]
+        elif target_year >= years[-1]:
+            return rates[-1]
+        else:
+            # Linear interpolation between two points
+            for i in range(len(years) - 1):
+                if years[i] <= target_year <= years[i + 1]:
+                    # Linear interpolation
+                    x1, y1 = years[i], rates[i]
+                    x2, y2 = years[i + 1], rates[i + 1]
+                    interpolated = y1 + (y2 - y1) * (target_year - x1) / (x2 - x1)
+                    return round(interpolated, 1)
+        
+        return 0.0
 
     def _get_municipality_area_km2(self, municipality_code, connection):
-        """Calculate municipality area in km² using direct ST_Area calculation from v_qro table."""
+        """Calculate municipality area in km²."""
         cursor = None
         try:
             cursor = connection.cursor()
@@ -1203,30 +1132,25 @@ class AreaAnalysisController:
                 
                 return round(total_area_km2, 2)
             else:
-                logger.warning(f"No area data found for municipality_code: {municipality_code}, using fallback")
-                # Fallback: estimate based on population density patterns
-                fallback_area = self._estimate_municipality_area_from_population(0)
-                logger.info(f"Using fallback area: {fallback_area} km²")
-                return fallback_area
+                logger.error(f"No area data found for municipality_code: {municipality_code}")
+                raise ValueError(f"No area data found for municipality_code: {municipality_code}")
                 
+        except ValueError:
+            # Re-raise ValueError as-is
+            raise
         except Exception as e:
             logger.error(f"Error calculating municipality area for municipality_code {municipality_code}: {str(e)}")
-            fallback_area = self._estimate_municipality_area_from_population(0)
-            logger.info(f"Using fallback area due to error: {fallback_area} km²")
-            return fallback_area
+            raise ValueError(f"Failed to calculate municipality area: {str(e)}")
         finally:
             if cursor:
                 cursor.close()
 
     def _process_queretaro_demographics_data(self, demographic_data, lat, lng, radius, connection=None):
-        """
-        Process Queretaro demographic data from the new aggregated query.
-        The query now returns a single pre-aggregated record with all calculations already done.
-        """
+        """Process Queretaro demographic data from aggregated query."""
         # Spatial filtering and aggregation are now handled in the SQL query
         if not demographic_data:
-            logger.warning("No Queretaro demographic data found")
-            return self._get_empty_demographics_structure(lat, lng, radius)
+            logger.error("No demographic data found")
+            raise ValueError("No demographic data found for the specified location")
         
         # Get the single aggregated result (no need for aggregation since query does it)
         aggregated_result = demographic_data[0]  # Query returns single pre-aggregated record
@@ -1243,25 +1167,24 @@ class AreaAnalysisController:
         municipality_female_percentage = aggregated_result.get("municipality_female_percentage")
         avg_household_size = aggregated_result.get("average_household_size", 0)
         
-        # Calculate municipality population density if needed (fallback for older data)
+        # Calculate municipality population density
         municipality_code = aggregated_result.get("municipality_code")
-        if municipality_code and connection:
-            municipality_area_km2 = self._get_municipality_area_km2(municipality_code, connection)
-            pobtot_alcaldia = aggregated_result.get("pobtot_alcaldia", 0)
-            municipality_population_density = round(pobtot_alcaldia / municipality_area_km2, 2) if municipality_area_km2 > 0 and pobtot_alcaldia else 0
-            
-            logger.info(f"Municipality population density calculation - "
-                       f"municipality_code: {municipality_code}, "
-                       f"pobtot_alcaldia: {pobtot_alcaldia}, "
-                       f"municipality_area_km2: {municipality_area_km2}, "
-                       f"municipality_population_density: {municipality_population_density}")
-        else:
-            # Use a reasonable estimate for municipality density
-            # Convert decimal to float to avoid type mismatch
-            area_population_density_float = float(area_population_density) if area_population_density is not None else 0
-            municipality_population_density = area_population_density_float * 0.8  # Approximate fallback
-            logger.info(f"Using fallback municipality population density: {municipality_population_density} "
-                       f"(based on area_population_density: {area_population_density})")
+        if not municipality_code or not connection:
+            raise ValueError("Municipality code or database connection not available for municipality population density calculation")
+        
+        municipality_area_km2 = self._get_municipality_area_km2(municipality_code, connection)
+        pobtot_alcaldia = aggregated_result.get("pobtot_alcaldia", 0)
+        
+        if municipality_area_km2 <= 0:
+            raise ValueError(f"Invalid municipality area calculated: {municipality_area_km2} km²")
+        
+        municipality_population_density = round(pobtot_alcaldia / municipality_area_km2, 2) if pobtot_alcaldia else 0
+        
+        logger.info(f"Municipality population density calculation - "
+                   f"municipality_code: {municipality_code}, "
+                   f"pobtot_alcaldia: {pobtot_alcaldia}, "
+                   f"municipality_area_km2: {municipality_area_km2}, "
+                   f"municipality_population_density: {municipality_population_density}")
         
         # Create age pyramid data
         age_pyramid_data = self._create_age_pyramid_data(aggregated_result)
@@ -1294,24 +1217,18 @@ class AreaAnalysisController:
             "detailed_data": {
                 "general": {
                     "block": {
-                        "neighborhood": aggregated_result["neighborhood"],
-                        "predominant_level": aggregated_result["predominant_level"],
                         "ageb_code": aggregated_result["ageb_code"],
                         "total_household": aggregated_result["vivtot"],
                         "average_household_size": avg_household_size,
                         "average_number_of_rooms": aggregated_result.get("pro_ocup_c")  # Use actual data if available
                     },
                     "colonia": {
-                        "neighborhood": aggregated_result["neighborhood"],
-                        "predominant_level": aggregated_result["predominant_level"],
                         "ageb_code": aggregated_result["ageb_code"],
                         "total_household": aggregated_result["vivtot"],
                         "average_household_size": avg_household_size,
                         "average_number_of_rooms": aggregated_result.get("pro_ocup_c")  # Use actual data if available
                     },
                     "alcaldia": {
-                        "neighborhood": aggregated_result["nom_mun"],
-                        "predominant_level": aggregated_result["predominant_level"],
                         "ageb_code": aggregated_result["ageb_code"],
                         "total_household": aggregated_result["vivtot"],  # Use same as selected area for Queretaro
                         "average_household_size": avg_household_size,  # Use same as selected area
@@ -1345,113 +1262,6 @@ class AreaAnalysisController:
                         "ses_d": aggregated_result["ses_d"] or 0,
                         "ses_d_plus": aggregated_result["ses_d_plus"] or 0,
                         "ses_e": aggregated_result["ses_e"] or 0
-                    }
-                },
-                "population": {
-                    "block": {
-                        "total_population": aggregated_result["pobtot"],
-                        "male_population": aggregated_result["pobmas"],
-                        "female_population": aggregated_result["pobfem"]
-                    },
-                    "colonia": {
-                        "total_population": aggregated_result["pobtot"],
-                        "male_population": aggregated_result["pobmas"],
-                        "female_population": aggregated_result["pobfem"]
-                    },
-                    "alcaldia": {
-                        "total_population": aggregated_result["pobtot"],  # Use same as selected area for Queretaro
-                        "male_population": aggregated_result["pobmas"],
-                        "female_population": aggregated_result["pobfem"]
-                    }
-                },
-                "education": {
-                    "block": {
-                        "education_3_5": aggregated_result["p_3a5"] or 0,
-                        "education_6_11": aggregated_result["p_6a11"] or 0,
-                        "education_12_14": aggregated_result["p_12a14"] or 0,
-                        "education_15_17": aggregated_result["p_15a17"] or 0,
-                        "education_18_24": aggregated_result["p_18a24"] or 0,
-                        "education_3_5_attending_school": aggregated_result["p3a5_noa"] or 0,
-                        "education_6_11_attending_school": aggregated_result["p6a11_noa"] or 0,
-                        "education_12_14_attending_school": aggregated_result["p12a14noa"] or 0,
-                        "education_15_17_attending_school": aggregated_result["p15a17a"] or 0,
-                        "education_18_24_attending_school": aggregated_result["p18a24a"] or 0
-                    },
-                    "colonia": {
-                        "education_3_5": aggregated_result["p_3a5"] or 0,
-                        "education_6_11": aggregated_result["p_6a11"] or 0,
-                        "education_12_14": aggregated_result["p_12a14"] or 0,
-                        "education_15_17": aggregated_result["p_15a17"] or 0,
-                        "education_18_24": aggregated_result["p_18a24"] or 0,
-                        "education_3_5_attending_school": aggregated_result["p3a5_noa"] or 0,
-                        "education_6_11_attending_school": aggregated_result["p6a11_noa"] or 0,
-                        "education_12_14_attending_school": aggregated_result["p12a14noa"] or 0,
-                        "education_15_17_attending_school": aggregated_result["p15a17a"] or 0,
-                        "education_18_24_attending_school": aggregated_result["p18a24a"] or 0
-                    },
-                    "alcaldia": {
-                        "education_3_5": aggregated_result.get("p_3a5"),
-                        "education_6_11": aggregated_result.get("p_6a11"),
-                        "education_12_14": aggregated_result.get("p_12a14"),
-                        "education_15_17": aggregated_result.get("p_15a17"),
-                        "education_18_24": aggregated_result.get("p_18a24"),
-                        "education_3_5_attending_school": aggregated_result.get("p3a5_noa"),
-                        "education_6_11_attending_school": aggregated_result.get("p6a11_noa"),
-                        "education_12_14_attending_school": aggregated_result.get("p12a14noa"),
-                        "education_15_17_attending_school": aggregated_result.get("p15a17a"),
-                        "education_18_24_attending_school": aggregated_result.get("p18a24a")
-                    }
-                },
-                "workforce": {
-                    "block": {
-                        "total_workforce": aggregated_result["pea"] or 0,
-                        "total_male_workforce": aggregated_result["pea_m"] or 0,
-                        "total_female_workforce": aggregated_result["pea_f"] or 0,
-                        "total_inactive_population": aggregated_result["pe_inac"] or 0,
-                        "total_inactive_male_population": aggregated_result["pe_inac_m"] or 0,
-                        "total_inactive_female_population": aggregated_result["pe_inac_f"] or 0
-                    },
-                    "colonia": {
-                        "total_workforce": aggregated_result["pea"] or 0,
-                        "total_male_workforce": aggregated_result["pea_m"] or 0,
-                        "total_female_workforce": aggregated_result["pea_f"] or 0,
-                        "total_inactive_population": aggregated_result["pe_inac"] or 0,
-                        "total_inactive_male_population": aggregated_result["pe_inac_m"] or 0,
-                        "total_inactive_female_population": aggregated_result["pe_inac_f"] or 0
-                    },
-                    "alcaldia": {
-                        "total_workforce": aggregated_result.get("pea"),
-                        "total_male_workforce": aggregated_result.get("pea_m"),
-                        "total_female_workforce": aggregated_result.get("pea_f"),
-                        "total_inactive_population": aggregated_result.get("pe_inac"),
-                        "total_inactive_male_population": aggregated_result.get("pe_inac_m"),
-                        "total_inactive_female_population": aggregated_result.get("pe_inac_f")
-                    }
-                },
-                "employment": {
-                    "block": {
-                        "total_employed_population": aggregated_result["pocupada"] or 0,
-                        "total_male_employed_population": aggregated_result["pocupada_m"] or 0,
-                        "total_female_emloyed_population": aggregated_result["pocupada_f"] or 0,
-                        "total_unemployed_population": aggregated_result["pdesocup"] or 0,
-                        "total_unemployed_male_population": aggregated_result["pdesocup_m"] or 0,
-                        "total_unemployed_female_population": aggregated_result["pdesocup_f"] or 0
-                    },
-                    "colonia": {
-                        "total_employed_population": aggregated_result["pocupada"] or 0,
-                        "total_male_employed_population": aggregated_result["pocupada_m"] or 0,
-                        "total_female_emloyed_population": aggregated_result["pocupada_f"] or 0,
-                        "total_unemployed_population": aggregated_result["pdesocup"] or 0,
-                        "total_unemployed_male_population": aggregated_result["pdesocup_m"] or 0,
-                        "total_unemployed_female_population": aggregated_result["pdesocup_f"] or 0
-                    },
-                    "alcaldia": {
-                        "total_employed_population": aggregated_result.get("pocupada"),
-                        "total_male_employed_population": aggregated_result.get("pocupada_m"),
-                        "total_female_emloyed_population": aggregated_result.get("pocupada_f"),
-                        "total_unemployed_population": aggregated_result.get("pdesocup"),
-                        "total_unemployed_male_population": aggregated_result.get("pdesocup_m"),
-                        "total_unemployed_female_population": aggregated_result.get("pdesocup_f")
                     }
                 },
                 "population_growth": {
@@ -1508,7 +1318,7 @@ class AreaAnalysisController:
         return demographics_data
 
     def _create_queretaro_socioeconomic_analysis(self, aggregated_result):
-        """Create socioeconomic analysis for Queretaro demographics API with corrected percentage calculations."""
+        """Create socioeconomic analysis for Queretaro demographics."""
         # Calculate total households for selected area
         total_households = aggregated_result.get('vivtot', 0) or 0
         
@@ -1758,319 +1568,8 @@ class AreaAnalysisController:
             }
         }
 
-
-    # def _process_demographics_data(self, demographic_data, lat, lng, radius, config_city='mexico'):
-        """Process demographic data and create response structure matching UI mockup."""
-        # Initialize totals
-        total_population = 0
-        total_male = 0
-        total_female = 0
-        
-        # Age group totals
-        age_totals = {
-            '0-14': {'male': 0, 'female': 0},
-            '15-24': {'male': 0, 'female': 0},
-            '25-59': {'male': 0, 'female': 0},
-            '60+': {'male': 0, 'female': 0}
-        }
-        
-        # Income and education totals
-        total_income = 0
-        total_education_level = 0
-        total_households = 0
-        
-        # Filter records by distance for Mexico (since we can't do it in SQL)
-        if config_city != 'queretaro':
-            filtered_data = []
-            radius_degrees = radius / 111000.0  # Convert meters to degrees
-            
-            for record in demographic_data:
-                try:
-                    # Parse centroid JSON string to extract coordinates
-                    centroid_str = record.get('centroid', '')
-                    if centroid_str and 'coordinates' in centroid_str:
-                        # Simple string parsing since JSON type is not available
-                        import re
-                        coords_match = re.search(r'\[([^,]+),\s*([^\]]+)\]', centroid_str)
-                        if coords_match:
-                            record_lng = float(coords_match.group(1))
-                            record_lat = float(coords_match.group(2))
-                            
-                            # Check if within radius (simple bounding box)
-                            if (abs(record_lat - lat) <= radius_degrees and 
-                                abs(record_lng - lng) <= radius_degrees):
-                                filtered_data.append(record)
-                except (ValueError, AttributeError):
-                    continue
-            
-            demographic_data = filtered_data
-            logger.info(f"Filtered to {len(demographic_data)} records within radius for Mexico")
-        
-        # Process each record
-        for record in demographic_data:
-            # Population totals
-            pop = record.get('total_population', 0) or 0
-            total_population += pop
-            
-            if config_city == 'queretaro':
-                # QRO data structure - use available age group columns
-                child_pop = record.get('child_population', 0) or 0  # 0-14 years
-                working_pop = record.get('working_age_population', 0) or 0  # 15-64 years
-                elderly_pop = record.get('elderly_population', 0) or 0  # 65+ years
-                
-                # Use existing age group data from the table
-                # 0-14 age group (both male and female combined)
-                age_totals['0-14']['male'] += child_pop // 2  # Approximate split
-                age_totals['0-14']['female'] += child_pop - (child_pop // 2)
-                
-                # For specific age ranges, use the available columns
-                p_15a17 = record.get('p_15a17', 0) or 0
-                p_18a24 = record.get('p_18a24', 0) or 0
-                p_60ymas = record.get('p_60ymas', 0) or 0
-                
-                # 15-24 age group
-                age_15_24 = p_15a17 + p_18a24
-                age_totals['15-24']['male'] += age_15_24 // 2  # Approximate split
-                age_totals['15-24']['female'] += age_15_24 - (age_15_24 // 2)
-                
-                # 60+ age group  
-                age_totals['60+']['male'] += p_60ymas // 2  # Approximate split
-                age_totals['60+']['female'] += p_60ymas - (p_60ymas // 2)
-                
-                # 25-59 age group (derived from working age minus 15-24)
-                age_25_59 = working_pop - age_15_24
-                age_totals['25-59']['male'] += max(0, age_25_59 // 2)
-                age_totals['25-59']['female'] += max(0, age_25_59 - (age_25_59 // 2))
-                
-                # Calculate male/female totals (approximate split for QRO)
-                total_male += pop // 2
-                total_female += pop - (pop // 2)
-                
-                # Household data
-                if record.get('tot_vivien'):
-                    total_households += record.get('tot_vivien', 0)
-                    
-            else:
-                # Mexico data structure - has actual male/female population columns
-                male_pop = record.get('male_population', 0) or 0
-                female_pop = record.get('female_population', 0) or 0
-                
-                total_male += male_pop
-                total_female += female_pop
-                
-                # For Mexico, calculate age groups from specific columns
-                p_0a2 = record.get('p_0a2', 0) or 0
-                p_3a5 = record.get('p_3a5', 0) or 0
-                p_6a11 = record.get('p_6a11', 0) or 0
-                p_12a14 = record.get('p_12a14', 0) or 0
-                p_15a17 = record.get('p_15a17', 0) or 0
-                p_18a24 = record.get('p_18a24', 0) or 0
-                p_60ymas = record.get('p_60ymas', 0) or 0
-                
-                # 0-14 age group
-                age_0_14 = p_0a2 + p_3a5 + p_6a11 + p_12a14
-                age_totals['0-14']['male'] += age_0_14 // 2
-                age_totals['0-14']['female'] += age_0_14 - (age_0_14 // 2)
-                
-                # 15-24 age group
-                age_15_24 = p_15a17 + p_18a24
-                age_totals['15-24']['male'] += age_15_24 // 2
-                age_totals['15-24']['female'] += age_15_24 - (age_15_24 // 2)
-                
-                # 60+ age group
-                age_totals['60+']['male'] += p_60ymas // 2
-                age_totals['60+']['female'] += p_60ymas - (p_60ymas // 2)
-                
-                # 25-59 age group (derived)
-                age_25_59 = pop - age_0_14 - age_15_24 - p_60ymas
-                age_totals['25-59']['male'] += max(0, age_25_59 // 2)
-                age_totals['25-59']['female'] += max(0, age_25_59 - (age_25_59 // 2))
-                
-                # Household data
-                if record.get('vivtot'):
-                    total_households += record.get('vivtot', 0)
-            
-            # Education data (common for both)
-            if record.get('graproes'):
-                total_education_level += record.get('graproes', 0) * pop
-        
-        # Calculate percentages and averages
-        male_percentage = (total_male / total_population * 100) if total_population > 0 else 0
-        female_percentage = (total_female / total_population * 100) if total_population > 0 else 0
-        
-        # Average income per person
-        avg_income = (total_income / total_population) if total_population > 0 else 0
-        
-        # Calculate area
-        area_km2 = round((3.14159 * (radius/1000) ** 2), 2)
-        
-        # Create age distribution for population pyramid (consistent with PropertyDemographic)
-        age_distribution = []
-        for age_group in ['0-14', '15-24', '25-59', '60+']:
-            male_count = age_totals[age_group]['male']
-            female_count = age_totals[age_group]['female']
-            total_age_group = male_count + female_count
-            
-            age_distribution.append({
-                "age_group": age_group,
-                "male": male_count,
-                "female": female_count,
-                "total": total_age_group,
-                "percentage": round((total_age_group / total_population * 100), 1) if total_population > 0 else 0
-            })
-        
-        # Process socioeconomic levels from actual housing data (consistent with PropertyDemographic)
-        # Collect housing percentages from all records using same column names
-        housing_totals = {
-            "ses_ab": 0, "ses_c_plus": 0, "ses_c": 0, "ses_c_minus": 0, 
-            "ses_d_plus": 0, "ses_d": 0, "ses_e": 0
-        }
-        
-        total_households_processed = 0
-        
-        for record in demographic_data:
-            if config_city == 'queretaro':
-                # QRO uses tot_vivien and pct_viv_* columns
-                households = record.get('tot_vivien', 0) or 0
-                total_households_processed += households
-                if households > 0:
-                    housing_totals["ses_ab"] += (record.get('pct_viv_ab', 0) or 0) * households / 100
-                    housing_totals["ses_c_plus"] += (record.get('pct_viv_cp', 0) or 0) * households / 100
-                    housing_totals["ses_c"] += (record.get('pct_viv_c', 0) or 0) * households / 100
-                    housing_totals["ses_c_minus"] += (record.get('pct_viv_cm', 0) or 0) * households / 100
-                    housing_totals["ses_d_plus"] += (record.get('pct_viv_dp', 0) or 0) * households / 100
-                    housing_totals["ses_d"] += (record.get('pct_viv_d', 0) or 0) * households / 100
-                    housing_totals["ses_e"] += (record.get('pct_viv_e', 0) or 0) * households / 100
-            else:
-                # Mexico uses vivtot and direct ses_* percentages
-                households = record.get('vivtot', 0) or 0
-                total_households_processed += households
-                if households > 0:
-                    # For Mexico, the columns already contain percentages, so convert them
-                    housing_totals["ses_ab"] += (record.get('pct_viv_ab', 0) or 0) * households / 100
-                    housing_totals["ses_c_plus"] += (record.get('pct_viv_cp', 0) or 0) * households / 100
-                    housing_totals["ses_c"] += (record.get('pct_viv_c', 0) or 0) * households / 100
-                    housing_totals["ses_c_minus"] += (record.get('pct_viv_cm', 0) or 0) * households / 100
-                    housing_totals["ses_d_plus"] += (record.get('pct_viv_dp', 0) or 0) * households / 100
-                    housing_totals["ses_d"] += (record.get('pct_viv_d', 0) or 0) * households / 100
-                    housing_totals["ses_e"] += (record.get('pct_viv_e', 0) or 0) * households / 100
-        
-        # Calculate total households and percentages
-        total_housing = sum(housing_totals.values())
-        socioeconomic_levels = []
-        
-        # Structure consistent with PropertyDemographic naming
-        level_mapping = {
-            "ses_ab": "AB", "ses_c_plus": "C+", "ses_c": "C", "ses_c_minus": "C-",
-            "ses_d_plus": "D+", "ses_d": "D", "ses_e": "E"
-        }
-        
-        for ses_key, level_name in level_mapping.items():
-            count = housing_totals[ses_key]
-            percentage = (count / total_housing * 100) if total_housing > 0 else 0
-            socioeconomic_levels.append({
-                "level": level_name,
-                "households": int(count),
-                "percentage": round(percentage, 1),
-                "ses_key": ses_key  # For consistency with PropertyDemographic
-            })
-        
-        # Find predominant level (highest percentage)
-        predominant_level = max(socioeconomic_levels, key=lambda x: x['percentage']) if socioeconomic_levels else None
-        
-        # Calculate population density (persons per km²)
-        population_density = round(total_population / area_km2, 2) if area_km2 > 0 else 0
-        
-        # Structure response to match your UI exactly
-        demographics_data = {
-            "summary": {
-                "area_km2": area_km2,
-                "population": total_population,
-                "population_density": population_density,
-                "population_density_formatted": f"{population_density} persons / km²",
-                "center_point": {"lat": lat, "lng": lng},
-                "radius_meters": radius
-            },
-            "demographics": {
-                "total_population": total_population,
-                "male_population": total_male,
-                "female_population": total_female,
-                "male_percentage": round(male_percentage, 1),
-                "female_percentage": round(female_percentage, 1),
-                "age_distribution": age_distribution,
-                "age_pyramid_data": {
-                    "age_groups": [group["age_group"] for group in age_distribution],
-                    "male_values": [group["male"] for group in age_distribution],
-                    "female_values": [group["female"] for group in age_distribution],
-                    "male_negative": [-group["male"] for group in age_distribution],  # For left side of pyramid
-                    "labels": [group["age_group"] for group in age_distribution]  # Dynamic labels from actual data
-                }
-            },
-            "socioeconomic": {
-                "predominant_level": {
-                    "level": predominant_level["level"] if socioeconomic_levels else "N/A",
-                    "percentage": predominant_level["percentage"] if socioeconomic_levels else 0,
-                    "households": predominant_level["households"] if socioeconomic_levels else 0
-                },
-                "municipality_average": None,  # Not available
-                "levels_distribution": socioeconomic_levels,
-                "average_income": {
-                    "amount": round(avg_income, 2),
-                    "currency": "MXN",
-                    "formatted": f"${avg_income:,.0f} MXN" if avg_income > 0 else "$0 MXN",
-                    "trend": None  # Not available
-                },
-                "total_income": {
-                    "amount": round(total_income, 2),
-                    "currency": "MXN", 
-                    "formatted": f"${total_income/1000000:,.0f} million MXN" if total_income > 0 else "$0 MXN",
-                    "trend": None  # Not available
-                }
-            }
-        }
-        
-        return demographics_data
-
-    def _get_empty_demographics_structure(self, lat, lng, radius):
-        """Return empty demographics structure when no data is found."""
-        area_km2 = round((3.14159 * (radius/1000) ** 2), 2)
-        
-        return {
-            "summary": {
-                "area_km2": area_km2,
-                "population": 0,
-                "center_point": {"lat": lat, "lng": lng},
-                "radius_meters": radius
-            },
-            "demographics": {
-                "total_population": 0,
-                "male_population": 0,
-                "female_population": 0,
-                "male_percentage": 0,
-                "female_percentage": 0,
-                "age_distribution": []
-            },
-            "socioeconomic": {
-                "predominant_level": {"level": "N/A", "percentage": 0, "households": 0},
-                "municipality_average": "N/A",
-                "levels_distribution": [],
-                "average_income": {"amount": 0, "currency": "MXN", "formatted": "$0 MXN", "trend": "stable"},
-                "total_income": {"amount": 0, "currency": "MXN", "formatted": "$0 MXN", "trend": "stable"}
-            }
-        }
-
     def get_weekly_traffic_by_municipality(self, lat, lng, radius=2000):
-        """
-        Get weekly traffic distribution by municipality for a given location.
-        
-        Args:
-            lat (float): Latitude of the center point
-            lng (float): Longitude of the center point
-            radius (int): Radius in meters (default: 2000)
-            
-        Returns:
-            dict: Response with weekly traffic data by municipality
-        """
+        """Get weekly traffic distribution by municipality."""
         # Create cache key based on parameters
         cache_key = f"weekly_traffic_municipality_{lat}_{lng}_{radius}"
         
@@ -2160,17 +1659,7 @@ class AreaAnalysisController:
             return resp
 
     def get_h3_distribution(self, lat, lng, radius=2000):
-        """
-        Get H3 distribution based on pedestrian traffic data with frequency percentages.
-        
-        Args:
-            lat (float): Latitude of the center point
-            lng (float): Longitude of the center point
-            radius (int): Radius in meters (default: 2000)
-            
-        Returns:
-            dict: Response with H3 distribution data including frequency percentages
-        """
+        """Get H3 distribution based on pedestrian traffic data."""
         # Create cache key based on parameters
         cache_key = f"h3_distribution_{lat}_{lng}_{radius}"
         
@@ -2236,18 +1725,7 @@ class AreaAnalysisController:
             return resp
 
     def create_h3_buckets(self, h3_distribution_data, min_value=None, max_value=None, bucket_size=10):
-        """
-        Create buckets from H3 distribution data based on min/max values and bucket size.
-        
-        Args:
-            h3_distribution_data (list): List of H3 distribution data with avg_pedestrian values
-            min_value (float): Minimum value for bucket range (if None, uses min from data)
-            max_value (float): Maximum value for bucket range (if None, uses max from data)
-            bucket_size (int): Number of buckets to create (default: 10)
-            
-        Returns:
-            dict: Bucket distribution with counts and ranges
-        """
+        """Create buckets from H3 distribution data."""
         if not h3_distribution_data or len(h3_distribution_data) == 0:
             return {
                 "buckets": []
@@ -2341,16 +1819,7 @@ class AreaAnalysisController:
         }
 
     def calculate_percentile_rank_for_value(self, target_value, buckets):
-        """
-        Calculate percentile rank for a specific value against bucket distribution.
-        
-        Args:
-            target_value (float): The value to find percentile rank for
-            buckets (list): List of bucket data with h3_count and bucket_range
-            
-        Returns:
-            float: Percentile rank (0-100)
-        """
+        """Calculate percentile rank for a specific value against bucket distribution."""
         if not buckets or len(buckets) == 0:
             return 0
         
@@ -2375,7 +1844,7 @@ class AreaAnalysisController:
         return round(percentile, 1)
 
     def _get_socioeconomic_income_analysis(self, connection, lat, lng, radius, entity_code):
-        """Get optimized socioeconomic income analysis data using sequential execution to avoid connection pool issues."""
+        """Get optimized socioeconomic income analysis data."""
         try:
             cursor = connection.cursor(cursor_factory=RealDictCursor)
             
@@ -2428,12 +1897,13 @@ class AreaAnalysisController:
             
         except Exception as e:
             logger.error(f"Error in _get_socioeconomic_income_analysis: {str(e)}")
-            return self._get_empty_income_analysis_structure(lat, lng, radius)
+            raise ValueError(f"Failed to retrieve socioeconomic income analysis: {str(e)}")
 
     def _process_combined_socioeconomic_data(self, combined_data, breakdown_data, trends_data, municipality_breakdown_data, municipality_trends_data, lat, lng, radius):
-        """Process combined socioeconomic data for both radius and municipality analysis."""
+        """Process combined socioeconomic data."""
         if not combined_data:
-            return self._get_empty_income_analysis_structure(lat, lng, radius)
+            raise ValueError("No socioeconomic income data found for the specified location")
+        
         
         # Separate radius and municipality data
         radius_data = next((row for row in combined_data if row.get('analysis_type') == 'radius'), {})
@@ -2519,9 +1989,10 @@ class AreaAnalysisController:
         }
 
     def _process_socioeconomic_income_data(self, income_data, breakdown_data, trends_data, municipality_income_data, municipality_breakdown_data, municipality_trends_data, lat, lng, radius):
-        """Process socioeconomic income analysis data including municipality-level analysis."""
+        """Process socioeconomic income analysis data."""
         if not income_data:
-            return self._get_empty_income_analysis_structure(lat, lng, radius)
+            raise ValueError("No socioeconomic income data found for the specified location")
+        
         
         income_summary = income_data[0] if income_data else {}
         breakdown = breakdown_data if breakdown_data else []
@@ -2611,32 +2082,4 @@ class AreaAnalysisController:
             }
         }
 
-    def _get_empty_income_analysis_structure(self, lat, lng, radius):
-        """Return empty income analysis structure when no data is found."""
-        return {
-            "income_summary": {
-                "total_households": 0,
-                "total_household_income": 0,
-                "average_household_income": 0
-            },
-            "income_distribution": {
-                "levels": []
-            },
-            "historical_trends": {
-                "growth_by_level": []
-            },
-            "municipality_analysis": {
-                "income_summary": {
-                    "total_households": 0,
-                    "total_household_income": 0,
-                    "average_household_income": 0
-                },
-                "income_distribution": {
-                    "levels": []
-                },
-                "historical_trends": {
-                    "growth_by_level": []
-                }
-            }
-        }
 
