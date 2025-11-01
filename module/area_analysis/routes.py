@@ -1,6 +1,6 @@
 from flask_restful import Resource, reqparse
 from module.area_analysis.controller import AreaAnalysisController
-from module.area_analysis.active_search import ActiveSearchController
+from module.area_analysis.active_search import ActiveSearchController, NewActiveAreaPoisDataController
 from utils.commonUtil import authenticate
 import logging
 
@@ -176,7 +176,8 @@ class POIsData(Resource):
                     current_user, lat, lng, radius, city)
         
         # Always analyze both area and municipality
-        response = active_search_controller.get_pois_data(lat, lng, radius, city)
+        new_active_area_pois_data_controller = NewActiveAreaPoisDataController()
+        response = new_active_area_pois_data_controller.get_data(lat, lng, radius, city)
         
         return response
 

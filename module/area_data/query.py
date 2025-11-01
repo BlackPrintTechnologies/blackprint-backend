@@ -99,3 +99,19 @@ def build_pois_query(catchment):
         INNER JOIN h3_index b ON a.h3_value = b.h3_value
     """
     return query
+
+def get_total_population_query(catchment): 
+    query = f"""
+            select sum(pobtot) as total_population from presentation.dim_demographic_by_block
+            where ST_Intersects(
+                    ST_Transform(
+                            ST_SetSRID(
+                                geometry_coords, 
+                                32614
+                            ),
+                            4326
+                        ),  
+                    ST_GeomFromText('{catchment}', 4326)
+                )
+        """
+    return query 
