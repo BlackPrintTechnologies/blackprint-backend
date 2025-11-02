@@ -71,6 +71,33 @@ class SocioeconomicAreaData(AbstractAreaData) :
         cursor.close()
         redshift_connection.close()
         return data 
+    
+class TrafficAreaData(AbstractAreaData) :
+    """Class for traffic data operations."""
+    def __init__(self):
+        super().__init__()
+    
+    def get_data(self, boundary):
+        """Get traffic data for the selected area."""
+        user_types = ['vehiculo', 'peaton', 'estacionario']
+        total_user = 0
+        traffic_data = {}
+        for user_type in user_types:
+            q = query.build_traffic_summary_query(boundary,user_type)
+            self.cursor.execute(q)
+            data = self.cursor.fetchall()
+            print("data",data)
+            traffic_data[user_type] = data[0]['total_users']
+            total_user += data[0]['total_users']
+        traffic_data['total_users'] = total_user
+        #to get h3 traffic level data 
+        h3_traffic_query = query.build_h3_traffic_summary_query(boundary)
+        self.cursor.execute(h3_traffic_query)
+        h3_data = self.cursor.fetchall()
+        print("h3_data",h3_data)
+        print("traffic_data",traffic_data)
+        
+        return traffic_data , h3_data
 
 
 class PoisAreaData(AbstractAreaData) :

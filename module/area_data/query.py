@@ -35,12 +35,12 @@ def build_geometry_condition_catchment(geometry_column, lng, lat, radius):
 
 def build_demographics_query(boundary, geometry_column='geometry_coords', table='block'):
     """Build query to get demographic data for the selected catchment area (table: 'block' or 'locality')."""
-    
+
     if table == 'locality':
         table_name = 'presentation.dim_demographic_by_localidad'
     else:
         table_name = 'presentation.dim_demographic_by_block'
-    
+
     query = f"""
     WITH geom_input AS (
         SELECT ST_GeomFromText('{boundary}', 4326) AS geom
@@ -126,31 +126,78 @@ def build_demographics_query(boundary, geometry_column='geometry_coords', table=
         ROUND((SELECT area_km2 FROM area_calc), 2) AS area_km2
     FROM demographic_data dd
     """
-    
+
     return query
+
+
+def build_traffic_summary_query(boundary, user_type=None):
+    """Build query to get traffic summary data."""
+    user_type_condition = ""
+    if user_type:
+        user_type_condition = f"WHERE a.tipo_usuario = '{user_type}'"
+        
+    query = f"""
+    WITH geom_input AS (
+        SELECT ST_GeomFromText('{boundary}', 4326) AS geom
+    ),
+    h3_values AS (
+        SELECT H3_Polyfill(geom, 10) AS h3_indexes FROM geom_input
+    ),
+    h3_index AS (
+        SELECT o AS h3_value
+        FROM h3_values i, i.h3_indexes o
+    )
+    SELECT  SUM(a.total_usuarios_unicos) AS total_users
+    FROM blackprint_db_prd.presentation.dim_mobility_data_by_hour a
+    INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+    {user_type_condition}
+    """
+    return query
+
+def build_h3_traffic_summary_query(boundary):
+    """Build query to get H3 traffic summary data."""
+    query = f"""
+    WITH geom_input AS (
+        SELECT ST_GeomFromText('{boundary}', 4326) AS geom
+    ),
+    h3_values AS (
+        SELECT H3_Polyfill(geom, 10) AS h3_indexes FROM geom_input
+    ),
+    h3_index AS (
+        SELECT o AS h3_value
+        FROM h3_values i, i.h3_indexes o
+    )
+    SELECT 
+        COUNT(DISTINCT a.h3_index) AS unique_h3_count,
+        SUM(a.total_usuarios_unicos) AS total_unique_users,
+        ROUND(CAST(SUM(a.total_usuarios_unicos) AS DECIMAL) / CAST(COUNT(DISTINCT a.h3_index) AS DECIMAL), 2) AS avg_users_per_h3
+    FROM blackprint_db_prd.presentation.dim_mobility_data_by_day a
+    INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+    """
 
 
 def build_socioeconomic_query(lng, lat, radius, geometry_column='geometry_coords', table='ageb'):
     """Build query to get socio-economic data for the selected area (table: 'ageb' or 'locality')."""
-    geometry_condition = build_geometry_condition_catchment(geometry_column, lng, lat, radius)
-    
+    geometry_condition = build_geometry_condition_catchment(
+        geometry_column, lng, lat, radius)
+
     if table == 'locality':
         table_name = 'presentation.dim_socioeconomic_level_localidad'
     else:
         table_name = 'presentation.dim_socioeconomic_level_ageb'
-    
+
     query = f"""
     SELECT *
     FROM {table_name}
     WHERE {geometry_condition}
     """
-    
+
     return query
 
 
 def build_pois_query(catchment):
     """Build query to get POIs data for the selected catchment."""
-    
+
     query = f"""
         WITH geom_input AS (
             SELECT ST_GeomFromText('{catchment}', 4326) AS geom
@@ -179,7 +226,56 @@ def build_pois_query(catchment):
     """
     return query
 
-def get_total_population_query(catchment): 
+def build_h3_traffic_summary_query(boundary):
+    """Build query to get H3 traffic summary data."""
+    query = f"""WITH geom_input AS (
+        SELECT ST_GeomFromText('{boundary}', 4326) AS geom
+    ),
+    h3_values AS (
+        SELECT H3_Polyfill(geom, 10) AS h3_indexes FROM geom_input
+    ),
+    h3_index AS (
+        SELECT o AS h3_value
+        FROM h3_values i, i.h3_indexes o
+    )
+    SELECT 
+        COUNT(DISTINCT a.h3_index) AS unique_h3_count,
+        SUM(a.total_usuarios_unicos) AS total_unique_users,
+        ROUND(CAST(SUM(a.total_usuarios_unicos) AS DECIMAL) / CAST(COUNT(DISTINCT a.h3_index) AS DECIMAL), 2) AS avg_users_per_h3
+    FROM blackprint_db_prd.presentation.dim_mobility_data_by_day a
+    INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+    """
+    return query
+def build_h3_distribution_query(boundary):
+    """Build query to get H3 distribution data for all user types combined."""
+    query = f"""
+    WITH geom_input AS (
+        SELECT ST_GeomFromText('{boundary}', 4326) AS geom
+    ),
+    h3_values AS (
+        SELECT H3_Polyfill(geom, 10) AS h3_indexes FROM geom_input
+    ),
+    h3_index AS (
+        SELECT o AS h3_value
+        FROM h3_values i, i.h3_indexes o
+    ),
+    traffic_data AS (
+        SELECT 
+            a.h3_index,
+            SUM(a.total_usuarios_unicos) AS total_users
+        FROM blackprint_db_prd.presentation.dim_mobility_data_by_hour a
+        INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+        GROUP BY a.h3_index
+    )
+    SELECT 
+        t.h3_index,
+        t.total_users
+    FROM traffic_data t
+    ORDER BY t.total_users DESC
+    """
+    return query
+
+def get_total_population_query(catchment):
     query = f"""
             select sum(pobtot) as total_population from presentation.dim_demographic_by_block
             where ST_Intersects(
@@ -193,4 +289,4 @@ def get_total_population_query(catchment):
                     ST_GeomFromText('{catchment}', 4326)
                 )
         """
-    return query 
+    return query

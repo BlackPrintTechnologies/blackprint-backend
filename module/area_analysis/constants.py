@@ -279,3 +279,62 @@ DEMOGRAPHICS_DATA_FORMAT = {
         }
     }
 }
+
+TRAFFIC_DATA_FORMAT = {
+    'summary': {
+        'num_parcels': None,
+        'population': 0.0,
+        'area_km2': 0.0,
+        'center_point': {
+            'lat': 0.0,
+            'lng': 0.0
+        },
+        'radius_meters': 0
+    },
+    'socioeconomic': {
+        'total_unique_devices': 0,
+        'devices_per_person': 0.0,
+        'municipality_average': 0.0
+    },
+    'traffic': {
+        'vehicles': {
+            'count': 0,
+            'percentage': 0.0,
+            'municipality_percentage': 0.0,
+            'trend': None
+        },
+        'pedestrians': {
+            'count': 0,
+            'percentage': 0.0,
+            'municipality_percentage': 0.0,
+            'trend': None
+        },
+        'stationary_devices': {
+            'count': 0,
+            'percentage': 0.0,
+            'municipality_percentage': 0.0,
+            'trend': None
+        }
+    },
+    'h3_traffic_summary': {
+        'unique_h3_count': 0,
+        'total_unique_users': 0,
+        'avg_users_per_h3': 0.0,
+        'percentile_rank': 0.0
+    },
+    'h3_distribution': {
+        'total_h3_indexes': 0,
+        'bucket_distribution': {
+            'data_range': {
+                'min_value': 0,
+                'max_value': 0
+            },
+            'buckets': [],
+            'distribution_stats': {
+                'total_points': 0,
+                'bucket_count': 0,
+                'mean_count': 0.0
+            }
+        }
+    }
+}

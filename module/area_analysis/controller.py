@@ -2087,8 +2087,9 @@ class AreaAnalysisController:
 
 import copy
 from decimal import Decimal
-from module.area_data.controller import DemographicsAreaData
-from module.area_analysis.constants import DEMOGRAPHICS_DATA_FORMAT
+from module.area_data.controller import DemographicsAreaData , TrafficAreaData
+from module.area_data.controller import TotalPopulation
+from module.area_analysis.constants import DEMOGRAPHICS_DATA_FORMAT, TRAFFIC_DATA_FORMAT 
 
 
 class AbstractAreaAnalysisController:
@@ -2144,8 +2145,7 @@ class DemographicsAreaAnalysisController(AbstractAreaAnalysisController):
         pops = [pop_dict.get(f'population_{y}', 0) for y in years]
         growth = [
             {'year': y, 'growth_percentage': 0 if i == 0 else self._pct(pops[i] - pops[i-1], pops[i-1])}
-            for i, y in enumerate(years)
-        ]
+            for i, y in enumerate(years)]
         growth_dict = {str(y): [int(pops[i]) if pops[i] else None, growth[i]['growth_percentage']] 
                       for i, y in enumerate(years)}
         growth_dict['2015'] = [None, None]  # No 2015 data
@@ -2314,3 +2314,201 @@ class DemographicsAreaAnalysisController(AbstractAreaAnalysisController):
         return Response.success(data=demographics_data)
     
 
+
+
+class TrafficAreaAnalysisController(AbstractAreaAnalysisController):
+    """Controller for traffic area analysis."""
+    DATA_FORMAT = TRAFFIC_DATA_FORMAT
+    
+    def __init__(self):
+        super().__init__()
+    
+    def _to_float(self, value):
+        """Convert Decimal/None to float."""
+        if value is None:
+            return 0.0
+        return float(value) if not isinstance(value, float) else value
+    
+    def _to_dict(self, row):
+        """Convert RealDictRow to dict with float conversion."""
+        if not row:
+            return {}
+        return {k: self._to_float(v) for k, v in dict(row).items()}
+    
+    def _pct(self, part, total):
+        """Calculate percentage."""
+        return round((part / total * 100), 1) if total > 0 else 0.0
+    
+    def create_h3_buckets(self, h3_distribution_data, bucket_size=500):
+        """Create buckets from H3 distribution data."""
+        if not h3_distribution_data:
+            return {"data_range": {"min_value": 0, "max_value": 0}, "buckets": [], "distribution_stats": {"total_points": 0, "bucket_count": 0, "mean_count": 0.0}}
+        
+        total_values = [item.get('total_users', 0) for item in h3_distribution_data if 'total_users' in item]
+        if not total_values:
+            return {"data_range": {"min_value": 0, "max_value": 0}, "buckets": [], "distribution_stats": {"total_points": 0, "bucket_count": 0, "mean_count": 0.0}}
+        
+        data_min, data_max = min(total_values), min(max(total_values), 6000)
+        num_buckets = int((data_max - 0) / bucket_size) + 1
+        buckets = []
+        
+        for i in range(num_buckets):
+            bucket_min = 0 + (i * bucket_size)
+            bucket_max = 0 + ((i + 1) * bucket_size)
+            if i == num_buckets - 1:
+                h3_count = sum(1 for item in h3_distribution_data 
+                              if bucket_min <= item.get('total_users', 0) <= bucket_max)
+            else:
+                h3_count = sum(1 for item in h3_distribution_data 
+                              if bucket_min <= item.get('total_users', 0) < bucket_max)
+            
+            if h3_count >= 10:  # Only include buckets with sufficient data
+                buckets.append({
+                    "bucket_number": i + 1,
+                    "bucket_range": {"min_value": round(bucket_min, 2), "max_value": round(bucket_max, 2)},
+                    "h3_count": h3_count
+                })
+        
+        total_points = sum(b.get('h3_count', 0) for b in buckets)
+        return {
+            "data_range": {"min_value": 0, "max_value": round(data_max, 2)},
+            "buckets": buckets,
+            "distribution_stats": {
+                "total_points": total_points,
+                "bucket_count": len(buckets),
+                "mean_count": round(total_points / len(buckets), 2) if buckets else 0
+            }
+        }
+    
+    def calculate_percentile_rank_for_value(self, target_value, buckets):
+        """Calculate percentile rank for a specific value against bucket distribution."""
+        if not buckets:
+            return 0.0
+        
+        total_points = sum(b.get('h3_count', 0) for b in buckets)
+        if total_points == 0:
+            return 0.0
+        
+        cumulative_count = 0
+        for bucket in buckets:
+            max_val = bucket.get('bucket_range', {}).get('max_value', 0)
+            if target_value <= max_val:
+                break
+            cumulative_count += bucket.get('h3_count', 0)
+        
+        return round((cumulative_count / total_points * 100), 1) if total_points > 0 else 0.0
+    
+    def get_data(self, lat, lng, radius, city='queretaro'):
+        """Get traffic area analysis data."""
+                
+        catchment = self.get_boundary_from_coordinates(lat, lng, radius, city)
+        municipality_wkt = self.get_municipality_info(lat, lng, city)
+        
+        if not catchment:
+            return Response.error("Invalid catchment area")
+        
+        # TrafficAreaData.get_data() returns tuple: (traffic_data_dict, h3_data_list)
+        area_tuple = TrafficAreaData().get_data(catchment)
+        mun_tuple = TrafficAreaData().get_data(municipality_wkt) if municipality_wkt else ({}, [])
+        
+        if not area_tuple or not isinstance(area_tuple, tuple) or len(area_tuple) != 2:
+            return Response.error("No data found for the traffic area analysis")
+        
+        area_traffic_dict, area_h3_list = area_tuple
+        mun_traffic_dict, mun_h3_list = mun_tuple if isinstance(mun_tuple, tuple) and len(mun_tuple) == 2 else ({}, [])
+        
+        # Extract traffic counts
+        area_vehiculo = self._to_float(area_traffic_dict.get('vehiculo', 0))
+        area_peaton = self._to_float(area_traffic_dict.get('peaton', 0))
+        area_estacionario = self._to_float(area_traffic_dict.get('estacionario', 0))
+        area_total_users = self._to_float(area_traffic_dict.get('total_users', 0))
+        
+        mun_vehiculo = self._to_float(mun_traffic_dict.get('vehiculo', 0))
+        mun_peaton = self._to_float(mun_traffic_dict.get('peaton', 0))
+        mun_estacionario = self._to_float(mun_traffic_dict.get('estacionario', 0))
+        mun_total_users = self._to_float(mun_traffic_dict.get('total_users', 0))
+        
+        # Extract H3 data
+        area_h3_dict = self._to_dict(area_h3_list[0]) if area_h3_list else {}
+        area_unique_h3 = int(area_h3_dict.get('unique_h3_count', 0))
+        area_total_unique_users = self._to_float(area_h3_dict.get('total_unique_users', 0))
+        area_avg_users_per_h3 = self._to_float(area_h3_dict.get('avg_users_per_h3', 0))
+        
+        # Get population data
+        print("getting total population")
+        total_population_obj = TotalPopulation()
+        print("total popualtion fetched")
+        total_population = self._to_float(total_population_obj.get_data(catchment) if catchment else 0)
+        municipality_population = self._to_float(total_population_obj.get_data(municipality_wkt) if municipality_wkt else 0)
+        
+        # Calculate metrics
+        area_km2 = round((3.14159 * (radius/1000) ** 2), 2)
+        vehicle_pct = self._pct(area_vehiculo, area_total_users)
+        pedestrian_pct = self._pct(area_peaton, area_total_users)
+        stationary_pct = self._pct(area_estacionario, area_total_users)
+        mun_vehicle_pct = self._pct(mun_vehiculo, mun_total_users) if mun_total_users > 0 else None
+        mun_pedestrian_pct = self._pct(mun_peaton, mun_total_users) if mun_total_users > 0 else None
+        mun_stationary_pct = self._pct(mun_estacionario, mun_total_users) if mun_total_users > 0 else None
+        devices_per_person = round(area_total_users / total_population, 2) if total_population > 0 else None
+        municipality_average = round(mun_total_users / municipality_population, 2) if municipality_population > 0 and mun_total_users > 0 else None
+        
+        # Get H3 distribution for percentile calculation
+        h3_distribution_data = []
+        percentile_rank = 0.0
+        #TODO skip bucket calculation for now we will do later
+        # h3_dist_query = self.qc.build_h3_distribution_query(lat, lng, radius)
+        # self.cursor.execute(h3_dist_query)
+        # h3_distribution_raw = self.cursor.fetchall()
+        
+        # h3_distribution_data = [
+        #     {'h3_index': str(row.get('h3_index', '')), 'total_users': self._to_float(row.get('total_users', 0))}
+        #     for row in h3_distribution_raw
+        # ]
+        
+        # # Calculate percentile if we have data
+        # if h3_distribution_data and area_avg_users_per_h3 > 0:
+        #     bucket_data = self.create_h3_buckets(h3_distribution_data, bucket_size=500)
+        #     buckets = bucket_data.get('buckets', [])
+        #     if buckets:
+        #         percentile_rank = self.calculate_percentile_rank_for_value(area_avg_users_per_h3, buckets)
+        
+        # Use deepcopy to avoid mutating the constant (has nested dicts)
+        data = copy.deepcopy(TRAFFIC_DATA_FORMAT)
+        
+        # Populate data structure
+        data['summary'].update({
+            'num_parcels': None,
+            'population': total_population,
+            'area_km2': area_km2,
+            'center_point': {'lat': float(lat), 'lng': float(lng)},
+            'radius_meters': int(radius)
+        })
+        
+        data['socioeconomic'].update({
+            'total_unique_devices': int(area_total_users),
+            'devices_per_person': devices_per_person,
+            'municipality_average': municipality_average
+        })
+        
+        data['traffic'].update({
+            'vehicles': {'count': int(area_vehiculo), 'percentage': vehicle_pct, 'municipality_percentage': mun_vehicle_pct, 'trend': None},
+            'pedestrians': {'count': int(area_peaton), 'percentage': pedestrian_pct, 'municipality_percentage': mun_pedestrian_pct, 'trend': None},
+            'stationary_devices': {'count': int(area_estacionario), 'percentage': stationary_pct, 'municipality_percentage': mun_stationary_pct, 'trend': None}
+        })
+        
+        data['h3_traffic_summary'].update({
+            'unique_h3_count': area_unique_h3,
+            'total_unique_users': int(area_total_unique_users),
+            'avg_users_per_h3': area_avg_users_per_h3,
+            'percentile_rank': percentile_rank
+        })
+        
+        if h3_distribution_data:
+            bucket_data = self.create_h3_buckets(h3_distribution_data, bucket_size=500)
+            data['h3_distribution'].update({
+                'total_h3_indexes': len(h3_distribution_data),
+                'bucket_distribution': bucket_data
+            })
+        
+        return Response.success(data=data)
+        

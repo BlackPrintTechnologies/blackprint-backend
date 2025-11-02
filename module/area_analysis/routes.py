@@ -1,5 +1,5 @@
 from flask_restful import Resource, reqparse
-from module.area_analysis.controller import AreaAnalysisController, DemographicsAreaAnalysisController
+from module.area_analysis.controller import AreaAnalysisController, DemographicsAreaAnalysisController, TrafficAreaAnalysisController
 from module.area_analysis.active_search import ActiveSearchController, NewActiveAreaPoisDataController
 from utils.commonUtil import authenticate
 import logging
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 # Initialize Controllers
 active_search_controller = ActiveSearchController()
 
-class AreaAnalysisSummary(Resource):
+class AreaTrafficSummary(Resource):
     """Resource to get area analysis summary matching the UI mockup exactly."""
     
     post_parser = reqparse.RequestParser()
@@ -31,8 +31,8 @@ class AreaAnalysisSummary(Resource):
             logger.info("User %s requesting area analysis summary for lat=%s, lng=%s, radius=%s, city=%s", 
                        current_user, lat, lng, radius, config_city)
             
-            controller = AreaAnalysisController()
-            response = controller.get_area_summary(lat, lng, radius, config_city)
+            controller = TrafficAreaAnalysisController()
+            response = controller.get_data(lat, lng, radius, config_city)
             
             return response
             

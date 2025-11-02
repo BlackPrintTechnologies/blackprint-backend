@@ -60,7 +60,7 @@ from module.layers.routes import  Traffic, PropertyLayer, LandUseFilter
 from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch, PropertyFolderAPI, PropertyFolderDetailAPI, PropertySaveAPI, PropertyRemoveAPI
 from module.markets.routes import PropertyTypes, MarketInfo
 from module.pois.routes import POIHierarchy, POIsByCoordinates, BrandSearch, Brands
-from module.area_analysis.routes import AreaAnalysisSummary, AreaAnalysisTrafficPatterns, AreaAnalysisDemographics, AreaAnalysisWeeklyTraffic, AreaAnalysisPOIHierarchy
+from module.area_analysis.routes import AreaTrafficSummary, AreaAnalysisTrafficPatterns, AreaAnalysisDemographics, AreaAnalysisWeeklyTraffic, AreaAnalysisPOIHierarchy
 
 # Define API routes
 api.add_resource(Signup, '/user/signup')
@@ -112,7 +112,7 @@ api.add_resource(MarketInfo, '/property/marketinfo')  # Catchment and fid as par
 api.add_resource(PropertyTypes, '/market/propertytypes')
 
 # Area Analysis routes
-api.add_resource(AreaAnalysisSummary, '/area-analysis/traffic-summary')
+api.add_resource(AreaTrafficSummary, '/area-analysis/traffic-summary')
 api.add_resource(AreaAnalysisTrafficPatterns, '/area-analysis/traffic-patterns')
 api.add_resource(AreaAnalysisDemographics, '/area-analysis/demographics')
 api.add_resource(AreaAnalysisWeeklyTraffic, '/area-analysis/weekly-traffic')
