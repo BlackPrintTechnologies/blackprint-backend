@@ -2085,35 +2085,232 @@ class AreaAnalysisController:
 
 #New area analysis for the area search
 
+import copy
+from decimal import Decimal
 from module.area_data.controller import DemographicsAreaData
+from module.area_analysis.constants import DEMOGRAPHICS_DATA_FORMAT
 
-class DemographicsAreaAnalysisController:
-    """Controller for demographics area analysis."""
+
+class AbstractAreaAnalysisController:
     def __init__(self):
         self.db = Database()
         self.redshift_db = RedshiftDatabase()
-        self.qc = ""
+        self.redshift_connection = self.redshift_db.connect()
+        self.cursor = self.redshift_connection.cursor(cursor_factory=RealDictCursor)
+        self.qc = AreaAnalysisQuery()
     
-    def get_boundary_from_coordinates(self,lat,long,radius,city=None):
+
+    def get_boundary_from_coordinates(self, lat, lng, radius, city='queretaro'):
         """Get boundary from coordinates as WKT polygon (radius in meters)."""
-        query = self.qc.get_boundary_from_coordinates(lat,long,radius,city)
-        redshift_connection = self.redshift_db.connect()
-        cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-        cursor.execute(query)
-        res = cursor.fetchone()
-        cursor.close()
-        redshift_connection.close()
-        return res
+        # Build buffer around point in meters using Web Mercator, then return as WKT in 4326
+        query = self.qc.get_boundary_from_coordinates_query(lat, lng, radius, city)
+        self.cursor.execute(query)
+        res = self.cursor.fetchone()
+        return res.get('wkt') if res else None
     
-    def get_municipality_info(self,lat,lng,city=None):
+    def get_municipality_info(self, lat, lng, city='queretaro'):
         """Get municipality info (code, name, population, boundary WKT) from coordinates."""
-        query = self.qc.get_municipality_info(lat,lng,city)
-        redshift_connection = self.redshift_db.connect()
-        cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-        cursor.execute(query)
-        res = cursor.fetchone()
-        cursor.close()
-        redshift_connection.close()
-        return res
+        query = self.qc.get_municipality_info_query(lat, lng, city)
+        self.cursor.execute(query)
+        res = self.cursor.fetchone()
+        return res.get('wkt') if res else None
+    
+
+
+class DemographicsAreaAnalysisController(AbstractAreaAnalysisController):
+    """Controller for demographics area analysis."""
+    DATA_FORMAT = DEMOGRAPHICS_DATA_FORMAT
+    def __init__(self):
+        super().__init__()
+        
+    def _to_float(self, value):
+        """Convert Decimal/None to float."""
+        if value is None:
+            return 0.0
+        return float(value) if not isinstance(value, float) else value
+    
+    def _to_dict(self, row):
+        """Convert RealDictRow to dict with float conversion."""
+        if not row:
+            return {}
+        return {k: self._to_float(v) for k, v in dict(row).items()}
+    
+    def _pct(self, part, total):
+        """Calculate percentage."""
+        return round((part / total * 100), 1) if total > 0 else 0.0
+    
+    def _get_population_growth(self, pop_dict, years=[2000, 2005, 2010, 2020]):
+        """Calculate population growth data."""
+        pops = [pop_dict.get(f'population_{y}', 0) for y in years]
+        growth = [
+            {'year': y, 'growth_percentage': 0 if i == 0 else self._pct(pops[i] - pops[i-1], pops[i-1])}
+            for i, y in enumerate(years)
+        ]
+        growth_dict = {str(y): [int(pops[i]) if pops[i] else None, growth[i]['growth_percentage']] 
+                      for i, y in enumerate(years)}
+        growth_dict['2015'] = [None, None]  # No 2015 data
+        return growth, growth_dict
+    
+    def _get_age_pyramid(self, area_dict, total_pop):
+        """Create age pyramid data."""
+        age_ranges = [
+            ('0-2', 'age_0_2_m', 'age_0_2_f'),
+            ('3-5', 'age_3_5_m', 'age_3_5_f'),
+            ('6-11', 'age_6_11_m', 'age_6_11_f'),
+            ('12-14', 'age_12_14_m', 'age_12_14_f'),
+            ('15-17', 'age_15_17_m', 'age_15_17_f'),
+            ('18-24', 'age_18_24_m', 'age_18_24_f'),
+        ]
+        
+        groups = [
+            {
+                'range': r,
+                'male': int(area_dict.get(m, 0)),
+                'female': int(area_dict.get(f, 0)),
+                'male_percentage': self._pct(area_dict.get(m, 0), total_pop),
+                'female_percentage': self._pct(area_dict.get(f, 0), total_pop)
+            }
+            for r, m, f in age_ranges
+        ]
+        
+        # Add 65+ (approximate split)
+        age_65 = area_dict.get('age_65_plus', 0)
+        groups.append({
+            'range': '65+',
+            'male': int(age_65 / 2),
+            'female': int(age_65 / 2),
+            'male_percentage': self._pct(age_65 / 2, total_pop),
+            'female_percentage': self._pct(age_65 / 2, total_pop)
+        })
+        
+        # Calculate 25-65 as remainder
+        total_accounted = sum(g.get('male', 0) + g.get('female', 0) for g in groups)
+        male_accounted = sum(g.get('male', 0) for g in groups)
+        female_accounted = sum(g.get('female', 0) for g in groups)
+        area_male = area_dict.get('male_population', 0)
+        area_female = area_dict.get('female_population', 0)
+        
+        groups.append({
+            'range': '25-65',
+            'male': int(area_male - male_accounted),
+            'female': int(area_female - female_accounted),
+            'male_percentage': self._pct(area_male - male_accounted, total_pop),
+            'female_percentage': self._pct(area_female - female_accounted, total_pop)
+        })
+        
+        return {'age_groups': groups, 'total_population': float(total_pop)}
+    
+    def _populate_demographics(self, area_data, municipality_data, lat, lng, radius):
+        """Populate demographics format with actual data."""
+        data = copy.deepcopy(DEMOGRAPHICS_DATA_FORMAT)
+        area = self._to_dict(area_data[0] if area_data else {})
+        mun = self._to_dict(municipality_data[0] if municipality_data else {})
+        
+        # Extract key values
+        area_pop = area.get('total_population', 0)
+        mun_pop = mun.get('total_population', 0)
+        area_male, area_female = area.get('male_population', 0), area.get('female_population', 0)
+        mun_male, mun_female = mun.get('male_population', 0), mun.get('female_population', 0)
+        
+        # Summary
+        data['summary'].update({
+            'area_km2': area.get('area_km2', 0),
+            'population': area_pop,
+            'population_density': area.get('population_density', 0),
+            'population_density_formatted': f"{area.get('population_density', 0)} persons / km²",
+            'center_point': {'lat': float(lat), 'lng': float(lng)},
+            'radius_meters': int(radius)
+        })
+        
+        # Demographics
+        data['demographics'].update({
+            'total_population': area_pop,
+            'male_population': area_male,
+            'female_population': area_female,
+            'male_percentage': self._pct(area_male, area_pop),
+            'female_percentage': self._pct(area_female, area_pop),
+            'total_households': area.get('total_households', 0),
+            'average_household_size': area.get('average_people_per_household', 0)
+        })
+        
+        # Detailed data - general (using same structure for block/colonia/alcaldia)
+        levels = ['block', 'colonia', 'alcaldia']
+        for level in levels:
+            data['detailed_data']['general'][level].update({
+                'total_household': area.get('total_households', 0) if level != 'alcaldia' else mun.get('total_households', 0),
+                'average_household_size': area.get('average_people_per_household', 0) if level != 'alcaldia' else mun.get('average_people_per_household', 0)
+            })
+            data['detailed_data']['population'][level].update({
+                'total_population': area_pop if level != 'alcaldia' else mun_pop,
+                'male_population': area_male if level != 'alcaldia' else mun_male,
+                'female_population': area_female if level != 'alcaldia' else mun_female
+            })
+        
+        # Population growth
+        area_growth_list, area_growth_dict = self._get_population_growth(area)
+        mun_growth_list, mun_growth_dict = self._get_population_growth(mun)
+        
+        data['population_growth_2024'] = {
+            'area': area_growth_list,
+            'municipality': mun_growth_list,
+            'years': [2000, 2005, 2010, 2020]
+        }
+        
+        for level in ['block', 'colonia']:
+            data['detailed_data']['population_growth'][level] = area_growth_dict
+        data['detailed_data']['population_growth']['alcaldia'] = mun_growth_dict
+        
+        # Age pyramid
+        data['age_pyramid_2024'] = self._get_age_pyramid(area, area_pop)
+        
+        # Comparison
+        area_density = area.get('population_density', 0)
+        mun_density = mun.get('population_density', 0)
+        area_male_pct = self._pct(area_male, area_pop)
+        mun_male_pct = self._pct(mun_male, mun_pop)
+        
+        data['comparison'] = {
+            'selected_area': {
+                'population_density': area_density,
+                'population_density_trend': 'up' if area_density > mun_density else 'down',
+                'male_population': area_male,
+                'male_percentage': f"{area_male_pct}%",
+                'male_trend': 'down' if area_male_pct < mun_male_pct else 'up',
+                'female_population': area_female,
+                'female_percentage': f"{self._pct(area_female, area_pop)}%",
+                'female_trend': 'up' if self._pct(area_female, area_pop) > self._pct(mun_female, mun_pop) else 'down',
+                'total_households': area.get('total_households', 0),
+                'households_trend': 'up'
+            },
+            'municipality': {
+                'population_density': mun_density,
+                'male_population': mun_male,
+                'male_percentage': f"{mun_male_pct}%",
+                'female_population': mun_female,
+                'female_percentage': f"{self._pct(mun_female, mun_pop)}%",
+                'total_households': mun.get('total_households', 0)
+            }
+        }
+        
+        return data
+    
+    
+    
+    def get_data(self, lat, lng, radius, city='queretaro'):
+        """Get demographics area analysis data."""
+        catchment = self.get_boundary_from_coordinates(lat, lng, radius, city)
+        municipality_wkt = self.get_municipality_info(lat, lng, city)
+        # Fetch POIs within catchment and municipality
+        area_data = DemographicsAreaData().get_data(catchment) if catchment else []
+        municipality_area_data = DemographicsAreaData().get_data(municipality_wkt) if municipality_wkt else []
+        print("area data",area_data)
+        print("municipality area data",municipality_area_data)
+        # return area_data, municipality_area_data
+        if not area_data or not municipality_area_data:
+            logger.warning("No data found for the demographics area analysis")
+            return Response.error("No data found for the demographics area analysis")
+        
+        demographics_data = self._populate_demographics(area_data, municipality_area_data, lat, lng, radius)
+        return Response.success(data=demographics_data)
     
 

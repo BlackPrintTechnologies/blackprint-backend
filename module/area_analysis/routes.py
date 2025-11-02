@@ -1,5 +1,5 @@
 from flask_restful import Resource, reqparse
-from module.area_analysis.controller import AreaAnalysisController
+from module.area_analysis.controller import AreaAnalysisController, DemographicsAreaAnalysisController
 from module.area_analysis.active_search import ActiveSearchController, NewActiveAreaPoisDataController
 from utils.commonUtil import authenticate
 import logging
@@ -94,8 +94,8 @@ class AreaAnalysisDemographics(Resource):
             logger.info("User %s requesting demographics analysis for lat=%s, lng=%s, radius=%s, config_city=%s", 
                        current_user, lat, lng, radius, config_city)
             
-            controller = AreaAnalysisController()
-            response = controller.get_area_demographics(lat, lng, radius, config_city)
+            controller = DemographicsAreaAnalysisController()
+            response = controller.get_data(lat, lng, radius, config_city)
             
             return response
             

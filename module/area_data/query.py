@@ -62,15 +62,27 @@ def build_demographics_query(boundary, geometry_column='geometry_coords', table=
             SUM(COALESCE(p_15a17, 0)) AS age_15_17,
             SUM(COALESCE(p_18a24, 0)) AS age_18_24,
             SUM(COALESCE(pob65_mas, 0)) AS age_65_plus,
-            SUM(COALESCE(pob_2000_ageb, pob_2000, 0)) AS population_2000,
-            SUM(COALESCE(pob_2005_ageb, pob_2005, 0)) AS population_2005,
-            SUM(COALESCE(pob_2010_ageb, pob_2010, 0)) AS population_2010,
-            SUM(COALESCE(pob_2020_ageb, pob_2020, 0)) AS population_2020
+            SUM(COALESCE(p_0a2_f, 0)) AS age_0_2_f,
+            SUM(COALESCE(p_0a2_m, 0)) AS age_0_2_m,
+            SUM(COALESCE(p_3a5_f, 0)) AS age_3_5_f,
+            SUM(COALESCE(p_3a5_m, 0)) AS age_3_5_m,
+            SUM(COALESCE(p_6a11_f, 0)) AS age_6_11_f,
+            SUM(COALESCE(p_6a11_m, 0)) AS age_6_11_m,
+            SUM(COALESCE(p_12a14_f, 0)) AS age_12_14_f,
+            SUM(COALESCE(p_12a14_m, 0)) AS age_12_14_m,
+            SUM(COALESCE(p_15a17_f, 0)) AS age_15_17_f,
+            SUM(COALESCE(p_15a17_m, 0)) AS age_15_17_m,
+            SUM(COALESCE(p_18a24_f, 0)) AS age_18_24_f,
+            SUM(COALESCE(p_18a24_m, 0)) AS age_18_24_m
         FROM {table_name} d
         WHERE ST_Intersects(
-            d.{geometry_column},
-            (SELECT geom FROM geom_input)
-        )
+    ST_Transform(
+        ST_SetSRID(d.{geometry_column}, 32614),
+        4326
+    ),
+    (SELECT geom FROM geom_input)
+)
+
     )
     SELECT 
         dd.total_population,
@@ -94,10 +106,23 @@ def build_demographics_query(boundary, geometry_column='geometry_coords', table=
         dd.age_15_17,
         dd.age_18_24,
         dd.age_65_plus,
-        dd.population_2000,
-        dd.population_2005,
-        dd.population_2010,
-        dd.population_2020,
+        dd.age_0_2_f,
+        dd.age_0_2_m,
+        dd.age_3_5_f,
+        dd.age_3_5_m,
+        dd.age_6_11_f,
+        dd.age_6_11_m,
+        dd.age_12_14_f,
+        dd.age_12_14_m,
+        dd.age_15_17_f,
+        dd.age_15_17_m,
+        dd.age_18_24_f,
+        dd.age_18_24_m,
+         -- Default population values for Querétaro
+        1404306 AS population_2000,
+        1596350 AS population_2005,
+        1827937 AS population_2010,
+        2368467 AS population_2020,
         ROUND((SELECT area_km2 FROM area_calc), 2) AS area_km2
     FROM demographic_data dd
     """
