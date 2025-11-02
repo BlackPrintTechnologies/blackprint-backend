@@ -2083,3 +2083,37 @@ class AreaAnalysisController:
         }
 
 
+#New area analysis for the area search
+
+from module.area_data.controller import DemographicsAreaData
+
+class DemographicsAreaAnalysisController:
+    """Controller for demographics area analysis."""
+    def __init__(self):
+        self.db = Database()
+        self.redshift_db = RedshiftDatabase()
+        self.qc = ""
+    
+    def get_boundary_from_coordinates(self,lat,long,radius,city=None):
+        """Get boundary from coordinates as WKT polygon (radius in meters)."""
+        query = self.qc.get_boundary_from_coordinates(lat,long,radius,city)
+        redshift_connection = self.redshift_db.connect()
+        cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(query)
+        res = cursor.fetchone()
+        cursor.close()
+        redshift_connection.close()
+        return res
+    
+    def get_municipality_info(self,lat,lng,city=None):
+        """Get municipality info (code, name, population, boundary WKT) from coordinates."""
+        query = self.qc.get_municipality_info(lat,lng,city)
+        redshift_connection = self.redshift_db.connect()
+        cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(query)
+        res = cursor.fetchone()
+        cursor.close()
+        redshift_connection.close()
+        return res
+    
+

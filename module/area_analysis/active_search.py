@@ -845,7 +845,7 @@ class ActiveSearchController:
         return final_hierarchy
     
         
-
+############### NEW AREA ANALYSIS IMPLEMENTATION ###############
 
 class AbstractActiveSearchController:
     def __init__(self):
@@ -994,3 +994,7 @@ class NewActiveAreaPoisDataController(AbstractActiveSearchController):
             "analysis_metrics": area_analysis,
             "analysis_metrics_municipality": municipality_analysis
         })
+        
+        
+        
+        

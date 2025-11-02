@@ -1672,3 +1672,9 @@ class AreaAnalysisQuery:
         FROM totals
         """
         return query
+    
+    
+    
+    
+    
+    
