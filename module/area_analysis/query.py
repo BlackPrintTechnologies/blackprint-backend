@@ -1672,9 +1672,27 @@ class AreaAnalysisQuery:
         FROM totals
         """
         return query
+
+    def get_boundary_from_coordinates_query(self, lat, lng, radius, city='queretaro'):
+        """Get boundary from coordinates query."""
+        query = f"""
+                SELECT ST_AsText(ST_Transform(ST_Buffer(ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857), {radius}), 4326)) AS wkt
+            """
+        return query
     
-    
-    
-    
-    
+    def get_municipality_info_query(self, lat, lng, city='queretaro'):
+        """Get municipality information query."""
+        query = f"""
+            with point_geom AS (
+                SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            buffered AS (
+                SELECT geometry
+                FROM blackprint_db_prd.integration.int_state_municipality_shapefile
+                WHERE ST_Within((SELECT geom FROM point_geom), geometry)
+            )
+            select st_Astext(geometry) as wkt from buffered ; 
+        """
+        return query
+
     

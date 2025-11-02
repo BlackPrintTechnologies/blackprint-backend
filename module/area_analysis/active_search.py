@@ -1,3 +1,4 @@
+from module.area_analysis.formatter import format_pois_data
 from utils.dbUtils import Database, RedshiftDatabase
 from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
@@ -8,7 +9,7 @@ import logging
 from module.area_analysis.query import AreaAnalysisQuery
 #for adding brand icon links in the brand api
 from utils.iconUtils import IconMapper
-from module.area_data.controller import DemographicsAreaData, SocioeconomicAreaData, PoisAreaData
+from module.area_data.controller import DemographicsAreaData, SocioeconomicAreaData, PoisAreaData, TotalPopulation
 
 logger = logging.getLogger(__name__)
 
@@ -851,6 +852,8 @@ class AbstractActiveSearchController:
     def __init__(self):
         self.db = Database()
         self.redshift_db = RedshiftDatabase()
+        self.redshift_connection = self.redshift_db.connect()
+        self.cursor = self.redshift_connection.cursor(cursor_factory=RealDictCursor)
         self.qc = AreaAnalysisQuery()
     
 
@@ -858,24 +861,17 @@ class AbstractActiveSearchController:
         """Get boundary from coordinates as WKT polygon (radius in meters)."""
         # Build buffer around point in meters using Web Mercator, then return as WKT in 4326
         query = self.qc.get_boundary_from_coordinates_query(lat, lng, radius, city)
-        redshift_connection = self.redshift_db.connect()
-        cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-        cursor.execute(query)
-        res = cursor.fetchone()
-        cursor.close()
-        redshift_connection.close()
+        self.cursor.execute(query)
+        res = self.cursor.fetchone()
         return res.get('wkt') if res else None
     
     def get_municipality_info(self, lat, lng, city='queretaro'):
         """Get municipality info (code, name, population, boundary WKT) from coordinates."""
         query = self.qc.get_municipality_info_query(lat, lng, city)
-        redshift_connection = self.redshift_db.connect()
-        cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-        cursor.execute(query)
-        res = cursor.fetchone()
-        cursor.close()
-        redshift_connection.close()
-        return res
+        self.cursor.execute(query)
+        res = self.cursor.fetchone()
+        return res.get('wkt') if res else None
+
 
 class NewActiveAreaPoisDataController(AbstractActiveSearchController):
     """Class for new active area POIs data operations."""
@@ -924,15 +920,13 @@ class NewActiveAreaPoisDataController(AbstractActiveSearchController):
     def __init__(self):
         """Initialize the NewActiveAreaPoisDataController class."""
         super().__init__()
-
     
     def get_data(self, lat, lng, radius, city='queretaro'):
         """Get active area POIs data for the selected area."""
         catchment = self.get_boundary_from_coordinates(lat, lng, radius, city)
-        municipality_info = self.get_municipality_info(lat, lng, city)
+        municipality_wkt = self.get_municipality_info(lat, lng, city)
         # Fetch POIs within catchment and municipality
         area_data = PoisAreaData().get_data(catchment) if catchment else []
-        municipality_wkt = municipality_info.get('wkt') if isinstance(municipality_info, dict) else None
         municipality_area_data = PoisAreaData().get_data(municipality_wkt) if municipality_wkt else []
 
         # Convert Decimals and normalize fields (e.g., number_of_reviews -> num_reviews)
@@ -952,30 +946,14 @@ class NewActiveAreaPoisDataController(AbstractActiveSearchController):
         municipality_rows = prepare_rows(municipality_area_data)
 
         # Query total population for area catchment (to compute business density rate)
-        total_population = 0
-        try:
-            population_query = self.qc._get_total_population_query(lat, lng, radius, city)
-            redshift_connection = self.redshift_db.connect()
-            cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-            cursor.execute(population_query)
-            pop_res = cursor.fetchall()
-            cursor.close()
-            self.redshift_db.disconnect(redshift_connection)
-            if pop_res and len(pop_res) > 0:
-                total_population = pop_res[0].get('total_population') or 0
-        except Exception:
-            total_population = 0
-
+        total_population_object = TotalPopulation()
+        total_population = total_population_object.get_data(catchment)
         # Compute analysis metrics for area and municipality
-        area_analysis = self._calculate_pois_analysis_metrics(area_rows, total_population)
+        area_analysis = format_pois_data(area_rows, total_population)
 
-        municipality_population = 0
+        municipality_population = total_population_object.get_data(municipality_wkt)
         municipality_code = None
         municipality_name = None
-        if isinstance(municipality_info, dict):
-            municipality_population = municipality_info.get('municipality_population') or 0
-            municipality_code = municipality_info.get('municipality_code')
-            municipality_name = municipality_info.get('municipality_name')
 
         municipality_analysis = self._calculate_pois_analysis_metrics(municipality_rows, municipality_population)
 

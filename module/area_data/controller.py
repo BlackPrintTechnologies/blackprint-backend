@@ -15,11 +15,25 @@ class AbstractAreaData(ABC):
         """Initialize the AbstractAreaData class."""
         self.db = Database()
         self.redshift_db = RedshiftDatabase()
+        self.redshift_connection = self.redshift_db.connect()
+        self.cursor = self.redshift_connection.cursor(cursor_factory=RealDictCursor)
         pass
     
     def get_data(self, boundary):
         """Get data for the selected area."""
         raise NotImplementedError("Subclasses must implement get_data")
+
+
+class TotalPopulation(AbstractAreaData):
+    def __init__(self):
+        super().__init__()
+    
+    def get_data(self, boundary):
+        q = query.get_total_population_query(boundary)
+        self.cursor.execute(q)
+        data = self.cursor.fetchall()
+        return data[0]['total_population'] 
+
 
 class DemographicsAreaData(AbstractAreaData) :
     """Class for demographic data operations."""
@@ -69,10 +83,6 @@ class PoisAreaData(AbstractAreaData) :
     def get_data(self, boundary):
         """Get POIs data for the selected area."""
         q = query.build_pois_query(boundary)
-        redshift_connection = self.redshift_db.connect()
-        cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-        cursor.execute(q)
-        data = cursor.fetchall()
-        cursor.close()
-        redshift_connection.close()
+        self.cursor.execute(q)
+        data = self.cursor.fetchall()
         return data 
