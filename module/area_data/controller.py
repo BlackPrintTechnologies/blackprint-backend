@@ -98,6 +98,34 @@ class TrafficAreaData(AbstractAreaData) :
         print("traffic_data",traffic_data)
         
         return traffic_data , h3_data
+    
+    
+class TrafficByHourAreaData(AbstractAreaData) :
+    """Class for traffic by hour data operations."""
+    def __init__(self):
+        super().__init__()
+    
+    def get_data(self, boundary,user_type=None):
+        """Get traffic by hour data for the selected area."""
+        q = query.build_traffic_by_hour_query(boundary,user_type)
+        self.cursor.execute(q)
+        data = self.cursor.fetchall()
+        print("user_type",user_type,"data",data)
+        return data[0]
+    
+class TrafficByDayAreaData(AbstractAreaData) :
+    """Class for traffic by day data operations."""
+    def __init__(self):
+        super().__init__()
+    
+    def get_data(self, boundary,user_type=None):
+        """Get traffic by day data for the selected area."""
+        q = query.build_traffic_by_day_query(boundary,user_type)
+        self.cursor.execute(q)
+        data = self.cursor.fetchall()
+        print("user_type",user_type,"daydata",data)
+        return data[0]
+
 
 
 class PoisAreaData(AbstractAreaData) :

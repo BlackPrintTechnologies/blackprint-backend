@@ -338,3 +338,69 @@ TRAFFIC_DATA_FORMAT = {
         }
     }
 }
+
+
+TRAFFIC_PATTERNS_FORMAT = {
+    "hourly_traffic": {
+        "vehicles": {
+            "raw_values": [],
+            "percentages": [],
+            "max_value": 0,
+            "avg_visits_per_hour": 0,
+            "total_visits": 0,
+            "time_labels": [],
+            "x_axis_labels": []
+        },
+        "pedestrians": {
+            "raw_values": [],
+            "percentages": [],
+            "max_value": 0,
+            "avg_visits_per_hour": 0,
+            "total_visits": 0,
+            "time_labels": [],
+            "x_axis_labels": []
+        },
+        "stationary_devices": {
+            "raw_values": [],
+            "percentages": [],
+            "max_value": 0,
+            "avg_visits_per_hour": 0,
+            "total_visits": 0,
+            "time_labels": [],
+            "x_axis_labels": []
+        }
+    },
+    "daily_traffic": {
+        "vehicles": {
+            "raw_values": [],
+            "percentages": [],
+            "max_value": 0,
+            "avg_visits_per_day": 0,
+            "total_visits": 0,
+            "days": [],
+            "day_labels": [],
+            "day_full_names": []
+        },
+        "pedestrians": {
+            "raw_values": [],
+            "percentages": [],
+            "max_value": 0,
+            "avg_visits_per_day": 0,
+            "total_visits": 0,
+            "days": [],
+            "day_labels": [],
+            "day_full_names": []
+        },
+        "stationary_devices": {
+            "raw_values": [],
+            "percentages": [],
+            "max_value": 0,
+            "avg_visits_per_day": 0,
+            "total_visits": 0,
+            "days": [],
+            "day_labels": [],
+            "day_full_names": []
+        }
+    }
+}
+

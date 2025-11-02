@@ -1,5 +1,5 @@
 from flask_restful import Resource, reqparse
-from module.area_analysis.controller import AreaAnalysisController, DemographicsAreaAnalysisController, TrafficAreaAnalysisController
+from module.area_analysis.controller import AreaAnalysisController, DemographicsAreaAnalysisController, TrafficAreaAnalysisController, TrafficPatternsAreaAnalysisController
 from module.area_analysis.active_search import ActiveSearchController, NewActiveAreaPoisDataController
 from utils.commonUtil import authenticate
 import logging
@@ -62,8 +62,8 @@ class AreaAnalysisTrafficPatterns(Resource):
             logger.info("User %s requesting traffic patterns for lat=%s, lng=%s, radius=%s, city=%s", 
                        current_user, lat, lng, radius, config_city)
             
-            controller = AreaAnalysisController()
-            response = controller.get_traffic_patterns(lat, lng, radius, config_city)
+            controller = TrafficPatternsAreaAnalysisController()    
+            response = controller.get_data(lat, lng, radius, config_city)
             
             return response
             

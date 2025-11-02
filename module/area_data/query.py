@@ -275,6 +275,85 @@ def build_h3_distribution_query(boundary):
     """
     return query
 
+def build_traffic_by_hour_query(boundary, user_type=None):
+    """Build query to get traffic data aggregated by hour of the day."""
+    user_type_condition = ""
+    if user_type:
+        user_type_condition = f"AND a.tipo_usuario = '{user_type}'"
+        
+    query = f"""
+    WITH geom_input AS (
+        SELECT ST_GeomFromText('{boundary}', 4326) AS geom
+    ),
+    h3_values AS (
+        SELECT H3_Polyfill(geom, 10) AS h3_indexes FROM geom_input
+    ),
+    h3_index AS (
+        SELECT o AS h3_value
+        FROM h3_values i, i.h3_indexes o
+    )
+    SELECT  
+        SUM(CASE WHEN a.hour = 0 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_0,
+        SUM(CASE WHEN a.hour = 1 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_1,
+        SUM(CASE WHEN a.hour = 2 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_2,
+        SUM(CASE WHEN a.hour = 3 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_3,
+        SUM(CASE WHEN a.hour = 4 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_4,
+        SUM(CASE WHEN a.hour = 5 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_5,
+        SUM(CASE WHEN a.hour = 6 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_6,
+        SUM(CASE WHEN a.hour = 7 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_7,
+        SUM(CASE WHEN a.hour = 8 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_8,
+        SUM(CASE WHEN a.hour = 9 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_9,
+        SUM(CASE WHEN a.hour = 10 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_10,
+        SUM(CASE WHEN a.hour = 11 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_11,
+        SUM(CASE WHEN a.hour = 12 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_12,
+        SUM(CASE WHEN a.hour = 13 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_13,
+        SUM(CASE WHEN a.hour = 14 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_14,
+        SUM(CASE WHEN a.hour = 15 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_15,
+        SUM(CASE WHEN a.hour = 16 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_16,
+        SUM(CASE WHEN a.hour = 17 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_17,
+        SUM(CASE WHEN a.hour = 18 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_18,
+        SUM(CASE WHEN a.hour = 19 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_19,
+        SUM(CASE WHEN a.hour = 20 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_20,
+        SUM(CASE WHEN a.hour = 21 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_21,
+        SUM(CASE WHEN a.hour = 22 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_22,
+        SUM(CASE WHEN a.hour = 23 THEN a.total_usuarios_unicos ELSE 0 END) AS hour_23
+    FROM blackprint_db_prd.presentation.dim_mobility_data_by_hour a
+    INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+    WHERE 1=1 {user_type_condition}
+    """
+    return query
+
+def build_traffic_by_day_query(boundary, user_type=None):
+    """Build query to get traffic data aggregated by day of the week."""
+    user_type_condition = ""
+    if user_type:
+        user_type_condition = f"AND a.tipo_usuario = '{user_type}'"
+        
+    query = f"""
+    WITH geom_input AS (
+        SELECT ST_GeomFromText('{boundary}', 4326) AS geom
+    ),
+    h3_values AS (
+        SELECT H3_Polyfill(geom, 10) AS h3_indexes FROM geom_input
+    ),
+    h3_index AS (
+        SELECT o AS h3_value
+        FROM h3_values i, i.h3_indexes o
+    )
+    SELECT  
+        SUM(CASE WHEN a.dia_de_la_semana = 'Monday' THEN a.total_usuarios_unicos ELSE 0 END) AS monday,
+        SUM(CASE WHEN a.dia_de_la_semana = 'Tuesday' THEN a.total_usuarios_unicos ELSE 0 END) AS tuesday,
+        SUM(CASE WHEN a.dia_de_la_semana = 'Wednesday' THEN a.total_usuarios_unicos ELSE 0 END) AS wednesday,
+        SUM(CASE WHEN a.dia_de_la_semana = 'Thursday' THEN a.total_usuarios_unicos ELSE 0 END) AS thursday,
+        SUM(CASE WHEN a.dia_de_la_semana = 'Friday' THEN a.total_usuarios_unicos ELSE 0 END) AS friday,
+        SUM(CASE WHEN a.dia_de_la_semana = 'Saturday' THEN a.total_usuarios_unicos ELSE 0 END) AS saturday,
+        SUM(CASE WHEN a.dia_de_la_semana = 'Sunday' THEN a.total_usuarios_unicos ELSE 0 END) AS sunday
+    FROM blackprint_db_prd.presentation.dim_mobility_data_by_day a
+    INNER JOIN h3_index b ON a.h3_index::VARCHAR = b.h3_value::VARCHAR
+    WHERE 1=1 {user_type_condition}
+    """
+    return query
+
 def get_total_population_query(catchment):
     query = f"""
             select sum(pobtot) as total_population from presentation.dim_demographic_by_block

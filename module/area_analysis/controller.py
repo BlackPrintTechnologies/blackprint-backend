@@ -2087,9 +2087,9 @@ class AreaAnalysisController:
 
 import copy
 from decimal import Decimal
-from module.area_data.controller import DemographicsAreaData , TrafficAreaData
+from module.area_data.controller import DemographicsAreaData , TrafficAreaData, TrafficByHourAreaData, TrafficByDayAreaData
 from module.area_data.controller import TotalPopulation
-from module.area_analysis.constants import DEMOGRAPHICS_DATA_FORMAT, TRAFFIC_DATA_FORMAT 
+from module.area_analysis.constants import DEMOGRAPHICS_DATA_FORMAT, TRAFFIC_DATA_FORMAT ,TRAFFIC_PATTERNS_FORMAT
 
 
 class AbstractAreaAnalysisController:
@@ -2511,4 +2511,137 @@ class TrafficAreaAnalysisController(AbstractAreaAnalysisController):
             })
         
         return Response.success(data=data)
+    
+
+class TrafficPatternsAreaAnalysisController(AbstractAreaAnalysisController):
+    """Controller for traffic patterns area analysis (hourly and daily)."""
+    DATA_FORMAT = TRAFFIC_PATTERNS_FORMAT
+    
+    def __init__(self):
+        super().__init__()
+    
+    def _to_float(self, value):
+        """Convert Decimal/None to float."""
+        if value is None:
+            return 0.0
+        return float(value) if not isinstance(value, float) else value
+    
+    def _to_dict(self, row):
+        """Convert RealDictRow to dict with float conversion."""
+        if not row:
+            return {}
+        return {k: self._to_float(v) for k, v in dict(row).items()}
+    
+    def _pct(self, part, total):
+        """Calculate percentage."""
+        return round((part / total * 100), 1) if total > 0 else 0.0
+    
+    def _process_hourly_data(self, hourly_raw_data):
+        """Process hourly traffic data into array format with calculations."""
+        hourly_array = []
+        max_value = 0
+        
+        for hour in range(24):
+            hour_key = f"hour_{hour}"
+            value = self._to_float(hourly_raw_data.get(hour_key, 0))
+            hourly_array.append(value)
+            max_value = max(max_value, value)
+        
+        total_visits = sum(hourly_array)
+        avg_visits_per_hour = round(total_visits / 24) if total_visits > 0 else 0
+        
+        hourly_percentages = []
+        for value in hourly_array:
+            percentage = (value / total_visits * 100) if total_visits > 0 else 0
+            hourly_percentages.append(round(percentage, 1))
+        
+        time_labels = [f"{hour:02d}:00" for hour in range(24)]
+        
+        return {
+            "raw_values": hourly_array,
+            "percentages": hourly_percentages,
+            "max_value": max_value,
+            "avg_visits_per_hour": avg_visits_per_hour,
+            "total_visits": total_visits,
+            "time_labels": time_labels,
+            "x_axis_labels": list(range(24))
+        }
+    
+    def _process_daily_data(self, daily_raw_data):
+        """Process daily traffic data into array format with calculations."""
+        days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        daily_array = []
+        max_value = 0
+        
+        for day in days:
+            value = self._to_float(daily_raw_data.get(day, 0))
+            daily_array.append(value)
+            max_value = max(max_value, value)
+        
+        total_visits = sum(daily_array)
+        avg_visits_per_day = round(total_visits / 7) if total_visits > 0 else 0
+        
+        daily_percentages = []
+        for value in daily_array:
+            percentage = (value / total_visits * 100) if total_visits > 0 else 0
+            daily_percentages.append(round(percentage, 1))
+        
+        day_labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+        day_full_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        
+        return {
+            "raw_values": daily_array,
+            "percentages": daily_percentages,
+            "max_value": max_value,
+            "avg_visits_per_day": avg_visits_per_day,
+            "total_visits": total_visits,
+            "days": days,
+            "day_labels": day_labels,
+            "day_full_names": day_full_names
+        }
+    
+    def _populate_traffic_patterns(self, catchment, lat, lng, radius):
+        """Populate traffic patterns format with actual data from new dimension tables."""
+        data = copy.deepcopy(TRAFFIC_PATTERNS_FORMAT)
+        
+        # Initialize data classes
+        hourly_data_class = TrafficByHourAreaData()
+        daily_data_class = TrafficByDayAreaData()
+        
+        # Define user types mapping
+        user_types = {
+            'vehiculo': 'vehicles',
+            'peaton': 'pedestrians',
+            'estacionario': 'stationary_devices'
+        }
+        
+        # Process hourly data for each user type
+        for user_type, user_type_english in user_types.items():
+            hourly_raw = hourly_data_class.get_data(catchment, user_type)
+            data['hourly_traffic'][user_type_english] = self._process_hourly_data(hourly_raw)
+        
+        # Process daily data for each user type
+        for user_type, user_type_english in user_types.items():
+            daily_raw = daily_data_class.get_data(catchment, user_type)
+            data['daily_traffic'][user_type_english] = self._process_daily_data(daily_raw)
+        
+        # Add metadata
+        data['center_point'] = {"lat": float(lat), "lng": float(lng)}
+        data['radius_meters'] = int(radius)
+        data['pattern_type'] = "both_with_user_types"
+        
+        return data
+    
+    def get_data(self, lat, lng, radius, city='queretaro'):
+        """Get traffic patterns area analysis data."""
+        catchment = self.get_boundary_from_coordinates(lat, lng, radius, city)
+        
+        if not catchment:
+            logger.warning("No catchment area found for traffic patterns")
+            return Response.error("Invalid catchment area")
+        
+        patterns_data = self._populate_traffic_patterns(catchment, lat, lng, radius)
+        return Response.success(data=patterns_data)
+    
+
         
