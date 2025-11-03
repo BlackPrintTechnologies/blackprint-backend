@@ -39,7 +39,7 @@ def build_demographics_query(boundary, geometry_column='geometry_coords', table=
     if table == 'locality':
         table_name = 'presentation.dim_demographic_by_localidad'
     else:
-        table_name = 'presentation.dim_demographic_by_block'
+        table_name = 'presentation.dim_demographic_by_block_locality'
 
     query = f"""
     WITH geom_input AS (
@@ -76,12 +76,10 @@ def build_demographics_query(boundary, geometry_column='geometry_coords', table=
             SUM(COALESCE(p_18a24_m, 0)) AS age_18_24_m
         FROM {table_name} d
         WHERE ST_Intersects(
-    ST_Transform(
-        ST_SetSRID(d.{geometry_column}, 32614),
-        4326
-    ),
+    d.{geometry_column},
     (SELECT geom FROM geom_input)
 )
+
 
     )
     SELECT 
