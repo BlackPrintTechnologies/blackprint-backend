@@ -1,5 +1,5 @@
 from flask_restful import Resource, reqparse
-from module.area_analysis.controller import AreaAnalysisController, DemographicsAreaAnalysisController, TrafficAreaAnalysisController, TrafficPatternsAreaAnalysisController
+from module.area_analysis.controller import  DemographicsAreaAnalysisController, TrafficAreaAnalysisController, TrafficPatternsAreaAnalysisController
 from module.area_analysis.active_search import ActiveSearchController, NewActiveAreaPoisDataController
 from utils.commonUtil import authenticate
 import logging
