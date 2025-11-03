@@ -193,22 +193,122 @@ def build_h3_traffic_summary_query(boundary):
     """
 
 
-def build_socioeconomic_query(lng, lat, radius, geometry_column='geometry_coords', table='ageb'):
-    """Build query to get socio-economic data for the selected area (table: 'ageb' or 'locality')."""
-    geometry_condition = build_geometry_condition_catchment(
-        geometry_column, lng, lat, radius)
-
-    if table == 'locality':
-        table_name = 'presentation.dim_socioeconomic_level_localidad'
-    else:
-        table_name = 'presentation.dim_socioeconomic_level_ageb'
-
+def build_socioeconomic_query(boundary):
+    """Build query to get socioeconomic data for the selected catchment area."""
+    
     query = f"""
-    SELECT *
-    FROM {table_name}
-    WHERE {geometry_condition}
+    WITH geom_input AS (
+        SELECT ST_GeomFromText('{boundary}', 4326) AS geom
+    ),
+    socioeconomic_data AS (
+        SELECT 
+            -- Current SES levels (latest available, assuming 2024)
+            SUM(COALESCE(ab, 0)) AS ses_ab,
+            SUM(COALESCE(cplus, 0)) AS ses_c_plus,
+            SUM(COALESCE(c, 0)) AS ses_c,
+            SUM(COALESCE(cminus, 0)) AS ses_c_minus,
+            SUM(COALESCE(dplus, 0)) AS ses_d_plus,
+            SUM(COALESCE(d, 0)) AS ses_d,
+            SUM(COALESCE(e, 0)) AS ses_e,
+            -- Total housing
+            SUM(COALESCE(total_housing, 0)) AS total_housing,
+            -- Predominant level (most common)
+            MODE() WITHIN GROUP (ORDER BY predominant_level) AS predominant_level,
+            -- Historical data for 2024
+            SUM(COALESCE(ab_2024, 0)) AS ses_ab_2024,
+            SUM(COALESCE(c_2024, 0)) AS ses_c_2024,
+            SUM(COALESCE(cplus_2024, 0)) AS ses_c_plus_2024,
+            SUM(COALESCE(cminus_2024, 0)) AS ses_c_minus_2024,
+            SUM(COALESCE(d_2024, 0)) AS ses_d_2024,
+            SUM(COALESCE(dplus_2024, 0)) AS ses_d_plus_2024,
+            SUM(COALESCE(e_2024, 0)) AS ses_e_2024,
+            -- Historical data for 2022
+            SUM(COALESCE(ab_2022, 0)) AS ses_ab_2022,
+            SUM(COALESCE(c_2022, 0)) AS ses_c_2022,
+            SUM(COALESCE(cplus_2022, 0)) AS ses_c_plus_2022,
+            SUM(COALESCE(cminus_2022, 0)) AS ses_c_minus_2022,
+            SUM(COALESCE(d_2022, 0)) AS ses_d_2022,
+            SUM(COALESCE(dplus_2022, 0)) AS ses_d_plus_2022,
+            SUM(COALESCE(e_2022, 0)) AS ses_e_2022,
+            -- Historical data for 2020
+            SUM(COALESCE(ab_2020, 0)) AS ses_ab_2020,
+            SUM(COALESCE(c_2020, 0)) AS ses_c_2020,
+            SUM(COALESCE(cplus_2020, 0)) AS ses_c_plus_2020,
+            SUM(COALESCE(cminus_2020, 0)) AS ses_c_minus_2020,
+            SUM(COALESCE(d_2020, 0)) AS ses_d_2020,
+            SUM(COALESCE(dplus_2020, 0)) AS ses_d_plus_2020,
+            SUM(COALESCE(e_2020, 0)) AS ses_e_2020,
+            -- Historical data for 2018
+            SUM(COALESCE(ab_2018, 0)) AS ses_ab_2018,
+            SUM(COALESCE(c_2018, 0)) AS ses_c_2018,
+            SUM(COALESCE(cplus_2018, 0)) AS ses_c_plus_2018,
+            SUM(COALESCE(cminus_2018, 0)) AS ses_c_minus_2018,
+            SUM(COALESCE(d_2018, 0)) AS ses_d_2018,
+            SUM(COALESCE(dplus_2018, 0)) AS ses_d_plus_2018,
+            SUM(COALESCE(e_2018, 0)) AS ses_e_2018,
+            -- Historical data for 2016
+            SUM(COALESCE(ab_2016, 0)) AS ses_ab_2016,
+            SUM(COALESCE(c_2016, 0)) AS ses_c_2016,
+            SUM(COALESCE(cplus_2016, 0)) AS ses_c_plus_2016,
+            SUM(COALESCE(cminus_2016, 0)) AS ses_c_minus_2016,
+            SUM(COALESCE(d_2016, 0)) AS ses_d_2016,
+            SUM(COALESCE(dplus_2016, 0)) AS ses_d_plus_2016,
+            SUM(COALESCE(e_2016, 0)) AS ses_e_2016
+        FROM blackprint_db_prd.presentation.dim_socioeconomic_level_ageb_locality se
+        WHERE ST_Intersects(
+            se.geometry_coords,
+            (SELECT geom FROM geom_input)
+        )
+    )
+    SELECT 
+        sd.ses_ab,
+        sd.ses_c_plus,
+        sd.ses_c,
+        sd.ses_c_minus,
+        sd.ses_d_plus,
+        sd.ses_d,
+        sd.ses_e,
+        sd.total_housing,
+        sd.predominant_level,
+        -- Historical data grouped by year
+        sd.ses_ab_2024,
+        sd.ses_c_2024,
+        sd.ses_c_plus_2024,
+        sd.ses_c_minus_2024,
+        sd.ses_d_2024,
+        sd.ses_d_plus_2024,
+        sd.ses_e_2024,
+        sd.ses_ab_2022,
+        sd.ses_c_2022,
+        sd.ses_c_plus_2022,
+        sd.ses_c_minus_2022,
+        sd.ses_d_2022,
+        sd.ses_d_plus_2022,
+        sd.ses_e_2022,
+        sd.ses_ab_2020,
+        sd.ses_c_2020,
+        sd.ses_c_plus_2020,
+        sd.ses_c_minus_2020,
+        sd.ses_d_2020,
+        sd.ses_d_plus_2020,
+        sd.ses_e_2020,
+        sd.ses_ab_2018,
+        sd.ses_c_2018,
+        sd.ses_c_plus_2018,
+        sd.ses_c_minus_2018,
+        sd.ses_d_2018,
+        sd.ses_d_plus_2018,
+        sd.ses_e_2018,
+        sd.ses_ab_2016,
+        sd.ses_c_2016,
+        sd.ses_c_plus_2016,
+        sd.ses_c_minus_2016,
+        sd.ses_d_2016,
+        sd.ses_d_plus_2016,
+        sd.ses_e_2016
+    FROM socioeconomic_data sd
     """
-
+    
     return query
 
 

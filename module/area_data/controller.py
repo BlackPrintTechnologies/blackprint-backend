@@ -62,8 +62,8 @@ class SocioeconomicAreaData(AbstractAreaData) :
         super().__init__()
     
     def get_data(self, boundary):
-        """Get socio-economic data for the selected area (table: 'ageb' or 'locality')."""
-        q = query.build_socioeconomic_query_controller(boundary)
+        """Get socio-economic data for the selected area."""
+        q = query.build_socioeconomic_query(boundary)
         redshift_connection = self.redshift_db.connect()
         cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
         cursor.execute(q)
