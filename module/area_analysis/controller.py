@@ -2088,7 +2088,7 @@ class AreaAnalysisController:
 import copy
 from decimal import Decimal
 from module.area_data.controller import DemographicsAreaData , TrafficAreaData, TrafficByHourAreaData, TrafficByDayAreaData
-from module.area_data.controller import TotalPopulation
+from module.area_data.controller import TotalPopulation, SocioeconomicAreaData
 from module.area_analysis.constants import DEMOGRAPHICS_DATA_FORMAT, TRAFFIC_DATA_FORMAT ,TRAFFIC_PATTERNS_FORMAT
 
 
@@ -2279,6 +2279,68 @@ class DemographicsAreaAnalysisController(AbstractAreaAnalysisController):
         
         # Age pyramid
         data['age_pyramid_2024'] = self._get_age_pyramid(area, area_pop)
+        
+        # Socioeconomic data
+        catchment = self.get_boundary_from_coordinates(lat, lng, radius)
+        municipality_wkt = self.get_municipality_info(lat, lng)
+        
+        if catchment:
+            area_socio_data = SocioeconomicAreaData().get_data(catchment)
+            area_socio = self._to_dict(area_socio_data[0] if area_socio_data else {})
+        else:
+            area_socio = {}
+        
+        if municipality_wkt:
+            mun_socio_data = SocioeconomicAreaData().get_data(municipality_wkt)
+            mun_socio = self._to_dict(mun_socio_data[0] if mun_socio_data else {})
+        else:
+            mun_socio = {}
+        
+        # Calculate total SES for percentage calculations
+        area_total_ses = (
+            area_socio.get('ses_ab', 0) + 
+            area_socio.get('ses_c_plus', 0) + 
+            area_socio.get('ses_c', 0) + 
+            area_socio.get('ses_c_minus', 0) + 
+            area_socio.get('ses_d_plus', 0) + 
+            area_socio.get('ses_d', 0) + 
+            area_socio.get('ses_e', 0)
+        )
+        
+        mun_total_ses = (
+            mun_socio.get('ses_ab', 0) + 
+            mun_socio.get('ses_c_plus', 0) + 
+            mun_socio.get('ses_c', 0) + 
+            mun_socio.get('ses_c_minus', 0) + 
+            mun_socio.get('ses_d_plus', 0) + 
+            mun_socio.get('ses_d', 0) + 
+            mun_socio.get('ses_e', 0)
+        )
+        
+        # Populate socioeconomic data for each level
+        for level in levels:
+            if level != 'alcaldia':
+                # Use area data for block and colonia
+                data['detailed_data']['socio_economic_level'][level].update({
+                    'ses_ab': self._to_float(area_socio.get('ses_ab', 0)),
+                    'ses_c_plus': self._to_float(area_socio.get('ses_c_plus', 0)),
+                    'ses_c': self._to_float(area_socio.get('ses_c', 0)),
+                    'ses_c_minus': self._to_float(area_socio.get('ses_c_minus', 0)),
+                    'ses_d_plus': self._to_float(area_socio.get('ses_d_plus', 0)),
+                    'ses_d': self._to_float(area_socio.get('ses_d', 0)),
+                    'ses_e': self._to_float(area_socio.get('ses_e', 0))
+                })
+            else:
+                # Use municipality data for alcaldia
+                data['detailed_data']['socio_economic_level'][level].update({
+                    'ses_ab': self._to_float(mun_socio.get('ses_ab', 0)),
+                    'ses_c_plus': self._to_float(mun_socio.get('ses_c_plus', 0)),
+                    'ses_c': self._to_float(mun_socio.get('ses_c', 0)),
+                    'ses_c_minus': self._to_float(mun_socio.get('ses_c_minus', 0)),
+                    'ses_d_plus': self._to_float(mun_socio.get('ses_d_plus', 0)),
+                    'ses_d': self._to_float(mun_socio.get('ses_d', 0)),
+                    'ses_e': self._to_float(mun_socio.get('ses_e', 0))
+                })
         
         # Comparison
         area_density = area.get('population_density', 0)

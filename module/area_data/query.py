@@ -212,8 +212,6 @@ def build_socioeconomic_query(boundary):
             SUM(COALESCE(e, 0)) AS ses_e,
             -- Total housing
             SUM(COALESCE(total_housing, 0)) AS total_housing,
-            -- Predominant level (most common)
-            MODE() WITHIN GROUP (ORDER BY predominant_level) AS predominant_level,
             -- Historical data for 2024
             SUM(COALESCE(ab_2024, 0)) AS ses_ab_2024,
             SUM(COALESCE(c_2024, 0)) AS ses_c_2024,
@@ -256,7 +254,7 @@ def build_socioeconomic_query(boundary):
             SUM(COALESCE(e_2016, 0)) AS ses_e_2016
         FROM blackprint_db_prd.presentation.dim_socioeconomic_level_ageb_locality se
         WHERE ST_Intersects(
-            se.geometry_coords,
+            ST_SetSRID(se.geometry_coords, 4326),
             (SELECT geom FROM geom_input)
         )
     )
@@ -269,7 +267,17 @@ def build_socioeconomic_query(boundary):
         sd.ses_d,
         sd.ses_e,
         sd.total_housing,
-        sd.predominant_level,
+        (SELECT predominant_level 
+         FROM blackprint_db_prd.presentation.dim_socioeconomic_level_ageb_locality se2
+         WHERE ST_Intersects(
+                ST_SetSRID(se2.geometry_coords, 4326),
+                (SELECT geom FROM geom_input)
+            )
+           AND se2.predominant_level IS NOT NULL 
+           AND se2.predominant_level != ''
+         GROUP BY predominant_level
+         ORDER BY COUNT(*) DESC
+         LIMIT 1) AS predominant_level,
         -- Historical data grouped by year
         sd.ses_ab_2024,
         sd.ses_c_2024,
