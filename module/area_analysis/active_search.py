@@ -1,3 +1,4 @@
+from module.area_analysis.formatter import format_pois_data
 from utils.dbUtils import Database, RedshiftDatabase
 from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
@@ -8,6 +9,7 @@ import logging
 from module.area_analysis.query import AreaAnalysisQuery
 #for adding brand icon links in the brand api
 from utils.iconUtils import IconMapper
+from module.area_data.controller import DemographicsAreaData, SocioeconomicAreaData, PoisAreaData, TotalPopulation
 
 logger = logging.getLogger(__name__)
 
@@ -843,4 +845,134 @@ class ActiveSearchController:
         
         return final_hierarchy
     
+        
+############### NEW AREA ANALYSIS IMPLEMENTATION ###############
+
+class AbstractActiveSearchController:
+    def __init__(self):
+        self.db = Database()
+        self.redshift_db = RedshiftDatabase()
+        self.redshift_connection = self.redshift_db.connect()
+        self.cursor = self.redshift_connection.cursor(cursor_factory=RealDictCursor)
+        self.qc = AreaAnalysisQuery()
+    
+
+    def get_boundary_from_coordinates(self, lat, lng, radius, city='queretaro'):
+        """Get boundary from coordinates as WKT polygon (radius in meters)."""
+        # Build buffer around point in meters using Web Mercator, then return as WKT in 4326
+        query = self.qc.get_boundary_from_coordinates_query(lat, lng, radius, city)
+        self.cursor.execute(query)
+        res = self.cursor.fetchone()
+        return res.get('wkt') if res else None
+    
+    def get_municipality_info(self, lat, lng, city='queretaro'):
+        """Get municipality info (code, name, population, boundary WKT) from coordinates."""
+        query = self.qc.get_municipality_info_query(lat, lng, city)
+        self.cursor.execute(query)
+        res = self.cursor.fetchone()
+        return res.get('wkt') if res else None
+
+
+class NewActiveAreaPoisDataController(AbstractActiveSearchController):
+    """Class for new active area POIs data operations."""
+
+    DATA_FORMAT = {
+        'analysis_metrics' : {
+            'total_pois' : 0,
+            'brand_analysis' : {},
+            'category_analysis' : {},
+            'review_analysis' : {},
+            'business_insights' : {},
+            'top_categories' : [],
+            'top_brands' : [],
+            'quality_metrics' : {},
+            'chain_analysis' : {},
+            'insights' : {
+                'most_common_category' : ('None', 0),
+                'most_reviewed_brand' : ('None', 0),
+                'highest_rated_brand' : ('None', 0),
+                'area_density' : 0,
+                'bussiness_density_rate' : 0,
+                'main_categories_detailed' : []
+            }   
+        },
+        'analysis_metrics_municipality' : {
+            'total_pois' : 0,
+            'brand_analysis' : {},
+            'category_analysis' : {},
+            'review_analysis' : {},
+            'business_insights' : {},
+            'top_categories' : [],
+            'top_brands' : [],
+            'quality_metrics' : {},
+            'chain_analysis' : {},
+            'insights' : {
+                'most_common_category' : ('None', 0),
+                'most_reviewed_brand' : ('None', 0),
+                'highest_rated_brand' : ('None', 0),
+                'area_density' : 0,
+                'bussiness_density_rate' : 0,
+                'main_categories_detailed' : []
+            }
+        }
+        }
+    
+    def __init__(self):
+        """Initialize the NewActiveAreaPoisDataController class."""
+        super().__init__()
+    
+    def get_data(self, lat, lng, radius, city='queretaro'):
+        """Get active area POIs data for the selected area."""
+        catchment = self.get_boundary_from_coordinates(lat, lng, radius, city)
+        municipality_wkt = self.get_municipality_info(lat, lng, city)
+        # Fetch POIs within catchment and municipality
+        area_data = PoisAreaData().get_data(catchment) if catchment else []
+        municipality_area_data = PoisAreaData().get_data(municipality_wkt) if municipality_wkt else []
+
+        # Convert Decimals and normalize fields (e.g., number_of_reviews -> num_reviews)
+        def prepare_rows(rows):
+            prepared = []
+            for row in rows or []:
+                row_dict = dict(row)
+                for key, value in list(row_dict.items()):
+                    if isinstance(value, Decimal):
+                        row_dict[key] = float(value)
+                if 'number_of_reviews' in row_dict and 'num_reviews' not in row_dict:
+                    row_dict['num_reviews'] = row_dict.get('number_of_reviews') or 0
+                prepared.append(row_dict)
+            return prepared
+
+        area_rows = prepare_rows(area_data)
+        municipality_rows = prepare_rows(municipality_area_data)
+
+        # Query total population for area catchment (to compute business density rate)
+        total_population_object = TotalPopulation()
+        total_population = total_population_object.get_data(catchment)
+        # Compute analysis metrics for area and municipality
+        area_analysis = format_pois_data(area_rows, total_population)
+
+        municipality_population = total_population_object.get_data(municipality_wkt)
+        municipality_code = None
+        municipality_name = None
+
+        municipality_analysis = self._calculate_pois_analysis_metrics(municipality_rows, municipality_population)
+
+        # Attach municipality context similar to _get_municipality_analysis
+        if isinstance(municipality_analysis, dict):
+            municipality_analysis['municipality_code'] = municipality_code
+            municipality_analysis['municipality_name'] = municipality_name
+            municipality_analysis['municipality_population'] = municipality_population
+            bussiness_density_rate = 0
+            if municipality_population and municipality_population > 0:
+                bussiness_density_rate = round((len(municipality_rows) / municipality_population) * 1000, 2)
+            municipality_analysis['bussiness_density_rate'] = bussiness_density_rate
+
+        # Return formatted response identical to ActiveSearchController.get_pois_data
+        return Response.success(data={
+            "analysis_metrics": area_analysis,
+            "analysis_metrics_municipality": municipality_analysis
+        })
+        
+        
+        
         

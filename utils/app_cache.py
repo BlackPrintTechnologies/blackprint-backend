@@ -5,10 +5,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 # In-memory LRU caches for various responses
+# Using LRU cache for fast in-memory access - evicts least recently used items when full
 _caches = {
     'property': LRUCache(maxsize=1000),
     'user_property': LRUCache(maxsize=1000),
-    'demographic': LRUCache(maxsize=1000),
+    'demographic': LRUCache(maxsize=5000),  # Increased for area analysis with many coordinate/radius combinations
     'market_info': LRUCache(maxsize=1000)
 }
 

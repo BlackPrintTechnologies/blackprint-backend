@@ -462,35 +462,6 @@ class AreaAnalysisQuery:
         query = f"""
         WITH demographic_data AS (
         SELECT 
-              -- ===== WORKFORCE DATA (SUM across all records in radius) =====
-              SUM(d.pea) as pea,                    -- Total economically active population
-              SUM(d.pea_m) as pea_m,                -- Total economically active male population
-              SUM(d.pea_f) as pea_f,                -- Total economically active female population
-              SUM(d.pe_inac) as pe_inac,            -- Total economically inactive population
-              SUM(d.pe_inac_m) as pe_inac_m,        -- Total economically inactive male population
-              SUM(d.pe_inac_f) as pe_inac_f,        -- Total economically inactive female population
-              
-              -- ===== EMPLOYMENT DATA (SUM across all records in radius) =====
-              SUM(d.pocupada) as pocupada,          -- Total employed population
-              SUM(d.pocupada_m) as pocupada_m,      -- Total employed male population
-              SUM(d.pocupada_f) as pocupada_f,      -- Total employed female population
-              SUM(d.pdesocup) as pdesocup,          -- Total unemployed population
-              SUM(d.pdesocup_m) as pdesocup_m,      -- Total unemployed male population
-              SUM(d.pdesocup_f) as pdesocup_f,      -- Total unemployed female population
-              
-              -- ===== EDUCATION DATA (SUM across all records in radius) =====
-              SUM(d.p_3a5) as p_3a5,                -- Population aged 3-5 years
-              SUM(d.p_6a11) as p_6a11,              -- Population aged 6-11 years
-              SUM(d.p_12a14) as p_12a14,            -- Population aged 12-14 years
-              SUM(d.p_15a17) as p_15a17,            -- Population aged 15-17 years
-              SUM(d.p_18a24) as p_18a24,            -- Population aged 18-24 years
-              SUM(d.p_60ymas) as p_60ymas,          -- Population aged 60+ years
-              SUM(d.p3a5_noa) as p3a5_noa,          -- Population aged 3-5 not attending school
-              SUM(d.p6a11_noa) as p6a11_noa,        -- Population aged 6-11 not attending school
-              SUM(d.p12a14noa) as p12a14noa,        -- Population aged 12-14 not attending school
-              SUM(d.p15a17a) as p15a17a,            -- Population aged 15-17 attending school
-              SUM(d.p18a24a) as p18a24a,            -- Population aged 18-24 attending school
-              
               -- ===== AGE PYRAMID DATA (Block-level totals) =====
               SUM(d.p_0a2) as p_0a2,                -- Population aged 0-2 years (block level)
               SUM(d.p_0a2_f) as p_0a2_f,            -- Female population aged 0-2 years
@@ -572,8 +543,6 @@ class AreaAnalysisQuery:
               AVG(d.pro_ocup_c) as pro_ocup_c,      -- Average number of rooms per household
               
               -- ===== LOCATION IDENTIFIERS (from first record) =====
-              MAX(d.neighborhood) as neighborhood,       -- Neighborhood name
-              MAX(d.predominant_level) as predominant_level, -- Predominant socioeconomic level
               MAX(d.ageb_code) as ageb_code,         -- Block code (AGEB)
               MAX(d.municipality_nm) as nom_mun,            -- Municipality name
               MAX(d.municipality_code) as municipality_code,  -- Municipality code
@@ -585,30 +554,6 @@ class AreaAnalysisQuery:
               MAX(d.pobmas_alcaldia) as pobmas_alcaldia,     -- Total male population in municipality
               MAX(d.pobfem_alcaldia) as pobfem_alcaldia,     -- Total female population in municipality
               MAX(d.vivtot_alcaldia) as vivtot_alcaldia,     -- Total households in municipality
-              MAX(d.pea_alcaldia) as pea_alcaldia,           -- Total economically active population in municipality
-              MAX(d.pea_m_alcaldia) as pea_m_alcaldia,       -- Total economically active male population in municipality
-              MAX(d.pea_f_alcaldia) as pea_f_alcaldia,       -- Total economically active female population in municipality
-              MAX(d.pe_inac_alcaldia) as pe_inac_alcaldia,   -- Total economically inactive population in municipality
-              MAX(d.pe_inac_m_alcaldia) as pe_inac_m_alcaldia, -- Total economically inactive male population in municipality
-              MAX(d.pe_inac_f_alcaldia) as pe_inac_f_alcaldia, -- Total economically inactive female population in municipality
-              MAX(d.pocupada_alcaldia) as pocupada_alcaldia, -- Total employed population in municipality
-              MAX(d.pocupada_m_alcaldia) as pocupada_m_alcaldia, -- Total employed male population in municipality
-              MAX(d.pocupada_f_alcaldia) as pocupada_f_alcaldia, -- Total employed female population in municipality
-              MAX(d.pdesocup_alcaldia) as pdesocup_alcaldia, -- Total unemployed population in municipality
-              MAX(d.pdesocup_m_alcaldia) as pdesocup_m_alcaldia, -- Total unemployed male population in municipality
-              MAX(d.pdesocup_f_alcaldia) as pdesocup_f_alcaldia, -- Total unemployed female population in municipality
-              
-              -- ===== MUNICIPALITY LEVEL EDUCATION DATA =====
-              MAX(d.p_3a5_alcaldia) as p_3a5_alcaldia,       -- Population aged 3-5 in municipality
-              MAX(d.p_6a11_alcaldia) as p_6a11_alcaldia,     -- Population aged 6-11 in municipality
-              MAX(d.p_12a14_alcaldia) as p_12a14_alcaldia,   -- Population aged 12-14 in municipality
-              MAX(d.p_15a17_alcaldia) as p_15a17_alcaldia,   -- Population aged 15-17 in municipality
-              MAX(d.p_18a24_alcaldia) as p_18a24_alcaldia,   -- Population aged 18-24 in municipality
-              MAX(d.p3a5_noa_alcaldia) as p3a5_noa_alcaldia, -- Population aged 3-5 not attending school in municipality
-              MAX(d.p6a11_noa_alcaldia) as p6a11_noa_alcaldia, -- Population aged 6-11 not attending school in municipality
-              MAX(d.p12a14noa_alcaldia) as p12a14noa_alcaldia, -- Population aged 12-14 not attending school in municipality
-              MAX(d.p15a17a_alcaldia) as p15a17a_alcaldia,   -- Population aged 15-17 attending school in municipality
-              MAX(d.p18a24a_alcaldia) as p18a24a_alcaldia,   -- Population aged 18-24 attending school in municipality
               
               -- ===== MUNICIPALITY LEVEL HISTORICAL DATA =====
               MAX(d.pob_2000_municipal) as pob_2000_municipal, -- Population in 2000 (municipality level)
@@ -637,30 +582,6 @@ class AreaAnalysisQuery:
               SUM(d.pobtot_colonia) as pobtot_colonia,           -- Total population in colonia (summed)
               SUM(d.pobmas_colonia) as pobmas_colonia,           -- Total male population in colonia (summed)
               SUM(d.pobfem_colonia) as pobfem_colonia,           -- Total female population in colonia (summed)
-              SUM(d.pea_colonia) as pea_colonia,                 -- Total economically active population in colonia
-              SUM(d.pea_m_colonia) as pea_m_colonia,             -- Total economically active male population in colonia
-              SUM(d.pea_f_colonia) as pea_f_colonia,             -- Total economically active female population in colonia
-              SUM(d.pe_inac_colonia) as pe_inac_colonia,         -- Total economically inactive population in colonia
-              SUM(d.pe_inac_m_colonia) as pe_inac_m_colonia,     -- Total economically inactive male population in colonia
-              SUM(d.pe_inac_f_colonia) as pe_inac_f_colonia,     -- Total economically inactive female population in colonia
-              SUM(d.pocupada_colonia) as pocupada_colonia,       -- Total employed population in colonia
-              SUM(d.pocupada_m_colonia) as pocupada_m_colonia,   -- Total employed male population in colonia
-              SUM(d.pocupada_f_colonia) as pocupada_f_colonia,   -- Total employed female population in colonia
-              SUM(d.pdesocup_colonia) as pdesocup_colonia,       -- Total unemployed population in colonia
-              SUM(d.pdesocup_m_colonia) as pdesocup_m_colonia,   -- Total unemployed male population in colonia
-              SUM(d.pdesocup_f_colonia) as pdesocup_f_colonia,   -- Total unemployed female population in colonia
-              
-              -- ===== COLONIA LEVEL EDUCATION DATA =====
-              SUM(d.p_3a5_colonia) as p_3a5_colonia,             -- Population aged 3-5 in colonia
-              SUM(d.p_6a11_colonia) as p_6a11_colonia,           -- Population aged 6-11 in colonia
-              SUM(d.p_12a14_colonia) as p_12a14_colonia,         -- Population aged 12-14 in colonia
-              SUM(d.p_15a17_colonia) as p_15a17_colonia,         -- Population aged 15-17 in colonia
-              SUM(d.p_18a24_colonia) as p_18a24_colonia,         -- Population aged 18-24 in colonia
-              SUM(d.p3a5_noa_colonia) as p3a5_noa_colonia,       -- Population aged 3-5 not attending school in colonia
-              SUM(d.p6a11_noa_colonia) as p6a11_noa_colonia,     -- Population aged 6-11 not attending school in colonia
-              SUM(d.p12a14noa_colonia) as p12a14noa_colonia,     -- Population aged 12-14 not attending school in colonia
-              SUM(d.p15a17a_colonia) as p15a17a_colonia,         -- Population aged 15-17 attending school in colonia
-              SUM(d.p18a24a_colonia) as p18a24a_colonia,         -- Population aged 18-24 attending school in colonia
               
               -- ===== COLONIA LEVEL SOCIOECONOMIC DATA (AVERAGED) =====
               AVG(d.ses_ab_colonia) as ses_ab_colonia,       -- Percentage of households in SES AB in colonia
@@ -746,35 +667,6 @@ class AreaAnalysisQuery:
         query = f"""
         WITH demographic_data AS (
         SELECT 
-              -- ===== WORKFORCE DATA (SUM across all records in radius) =====
-              SUM(d.pea) as pea,                    -- Total economically active population
-              SUM(d.pea_m) as pea_m,                -- Total economically active male population
-              SUM(d.pea_f) as pea_f,                -- Total economically active female population
-              SUM(d.pe_inac) as pe_inac,            -- Total economically inactive population
-              SUM(d.pe_inac_m) as pe_inac_m,        -- Total economically inactive male population
-              SUM(d.pe_inac_f) as pe_inac_f,        -- Total economically inactive female population
-              
-              -- ===== EMPLOYMENT DATA (SUM across all records in radius) =====
-              SUM(d.pocupada) as pocupada,          -- Total employed population
-              SUM(d.pocupada_m) as pocupada_m,      -- Total employed male population
-              SUM(d.pocupada_f) as pocupada_f,      -- Total employed female population
-              SUM(d.pdesocup) as pdesocup,          -- Total unemployed population
-              SUM(d.pdesocup_m) as pdesocup_m,      -- Total unemployed male population
-              SUM(d.pdesocup_f) as pdesocup_f,      -- Total unemployed female population
-              
-              -- ===== EDUCATION DATA (SUM across all records in radius) =====
-              SUM(d.p_3a5) as p_3a5,                -- Population aged 3-5 years
-              SUM(d.p_6a11) as p_6a11,              -- Population aged 6-11 years
-              SUM(d.p_12a14) as p_12a14,            -- Population aged 12-14 years
-              SUM(d.p_15a17) as p_15a17,            -- Population aged 15-17 years
-              SUM(d.p_18a24) as p_18a24,            -- Population aged 18-24 years
-              SUM(d.p_60ymas) as p_60ymas,          -- Population aged 60+ years
-              SUM(d.p3a5_noa) as p3a5_noa,          -- Population aged 3-5 not attending school
-              SUM(d.p6a11_noa) as p6a11_noa,        -- Population aged 6-11 not attending school
-              SUM(d.p12a14noa) as p12a14noa,        -- Population aged 12-14 not attending school
-              SUM(d.p15a17a) as p15a17a,            -- Population aged 15-17 attending school
-              SUM(d.p18a24a) as p18a24a,            -- Population aged 18-24 attending school
-              
               -- ===== AGE PYRAMID DATA (Block-level totals, municipality-level gender ratios) =====
               SUM(d.p_0a2) as p_0a2,                -- Population aged 0-2 years (block level)
               SUM(d.p_3a5) as p_3a5,                -- Population aged 3-5 years (block level)
@@ -903,8 +795,6 @@ class AreaAnalysisQuery:
               AVG(d.cambio_porcentual_2020_ageb) as cambio_porcentual_2020_ageb, -- Population growth rate 2010-2020
               
               -- ===== LOCATION IDENTIFIERS (from first record) =====
-              MAX(d.nom_loc) as neighborhood,       -- Neighborhood name
-              MAX(d.niv_predom) as predominant_level, -- Predominant socioeconomic level
               MAX(d.cve_ageb) as ageb_code,         -- Block code (AGEB)
               MAX(d.nom_mun) as nom_mun,            -- Municipality name
               MAX(d.cve_mun) as municipality_code,  -- Municipality code
@@ -916,30 +806,6 @@ class AreaAnalysisQuery:
               MAX(d.pobmas_alcaldia) as pobmas_alcaldia,     -- Total male population in municipality
               MAX(d.pobfem_alcaldia) as pobfem_alcaldia,     -- Total female population in municipality
               MAX(d.vivtot_alcaldia) as vivtot_alcaldia,     -- Total households in municipality
-              MAX(d.pea_alcaldia) as pea_alcaldia,           -- Total economically active population in municipality
-              MAX(d.pea_m_alcaldia) as pea_m_alcaldia,       -- Total economically active male population in municipality
-              MAX(d.pea_f_alcaldia) as pea_f_alcaldia,       -- Total economically active female population in municipality
-              MAX(d.pe_inac_alcaldia) as pe_inac_alcaldia,   -- Total economically inactive population in municipality
-              MAX(d.pe_inac_m_alcaldia) as pe_inac_m_alcaldia, -- Total economically inactive male population in municipality
-              MAX(d.pe_inac_f_alcaldia) as pe_inac_f_alcaldia, -- Total economically inactive female population in municipality
-              MAX(d.pocupada_alcaldia) as pocupada_alcaldia, -- Total employed population in municipality
-              MAX(d.pocupada_m_alcaldia) as pocupada_m_alcaldia, -- Total employed male population in municipality
-              MAX(d.pocupada_f_alcaldia) as pocupada_f_alcaldia, -- Total employed female population in municipality
-              MAX(d.pdesocup_alcaldia) as pdesocup_alcaldia, -- Total unemployed population in municipality
-              MAX(d.pdesocup_m_alcaldia) as pdesocup_m_alcaldia, -- Total unemployed male population in municipality
-              MAX(d.pdesocup_f_alcaldia) as pdesocup_f_alcaldia, -- Total unemployed female population in municipality
-              
-              -- ===== MUNICIPALITY LEVEL EDUCATION DATA =====
-              MAX(d.p_3a5_alcaldia) as p_3a5_alcaldia,       -- Population aged 3-5 in municipality
-              MAX(d.p_6a11_alcaldia) as p_6a11_alcaldia,     -- Population aged 6-11 in municipality
-              MAX(d.p_12a14_alcaldia) as p_12a14_alcaldia,   -- Population aged 12-14 in municipality
-              MAX(d.p_15a17_alcaldia) as p_15a17_alcaldia,   -- Population aged 15-17 in municipality
-              MAX(d.p_18a24_alcaldia) as p_18a24_alcaldia,   -- Population aged 18-24 in municipality
-              MAX(d.p3a5_noa_alcaldia) as p3a5_noa_alcaldia, -- Population aged 3-5 not attending school in municipality
-              MAX(d.p6a11_noa_alcaldia) as p6a11_noa_alcaldia, -- Population aged 6-11 not attending school in municipality
-              MAX(d.p12a14noa_alcaldia) as p12a14noa_alcaldia, -- Population aged 12-14 not attending school in municipality
-              MAX(d.p15a17a_alcaldia) as p15a17a_alcaldia,   -- Population aged 15-17 attending school in municipality
-              MAX(d.p18a24a_alcaldia) as p18a24a_alcaldia,   -- Population aged 18-24 attending school in municipality
               
               -- ===== MUNICIPALITY LEVEL AGE PYRAMID DATA =====
               -- (Moved to main age pyramid section above for proportional scaling)
@@ -969,30 +835,6 @@ class AreaAnalysisQuery:
               MAX(d.pobmas_colonia) as pobmas_colonia,           -- Total male population in colonia
               MAX(d.pobfem_colonia) as pobfem_colonia,           -- Total female population in colonia
               MAX(d.vivtot_colonia) as vivtot_colonia,           -- Total households in colonia
-              MAX(d.pea_colonia) as pea_colonia,                 -- Total economically active population in colonia
-              MAX(d.pea_m_colonia) as pea_m_colonia,             -- Total economically active male population in colonia
-              MAX(d.pea_f_colonia) as pea_f_colonia,             -- Total economically active female population in colonia
-              MAX(d.pe_inac_colonia) as pe_inac_colonia,         -- Total economically inactive population in colonia
-              MAX(d.pe_inac_m_colonia) as pe_inac_m_colonia,     -- Total economically inactive male population in colonia
-              MAX(d.pe_inac_f_colonia) as pe_inac_f_colonia,     -- Total economically inactive female population in colonia
-              MAX(d.pocupada_colonia) as pocupada_colonia,       -- Total employed population in colonia
-              MAX(d.pocupada_m_colonia) as pocupada_m_colonia,   -- Total employed male population in colonia
-              MAX(d.pocupada_f_colonia) as pocupada_f_colonia,   -- Total employed female population in colonia
-              MAX(d.pdesocup_colonia) as pdesocup_colonia,       -- Total unemployed population in colonia
-              MAX(d.pdesocup_m_colonia) as pdesocup_m_colonia,   -- Total unemployed male population in colonia
-              MAX(d.pdesocup_f_colonia) as pdesocup_f_colonia,   -- Total unemployed female population in colonia
-              
-              -- ===== COLONIA LEVEL EDUCATION DATA =====
-              MAX(d.p_3a5_colonia) as p_3a5_colonia,             -- Population aged 3-5 in colonia
-              MAX(d.p_6a11_colonia) as p_6a11_colonia,           -- Population aged 6-11 in colonia
-              MAX(d.p_12a14_colonia) as p_12a14_colonia,         -- Population aged 12-14 in colonia
-              MAX(d.p_15a17_colonia) as p_15a17_colonia,         -- Population aged 15-17 in colonia
-              MAX(d.p_18a24_colonia) as p_18a24_colonia,         -- Population aged 18-24 in colonia
-              MAX(d.p3a5_noa_colonia) as p3a5_noa_colonia,       -- Population aged 3-5 not attending school in colonia
-              MAX(d.p6a11_noa_colonia) as p6a11_noa_colonia,     -- Population aged 6-11 not attending school in colonia
-              MAX(d.p12a14noa_colonia) as p12a14noa_colonia,     -- Population aged 12-14 not attending school in colonia
-              MAX(d.p15a17a_colonia) as p15a17a_colonia,         -- Population aged 15-17 attending school in colonia
-              MAX(d.p18a24a_colonia) as p18a24a_colonia,         -- Population aged 18-24 attending school in colonia
               
               -- ===== COLONIA LEVEL AGE PYRAMID DATA =====
               MAX(d.p_0a2_colonia) as p_0a2_colonia,             -- Population aged 0-2 in colonia
@@ -1460,8 +1302,8 @@ class AreaAnalysisQuery:
         query = f"""
         SELECT
           ROUND(SUM(total_housing)::NUMERIC, 0) AS total_households,
-          ROUND(SUM(ab*ab_2024 + cplus*cplus_2024 + c*c_2024 + cminus*cminus_2024 + dplus*dplus_2024 + d*d_2024 + e*e_2024)::NUMERIC, 0) AS total_household_income,
-          ROUND(SUM(ab*ab_2024 + cplus*cplus_2024 + c*c_2024 + cminus*cminus_2024 + dplus*dplus_2024 + d*d_2024 + e*e_2024)::NUMERIC / NULLIF(SUM(total_housing), 0), 2) AS avg_household_income
+          ROUND(SUM(ab_2024 + cplus_2024 + c_2024 + cminus_2024 + dplus_2024 + d_2024 + e_2024)::NUMERIC, 0) AS total_household_income,
+          ROUND(SUM(ab_2024 + cplus_2024 + c_2024 + cminus_2024 + dplus_2024 + d_2024 + e_2024)::NUMERIC / NULLIF(SUM(total_housing), 0), 2) AS avg_household_income
         FROM presentation.dim_socioeconomic_level_ageb
           WHERE ST_DWithin(
                 ST_SetSRID(geometry_coords, 4326),
@@ -1830,3 +1672,27 @@ class AreaAnalysisQuery:
         FROM totals
         """
         return query
+
+    def get_boundary_from_coordinates_query(self, lat, lng, radius, city='queretaro'):
+        """Get boundary from coordinates query."""
+        query = f"""
+                SELECT ST_AsText(ST_Transform(ST_Buffer(ST_Transform(ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326), 3857), {radius}), 4326)) AS wkt
+            """
+        return query
+    
+    def get_municipality_info_query(self, lat, lng, city='queretaro'):
+        """Get municipality information query."""
+        query = f"""
+            with point_geom AS (
+                SELECT ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326) AS geom
+            ),
+            buffered AS (
+                SELECT geometry
+                FROM blackprint_db_prd.integration.int_state_municipality_shapefile
+                WHERE ST_Within((SELECT geom FROM point_geom), geometry)
+            )
+            select st_Astext(geometry) as wkt from buffered ; 
+        """
+        return query
+
+    

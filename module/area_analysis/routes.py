@@ -1,6 +1,6 @@
 from flask_restful import Resource, reqparse
-from module.area_analysis.controller import AreaAnalysisController
-from module.area_analysis.active_search import ActiveSearchController
+from module.area_analysis.controller import  DemographicsAreaAnalysisController, TrafficAreaAnalysisController, TrafficPatternsAreaAnalysisController
+from module.area_analysis.active_search import ActiveSearchController, NewActiveAreaPoisDataController
 from utils.commonUtil import authenticate
 import logging
 
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 # Initialize Controllers
 active_search_controller = ActiveSearchController()
 
-class AreaAnalysisSummary(Resource):
+class AreaTrafficSummary(Resource):
     """Resource to get area analysis summary matching the UI mockup exactly."""
     
     post_parser = reqparse.RequestParser()
@@ -31,8 +31,8 @@ class AreaAnalysisSummary(Resource):
             logger.info("User %s requesting area analysis summary for lat=%s, lng=%s, radius=%s, city=%s", 
                        current_user, lat, lng, radius, config_city)
             
-            controller = AreaAnalysisController()
-            response = controller.get_area_summary(lat, lng, radius, config_city)
+            controller = TrafficAreaAnalysisController()
+            response = controller.get_data(lat, lng, radius, config_city)
             
             return response
             
@@ -62,8 +62,8 @@ class AreaAnalysisTrafficPatterns(Resource):
             logger.info("User %s requesting traffic patterns for lat=%s, lng=%s, radius=%s, city=%s", 
                        current_user, lat, lng, radius, config_city)
             
-            controller = AreaAnalysisController()
-            response = controller.get_traffic_patterns(lat, lng, radius, config_city)
+            controller = TrafficPatternsAreaAnalysisController()    
+            response = controller.get_data(lat, lng, radius, config_city)
             
             return response
             
@@ -94,8 +94,8 @@ class AreaAnalysisDemographics(Resource):
             logger.info("User %s requesting demographics analysis for lat=%s, lng=%s, radius=%s, config_city=%s", 
                        current_user, lat, lng, radius, config_city)
             
-            controller = AreaAnalysisController()
-            response = controller.get_area_demographics(lat, lng, radius, config_city)
+            controller = DemographicsAreaAnalysisController()
+            response = controller.get_data(lat, lng, radius, config_city)
             
             return response
             
@@ -176,7 +176,8 @@ class POIsData(Resource):
                     current_user, lat, lng, radius, city)
         
         # Always analyze both area and municipality
-        response = active_search_controller.get_pois_data(lat, lng, radius, city)
+        new_active_area_pois_data_controller = NewActiveAreaPoisDataController()
+        response = new_active_area_pois_data_controller.get_data(lat, lng, radius, city)
         
         return response
 
