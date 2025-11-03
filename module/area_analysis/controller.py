@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from psycopg2.extras import RealDictCursor
 from utils.responseUtils import Response
 from utils.dbUtils import Database, RedshiftDatabase
-from utils.app_cache import set_in_cache, get_from_cache
+from utils.app_cache import set_in_cache, get_from_cache  # Uses LRUCache for fast in-memory caching
 from module.area_analysis.query import AreaAnalysisQuery
 
 logger = logging.getLogger(__name__)
@@ -694,6 +694,15 @@ class DemographicsAreaAnalysisController(AbstractAreaAnalysisController):
     
     def get_data(self, lat, lng, radius, city='queretaro'):
         """Get demographics area analysis data."""
+        # Create cache key based on parameters
+        cache_key = f"demographics_analysis_{city}_{lat}_{lng}_{radius}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached demographics analysis data for {city} at ({lat}, {lng}) with radius {radius}")
+            return cached_response
+        
         catchment = self.get_boundary_from_coordinates(lat, lng, radius, city)
         municipality_wkt = self.get_municipality_info(lat, lng, city)
         # Fetch POIs within catchment and municipality
@@ -707,7 +716,13 @@ class DemographicsAreaAnalysisController(AbstractAreaAnalysisController):
             return Response.error("No data found for the demographics area analysis")
         
         demographics_data = self._populate_demographics(area_data, municipality_area_data, lat, lng, radius)
-        return Response.success(data=demographics_data)
+        resp = Response.success(data=demographics_data)
+        
+        # Cache the successful response
+        set_in_cache('demographic', cache_key, resp)
+        logger.info(f"Cached demographics analysis data for {city} at ({lat}, {lng}) with radius {radius}")
+        
+        return resp
     
 
 
@@ -796,6 +811,14 @@ class TrafficAreaAnalysisController(AbstractAreaAnalysisController):
     
     def get_data(self, lat, lng, radius, city='queretaro'):
         """Get traffic area analysis data."""
+        # Create cache key based on parameters
+        cache_key = f"traffic_summary_{city}_{lat}_{lng}_{radius}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached traffic summary data for {city} at ({lat}, {lng}) with radius {radius}")
+            return cached_response
                 
         catchment = self.get_boundary_from_coordinates(lat, lng, radius, city)
         municipality_wkt = self.get_municipality_info(lat, lng, city)
@@ -906,7 +929,13 @@ class TrafficAreaAnalysisController(AbstractAreaAnalysisController):
                 'bucket_distribution': bucket_data
             })
         
-        return Response.success(data=data)
+        resp = Response.success(data=data)
+        
+        # Cache the successful response
+        set_in_cache('demographic', cache_key, resp)
+        logger.info(f"Cached traffic summary data for {city} at ({lat}, {lng}) with radius {radius}")
+        
+        return resp
     
 
 class TrafficPatternsAreaAnalysisController(AbstractAreaAnalysisController):
@@ -1030,6 +1059,15 @@ class TrafficPatternsAreaAnalysisController(AbstractAreaAnalysisController):
     
     def get_data(self, lat, lng, radius, city='queretaro'):
         """Get traffic patterns area analysis data."""
+        # Create cache key based on parameters
+        cache_key = f"traffic_patterns_{city}_{lat}_{lng}_{radius}"
+        
+        # Check cache first
+        cached_response = get_from_cache('demographic', cache_key)
+        if cached_response:
+            logger.info(f"Returning cached traffic patterns data for {city} at ({lat}, {lng}) with radius {radius}")
+            return cached_response
+        
         catchment = self.get_boundary_from_coordinates(lat, lng, radius, city)
         
         if not catchment:
@@ -1037,7 +1075,13 @@ class TrafficPatternsAreaAnalysisController(AbstractAreaAnalysisController):
             return Response.error("Invalid catchment area")
         
         patterns_data = self._populate_traffic_patterns(catchment, lat, lng, radius)
-        return Response.success(data=patterns_data)
+        resp = Response.success(data=patterns_data)
+        
+        # Cache the successful response
+        set_in_cache('demographic', cache_key, resp)
+        logger.info(f"Cached traffic patterns data for {city} at ({lat}, {lng}) with radius {radius}")
+        
+        return resp
     
 
         
