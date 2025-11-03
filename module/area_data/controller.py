@@ -50,6 +50,7 @@ class TotalPopulation(AbstractAreaData):
     
     def get_data(self, boundary):
         q = query.get_total_population_query(boundary)
+        print(q, "q")
         self.cursor.execute(q)
         data = self.cursor.fetchall()
         return data[0]['total_population'] 
@@ -86,12 +87,12 @@ class SocioeconomicAreaData(AbstractAreaData) :
     def get_data(self, boundary):
         """Get socio-economic data for the selected area."""
         q = query.build_socioeconomic_query(boundary)
+        print(q, "q")
         redshift_connection = self.redshift_db.connect()
         cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
         try:
             cursor.execute(q)
             data = cursor.fetchall()
-            print("socioeconomic data",data)
         finally:
             cursor.close()
             self.redshift_db.disconnect(redshift_connection)
@@ -163,6 +164,7 @@ class PoisAreaData(AbstractAreaData) :
     def get_data(self, boundary):
         """Get POIs data for the selected area."""
         q = query.build_pois_query(boundary)
+        print(q)
         self.cursor.execute(q)
         data = self.cursor.fetchall()
         return data 

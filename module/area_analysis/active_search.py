@@ -948,14 +948,15 @@ class NewActiveAreaPoisDataController(AbstractActiveSearchController):
         # Query total population for area catchment (to compute business density rate)
         total_population_object = TotalPopulation()
         total_population = total_population_object.get_data(catchment)
+        print(total_population, "total_population")
         # Compute analysis metrics for area and municipality
         area_analysis = format_pois_data(area_rows, total_population)
 
         municipality_population = total_population_object.get_data(municipality_wkt)
         municipality_code = None
         municipality_name = None
-
-        municipality_analysis = self._calculate_pois_analysis_metrics(municipality_rows, municipality_population)
+        print(municipality_population, "municipality_population")
+        municipality_analysis = format_pois_data(municipality_rows, municipality_population)
 
         # Attach municipality context similar to _get_municipality_analysis
         if isinstance(municipality_analysis, dict):

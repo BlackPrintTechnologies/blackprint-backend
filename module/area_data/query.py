@@ -326,17 +326,10 @@ def build_pois_query(catchment):
     query = f"""
         WITH geom_input AS (
             SELECT ST_GeomFromText('{catchment}', 4326) AS geom
-        ),
-        h3_values AS (
-            SELECT H3_Polyfill(geom, 10) AS h3_indexes FROM geom_input
-        ),
-        h3_index AS (
-            SELECT o AS h3_value
-            FROM h3_values i, i.h3_indexes o
         )
         SELECT CASE WHEN chain_id != 'None' THEN chain_id ELSE NULL END AS brand,
                name AS names_pri,
-               geometry_wkt,
+               geometry_coords as geometry_wkt,
                main_category,
                sub_category,
                sub_sub_category,
@@ -346,8 +339,11 @@ def build_pois_query(catchment):
                average_stars,
                number_of_reviews,
                sentiment_score
-        FROM blackprint_db_prd.presentation.dim_pois_qro a
-        INNER JOIN h3_index b ON a.h3_value = b.h3_value
+        FROM blackprint_db_prd.presentation.dim_pois_dataplor a
+        where ST_Intersects(
+            ST_SetSRID(a.geometry_coords, 4326),
+            (SELECT geom FROM geom_input)
+        )
     """
     return query
 
@@ -486,7 +482,7 @@ def get_total_population_query(catchment):
                     ST_Transform(
                             ST_SetSRID(
                                 geometry_coords, 
-                                32614
+                                4326
                             ),
                             4326
                         ),  
