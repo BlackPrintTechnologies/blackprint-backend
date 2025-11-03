@@ -19,6 +19,26 @@ class AbstractAreaData(ABC):
         self.cursor = self.redshift_connection.cursor(cursor_factory=RealDictCursor)
         pass
     
+    def cleanup(self):
+        """Clean up database connections and return them to the pool."""
+        try:
+            if self.cursor:
+                self.cursor.close()
+                self.cursor = None
+        except Exception as e:
+            logger.warning(f"Error closing cursor: {e}")
+        
+        try:
+            if self.redshift_connection:
+                self.redshift_db.disconnect(self.redshift_connection)
+                self.redshift_connection = None
+        except Exception as e:
+            logger.warning(f"Error disconnecting Redshift connection: {e}")
+    
+    def __del__(self):
+        """Destructor to ensure cleanup happens even if cleanup() is not called explicitly."""
+        self.cleanup()
+    
     def get_data(self, boundary):
         """Get data for the selected area."""
         raise NotImplementedError("Subclasses must implement get_data")
@@ -47,10 +67,12 @@ class DemographicsAreaData(AbstractAreaData) :
         q = query.build_demographics_query(boundary)
         redshift_connection = self.redshift_db.connect()
         cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-        cursor.execute(q)
-        data = cursor.fetchall()
-        cursor.close()
-        redshift_connection.close()
+        try:
+            cursor.execute(q)
+            data = cursor.fetchall()
+        finally:
+            cursor.close()
+            self.redshift_db.disconnect(redshift_connection)
         return data 
 
 
@@ -66,11 +88,13 @@ class SocioeconomicAreaData(AbstractAreaData) :
         q = query.build_socioeconomic_query(boundary)
         redshift_connection = self.redshift_db.connect()
         cursor = redshift_connection.cursor(cursor_factory=RealDictCursor)
-        cursor.execute(q)
-        data = cursor.fetchall()
-        print("socioeconomic data",data)
-        cursor.close()
-        redshift_connection.close()
+        try:
+            cursor.execute(q)
+            data = cursor.fetchall()
+            print("socioeconomic data",data)
+        finally:
+            cursor.close()
+            self.redshift_db.disconnect(redshift_connection)
         return data 
     
 class TrafficAreaData(AbstractAreaData) :

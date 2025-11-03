@@ -21,6 +21,7 @@ class AreaTrafficSummary(Resource):
     @authenticate
     def post(self, current_user):
         """POST /area-analysis/traffic-summary - Get complete area analysis summary for the UI."""
+        controller = None
         try:
             args = self.post_parser.parse_args()
             lat = args.get('lat')
@@ -39,6 +40,9 @@ class AreaTrafficSummary(Resource):
         except Exception as e:
             logger.error("Error in AreaAnalysisSummary POST: %s", str(e))
             return {'message': 'Internal server error', 'status_code': 500}, 500
+        finally:
+            if controller:
+                controller.cleanup()
 
 class AreaAnalysisTrafficPatterns(Resource):
     """Resource to get detailed traffic patterns (hourly and daily) for charts."""
@@ -52,6 +56,7 @@ class AreaAnalysisTrafficPatterns(Resource):
     @authenticate
     def post(self, current_user):
         """POST /area-analysis/traffic-patterns - Get detailed traffic patterns for charts."""
+        controller = None
         try:
             args = self.post_parser.parse_args()
             lat = args.get('lat')
@@ -70,6 +75,9 @@ class AreaAnalysisTrafficPatterns(Resource):
         except Exception as e:
             logger.error("Error in AreaAnalysisTrafficPatterns POST: %s", str(e))
             return {'message': 'Internal server error', 'status_code': 500}, 500
+        finally:
+            if controller:
+                controller.cleanup()
 
 class AreaAnalysisDemographics(Resource):
     """Resource to get demographic and socioeconomic analysis for a specific area."""
@@ -84,6 +92,7 @@ class AreaAnalysisDemographics(Resource):
     @authenticate
     def post(self, current_user):
         """POST /area-analysis/demographics - Get demographic and socioeconomic analysis."""
+        controller = None
         try:
             args = self.post_parser.parse_args()
             lat = args.get('lat')
@@ -102,6 +111,9 @@ class AreaAnalysisDemographics(Resource):
         except Exception as e:
             logger.error("Error in AreaAnalysisDemographics POST: %s", str(e))
             return {'message': 'Internal server error', 'status_code': 500}, 500
+        finally:
+            if controller:
+                controller.cleanup()
 
 
 

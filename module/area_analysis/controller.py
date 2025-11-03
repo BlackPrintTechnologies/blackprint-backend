@@ -29,6 +29,25 @@ class AbstractAreaAnalysisController:
         self.cursor = self.redshift_connection.cursor(cursor_factory=RealDictCursor)
         self.qc = AreaAnalysisQuery()
     
+    def cleanup(self):
+        """Clean up database connections and return them to the pool."""
+        try:
+            if self.cursor:
+                self.cursor.close()
+                self.cursor = None
+        except Exception as e:
+            logger.warning(f"Error closing cursor: {e}")
+        
+        try:
+            if self.redshift_connection:
+                self.redshift_db.disconnect(self.redshift_connection)
+                self.redshift_connection = None
+        except Exception as e:
+            logger.warning(f"Error disconnecting Redshift connection: {e}")
+    
+    def __del__(self):
+        """Destructor to ensure cleanup happens even if cleanup() is not called explicitly."""
+        self.cleanup()
 
     def get_boundary_from_coordinates(self, lat, lng, radius, city='queretaro'):
         """Get boundary from coordinates as WKT polygon (radius in meters)."""
@@ -226,17 +245,24 @@ class DemographicsAreaAnalysisController(AbstractAreaAnalysisController):
         catchment = self.get_boundary_from_coordinates(lat, lng, radius)
         municipality_wkt = self.get_municipality_info(lat, lng)
         
+        area_socio = {}
+        mun_socio = {}
+        
         if catchment:
-            area_socio_data = SocioeconomicAreaData().get_data(catchment)
-            area_socio = self._to_dict_socioeconomic(area_socio_data[0] if area_socio_data else {})
-        else:
-            area_socio = {}
+            socio_data_obj = SocioeconomicAreaData()
+            try:
+                area_socio_data = socio_data_obj.get_data(catchment)
+                area_socio = self._to_dict_socioeconomic(area_socio_data[0] if area_socio_data else {})
+            finally:
+                socio_data_obj.cleanup()
         
         if municipality_wkt:
-            mun_socio_data = SocioeconomicAreaData().get_data(municipality_wkt)
-            mun_socio = self._to_dict_socioeconomic(mun_socio_data[0] if mun_socio_data else {})
-        else:
-            mun_socio = {}
+            socio_data_obj = SocioeconomicAreaData()
+            try:
+                mun_socio_data = socio_data_obj.get_data(municipality_wkt)
+                mun_socio = self._to_dict_socioeconomic(mun_socio_data[0] if mun_socio_data else {})
+            finally:
+                socio_data_obj.cleanup()
         
         # Calculate total SES for percentage calculations
         area_total_ses = (
@@ -706,8 +732,23 @@ class DemographicsAreaAnalysisController(AbstractAreaAnalysisController):
         catchment = self.get_boundary_from_coordinates(lat, lng, radius, city)
         municipality_wkt = self.get_municipality_info(lat, lng, city)
         # Fetch POIs within catchment and municipality
-        area_data = DemographicsAreaData().get_data(catchment) if catchment else []
-        municipality_area_data = DemographicsAreaData().get_data(municipality_wkt) if municipality_wkt else []
+        area_data = []
+        municipality_area_data = []
+        
+        if catchment:
+            demo_data_obj = DemographicsAreaData()
+            try:
+                area_data = demo_data_obj.get_data(catchment)
+            finally:
+                demo_data_obj.cleanup()
+        
+        if municipality_wkt:
+            demo_data_obj = DemographicsAreaData()
+            try:
+                municipality_area_data = demo_data_obj.get_data(municipality_wkt)
+            finally:
+                demo_data_obj.cleanup()
+        
         print("area data",area_data)
         print("municipality area data",municipality_area_data)
         # return area_data, municipality_area_data
@@ -827,8 +868,12 @@ class TrafficAreaAnalysisController(AbstractAreaAnalysisController):
             return Response.error("Invalid catchment area")
         
         # TrafficAreaData.get_data() returns tuple: (traffic_data_dict, h3_data_list)
-        area_tuple = TrafficAreaData().get_data(catchment)
-        mun_tuple = TrafficAreaData().get_data(municipality_wkt) if municipality_wkt else ({}, [])
+        traffic_area_data = TrafficAreaData()
+        try:
+            area_tuple = traffic_area_data.get_data(catchment)
+            mun_tuple = traffic_area_data.get_data(municipality_wkt) if municipality_wkt else ({}, [])
+        finally:
+            traffic_area_data.cleanup()
         
         if not area_tuple or not isinstance(area_tuple, tuple) or len(area_tuple) != 2:
             return Response.error("No data found for the traffic area analysis")
@@ -856,9 +901,12 @@ class TrafficAreaAnalysisController(AbstractAreaAnalysisController):
         # Get population data
         print("getting total population")
         total_population_obj = TotalPopulation()
-        print("total popualtion fetched")
-        total_population = self._to_float(total_population_obj.get_data(catchment) if catchment else 0)
-        municipality_population = self._to_float(total_population_obj.get_data(municipality_wkt) if municipality_wkt else 0)
+        try:
+            print("total popualtion fetched")
+            total_population = self._to_float(total_population_obj.get_data(catchment) if catchment else 0)
+            municipality_population = self._to_float(total_population_obj.get_data(municipality_wkt) if municipality_wkt else 0)
+        finally:
+            total_population_obj.cleanup()
         
         # Calculate metrics
         area_km2 = round((3.14159 * (radius/1000) ** 2), 2)
