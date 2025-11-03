@@ -247,7 +247,7 @@ class AreaAnalysisController:
                 self.redshift_db.disconnect(connection)
             return resp
 
-    def get_area_summary(self, lat, lng, radius=2000, config_city='queretaro'):
+    def get_area_summary(self, lat, lng, radius=2000, user_type=None, config_city='queretaro'):
         """Get area analysis summary matching the UI mockup."""
         # Create cache key based on parameters
         cache_key = f"area_summary_{config_city}_{lat}_{lng}_{radius}"
@@ -2136,6 +2136,19 @@ class DemographicsAreaAnalysisController(AbstractAreaAnalysisController):
             return {}
         return {k: self._to_float(v) for k, v in dict(row).items()}
     
+    def _to_dict_socioeconomic(self, row):
+        """Convert RealDictRow to dict with float conversion, preserving string fields."""
+        if not row:
+            return {}
+        result = {}
+        for k, v in dict(row).items():
+            # Keep predominant_level as string
+            if k == 'predominant_level' or isinstance(v, str):
+                result[k] = v
+            else:
+                result[k] = self._to_float(v)
+        return result
+
     def _pct(self, part, total):
         """Calculate percentage."""
         return round((part / total * 100), 1) if total > 0 else 0.0
@@ -2286,13 +2299,13 @@ class DemographicsAreaAnalysisController(AbstractAreaAnalysisController):
         
         if catchment:
             area_socio_data = SocioeconomicAreaData().get_data(catchment)
-            area_socio = self._to_dict(area_socio_data[0] if area_socio_data else {})
+            area_socio = self._to_dict_socioeconomic(area_socio_data[0] if area_socio_data else {})
         else:
             area_socio = {}
         
         if municipality_wkt:
             mun_socio_data = SocioeconomicAreaData().get_data(municipality_wkt)
-            mun_socio = self._to_dict(mun_socio_data[0] if mun_socio_data else {})
+            mun_socio = self._to_dict_socioeconomic(mun_socio_data[0] if mun_socio_data else {})
         else:
             mun_socio = {}
         
@@ -2341,6 +2354,381 @@ class DemographicsAreaAnalysisController(AbstractAreaAnalysisController):
                     'ses_d': self._to_float(mun_socio.get('ses_d', 0)),
                     'ses_e': self._to_float(mun_socio.get('ses_e', 0))
                 })
+        
+        # Populate socioeconomic_analysis section
+        area_predominant_level = area_socio.get('predominant_level', '')
+        mun_predominant_level = mun_socio.get('predominant_level', '')
+        
+        # Calculate percentage for predominant level (area)
+        area_total = area_total_ses if area_total_ses > 0 else 1
+        area_predominant_count = 0
+        if area_predominant_level:
+            # Map predominant level to SES count
+            level_mapping = {
+                'A/B': area_socio.get('ses_ab', 0),
+                'C+': area_socio.get('ses_c_plus', 0),
+                'C': area_socio.get('ses_c', 0),
+                'C-': area_socio.get('ses_c_minus', 0),
+                'D+': area_socio.get('ses_d_plus', 0),
+                'D': area_socio.get('ses_d', 0),
+                'E': area_socio.get('ses_e', 0)
+            }
+            area_predominant_count = level_mapping.get(area_predominant_level, 0)
+        
+        area_predominant_pct = self._pct(area_predominant_count, area_total)
+        
+        # Calculate percentage for predominant level (municipality)
+        mun_total = mun_total_ses if mun_total_ses > 0 else 1
+        mun_predominant_count = 0
+        if mun_predominant_level:
+            level_mapping_mun = {
+                'A/B': mun_socio.get('ses_ab', 0),
+                'C+': mun_socio.get('ses_c_plus', 0),
+                'C': mun_socio.get('ses_c', 0),
+                'C-': mun_socio.get('ses_c_minus', 0),
+                'D+': mun_socio.get('ses_d_plus', 0),
+                'D': mun_socio.get('ses_d', 0),
+                'E': mun_socio.get('ses_e', 0)
+            }
+            mun_predominant_count = level_mapping_mun.get(mun_predominant_level, 0)
+        
+        mun_predominant_pct = self._pct(mun_predominant_count, mun_total)
+        
+        # Update predominant socioeconomic level
+        data['socioeconomic_analysis']['predominant_socioeconomic_level'].update({
+            'selected_area': {
+                'level': area_predominant_level or '',
+                'percentage': area_predominant_pct
+            },
+            'municipality': {
+                'level': mun_predominant_level or '',
+                'percentage': mun_predominant_pct
+            }
+        })
+        
+        # Populate households_per_level for selected area
+        households_per_level = [
+            {'level': 'A/B', 'households': int(area_socio.get('ses_ab', 0)), 'percentage': self._pct(area_socio.get('ses_ab', 0), area_total)},
+            {'level': 'C+', 'households': int(area_socio.get('ses_c_plus', 0)), 'percentage': self._pct(area_socio.get('ses_c_plus', 0), area_total)},
+            {'level': 'C', 'households': int(area_socio.get('ses_c', 0)), 'percentage': self._pct(area_socio.get('ses_c', 0), area_total)},
+            {'level': 'C-', 'households': int(area_socio.get('ses_c_minus', 0)), 'percentage': self._pct(area_socio.get('ses_c_minus', 0), area_total)},
+            {'level': 'D+', 'households': int(area_socio.get('ses_d_plus', 0)), 'percentage': self._pct(area_socio.get('ses_d_plus', 0), area_total)},
+            {'level': 'D', 'households': int(area_socio.get('ses_d', 0)), 'percentage': self._pct(area_socio.get('ses_d', 0), area_total)},
+            {'level': 'E', 'households': int(area_socio.get('ses_e', 0)), 'percentage': self._pct(area_socio.get('ses_e', 0), area_total)}
+        ]
+        
+        data['socioeconomic_analysis']['households_per_level'] = households_per_level
+        
+        # Populate socioeconomic_income_analysis from SES data
+        # Note: We don't have actual income amounts, but we can derive insights from SES levels
+        area_total_households = area_socio.get('total_housing', 0) or area_total_ses
+        mun_total_households = mun_socio.get('total_housing', 0) or mun_total_ses
+        
+        # Calculate total household income from 2024 SES income data
+        area_total_income_2024 = (
+            area_socio.get('ses_ab_2024', 0) +
+            area_socio.get('ses_c_plus_2024', 0) +
+            area_socio.get('ses_c_2024', 0) +
+            area_socio.get('ses_c_minus_2024', 0) +
+            area_socio.get('ses_d_plus_2024', 0) +
+            area_socio.get('ses_d_2024', 0) +
+            area_socio.get('ses_e_2024', 0)
+        )
+        
+        mun_total_income_2024 = (
+            mun_socio.get('ses_ab_2024', 0) +
+            mun_socio.get('ses_c_plus_2024', 0) +
+            mun_socio.get('ses_c_2024', 0) +
+            mun_socio.get('ses_c_minus_2024', 0) +
+            mun_socio.get('ses_d_plus_2024', 0) +
+            mun_socio.get('ses_d_2024', 0) +
+            mun_socio.get('ses_e_2024', 0)
+        )
+        
+        # Calculate average household income
+        area_avg_income = round(area_total_income_2024 / area_total_households, 2) if area_total_households > 0 else 0.0
+        mun_avg_income = round(mun_total_income_2024 / mun_total_households, 2) if mun_total_households > 0 else 0.0
+        
+        # Income summary for selected area
+        data['socioeconomic_income_analysis']['income_summary'].update({
+            'total_households': int(area_total_households),
+            'total_household_income': int(area_total_income_2024),
+            'average_household_income': area_avg_income
+        })
+        
+        # Income distribution by level (using current year 2024 data)
+        income_distribution_levels = [
+            {
+                'level': 'A/B',
+                'households': int(area_socio.get('ses_ab', 0)),
+                'household_percentage': self._pct(area_socio.get('ses_ab', 0), area_total_households),
+                'total_income': int(area_socio.get('ses_ab_2024', 0)),  # Historical income proxy
+                'income_percentage': self._pct(area_socio.get('ses_ab_2024', 0), sum([
+                    area_socio.get('ses_ab_2024', 0),
+                    area_socio.get('ses_c_plus_2024', 0),
+                    area_socio.get('ses_c_2024', 0),
+                    area_socio.get('ses_c_minus_2024', 0),
+                    area_socio.get('ses_d_plus_2024', 0),
+                    area_socio.get('ses_d_2024', 0),
+                    area_socio.get('ses_e_2024', 0)
+                ]))
+            },
+            {
+                'level': 'C+',
+                'households': int(area_socio.get('ses_c_plus', 0)),
+                'household_percentage': self._pct(area_socio.get('ses_c_plus', 0), area_total_households),
+                'total_income': int(area_socio.get('ses_c_plus_2024', 0)),
+                'income_percentage': self._pct(area_socio.get('ses_c_plus_2024', 0), sum([
+                    area_socio.get('ses_ab_2024', 0),
+                    area_socio.get('ses_c_plus_2024', 0),
+                    area_socio.get('ses_c_2024', 0),
+                    area_socio.get('ses_c_minus_2024', 0),
+                    area_socio.get('ses_d_plus_2024', 0),
+                    area_socio.get('ses_d_2024', 0),
+                    area_socio.get('ses_e_2024', 0)
+                ]))
+            },
+            {
+                'level': 'C',
+                'households': int(area_socio.get('ses_c', 0)),
+                'household_percentage': self._pct(area_socio.get('ses_c', 0), area_total_households),
+                'total_income': int(area_socio.get('ses_c_2024', 0)),
+                'income_percentage': self._pct(area_socio.get('ses_c_2024', 0), sum([
+                    area_socio.get('ses_ab_2024', 0),
+                    area_socio.get('ses_c_plus_2024', 0),
+                    area_socio.get('ses_c_2024', 0),
+                    area_socio.get('ses_c_minus_2024', 0),
+                    area_socio.get('ses_d_plus_2024', 0),
+                    area_socio.get('ses_d_2024', 0),
+                    area_socio.get('ses_e_2024', 0)
+                ]))
+            },
+            {
+                'level': 'C-',
+                'households': int(area_socio.get('ses_c_minus', 0)),
+                'household_percentage': self._pct(area_socio.get('ses_c_minus', 0), area_total_households),
+                'total_income': int(area_socio.get('ses_c_minus_2024', 0)),
+                'income_percentage': self._pct(area_socio.get('ses_c_minus_2024', 0), sum([
+                    area_socio.get('ses_ab_2024', 0),
+                    area_socio.get('ses_c_plus_2024', 0),
+                    area_socio.get('ses_c_2024', 0),
+                    area_socio.get('ses_c_minus_2024', 0),
+                    area_socio.get('ses_d_plus_2024', 0),
+                    area_socio.get('ses_d_2024', 0),
+                    area_socio.get('ses_e_2024', 0)
+                ]))
+            },
+            {
+                'level': 'D+',
+                'households': int(area_socio.get('ses_d_plus', 0)),
+                'household_percentage': self._pct(area_socio.get('ses_d_plus', 0), area_total_households),
+                'total_income': int(area_socio.get('ses_d_plus_2024', 0)),
+                'income_percentage': self._pct(area_socio.get('ses_d_plus_2024', 0), sum([
+                    area_socio.get('ses_ab_2024', 0),
+                    area_socio.get('ses_c_plus_2024', 0),
+                    area_socio.get('ses_c_2024', 0),
+                    area_socio.get('ses_c_minus_2024', 0),
+                    area_socio.get('ses_d_plus_2024', 0),
+                    area_socio.get('ses_d_2024', 0),
+                    area_socio.get('ses_e_2024', 0)
+                ]))
+            },
+            {
+                'level': 'D',
+                'households': int(area_socio.get('ses_d', 0)),
+                'household_percentage': self._pct(area_socio.get('ses_d', 0), area_total_households),
+                'total_income': int(area_socio.get('ses_d_2024', 0)),
+                'income_percentage': self._pct(area_socio.get('ses_d_2024', 0), sum([
+                    area_socio.get('ses_ab_2024', 0),
+                    area_socio.get('ses_c_plus_2024', 0),
+                    area_socio.get('ses_c_2024', 0),
+                    area_socio.get('ses_c_minus_2024', 0),
+                    area_socio.get('ses_d_plus_2024', 0),
+                    area_socio.get('ses_d_2024', 0),
+                    area_socio.get('ses_e_2024', 0)
+                ]))
+            },
+            {
+                'level': 'E',
+                'households': int(area_socio.get('ses_e', 0)),
+                'household_percentage': self._pct(area_socio.get('ses_e', 0), area_total_households),
+                'total_income': int(area_socio.get('ses_e_2024', 0)),
+                'income_percentage': self._pct(area_socio.get('ses_e_2024', 0), sum([
+                    area_socio.get('ses_ab_2024', 0),
+                    area_socio.get('ses_c_plus_2024', 0),
+                    area_socio.get('ses_c_2024', 0),
+                    area_socio.get('ses_c_minus_2024', 0),
+                    area_socio.get('ses_d_plus_2024', 0),
+                    area_socio.get('ses_d_2024', 0),
+                    area_socio.get('ses_e_2024', 0)
+                ]))
+            }
+        ]
+        
+        data['socioeconomic_income_analysis']['income_distribution']['levels'] = income_distribution_levels
+        
+        # Historical trends - calculate growth between periods
+        def calculate_growth(current, previous):
+            """Calculate growth percentage between two values."""
+            if previous and previous > 0:
+                return round(((current - previous) / previous) * 100, 2)
+            return 0.0
+        
+        historical_trends = []
+        ses_levels = ['ab', 'c_plus', 'c', 'c_minus', 'd_plus', 'd', 'e']
+        level_names = ['A/B', 'C+', 'C', 'C-', 'D+', 'D', 'E']
+        
+        for ses_key, level_name in zip(ses_levels, level_names):
+            trends = {
+                'level': level_name,
+                'growth_2016_2018': int(area_socio.get(f'ses_{ses_key}_2018', 0) - area_socio.get(f'ses_{ses_key}_2016', 0)),
+                'growth_2018_2020': int(area_socio.get(f'ses_{ses_key}_2020', 0) - area_socio.get(f'ses_{ses_key}_2018', 0)),
+                'growth_2020_2022': int(area_socio.get(f'ses_{ses_key}_2022', 0) - area_socio.get(f'ses_{ses_key}_2020', 0)),
+                'growth_2022_2024': int(area_socio.get(f'ses_{ses_key}_2024', 0) - area_socio.get(f'ses_{ses_key}_2022', 0)),
+                'growth_pct_2016_2018': calculate_growth(area_socio.get(f'ses_{ses_key}_2018', 0), area_socio.get(f'ses_{ses_key}_2016', 0)),
+                'growth_pct_2018_2020': calculate_growth(area_socio.get(f'ses_{ses_key}_2020', 0), area_socio.get(f'ses_{ses_key}_2018', 0)),
+                'growth_pct_2020_2022': calculate_growth(area_socio.get(f'ses_{ses_key}_2022', 0), area_socio.get(f'ses_{ses_key}_2020', 0)),
+                'growth_pct_2022_2024': calculate_growth(area_socio.get(f'ses_{ses_key}_2024', 0), area_socio.get(f'ses_{ses_key}_2022', 0))
+            }
+            historical_trends.append(trends)
+        
+        data['socioeconomic_income_analysis']['historical_trends']['growth_by_level'] = historical_trends
+        
+        # Municipality analysis
+        data['socioeconomic_income_analysis']['municipality_analysis']['income_summary'].update({
+            'total_households': int(mun_total_households),
+            'total_household_income': int(mun_total_income_2024),
+            'average_household_income': mun_avg_income
+        })
+        
+        # Municipality income distribution
+        mun_income_distribution_levels = [
+            {
+                'level': 'A/B',
+                'households': int(mun_socio.get('ses_ab', 0)),
+                'household_percentage': self._pct(mun_socio.get('ses_ab', 0), mun_total_households),
+                'total_income': int(mun_socio.get('ses_ab_2024', 0)),
+                'income_percentage': self._pct(mun_socio.get('ses_ab_2024', 0), sum([
+                    mun_socio.get('ses_ab_2024', 0),
+                    mun_socio.get('ses_c_plus_2024', 0),
+                    mun_socio.get('ses_c_2024', 0),
+                    mun_socio.get('ses_c_minus_2024', 0),
+                    mun_socio.get('ses_d_plus_2024', 0),
+                    mun_socio.get('ses_d_2024', 0),
+                    mun_socio.get('ses_e_2024', 0)
+                ]))
+            },
+            {
+                'level': 'C+',
+                'households': int(mun_socio.get('ses_c_plus', 0)),
+                'household_percentage': self._pct(mun_socio.get('ses_c_plus', 0), mun_total_households),
+                'total_income': int(mun_socio.get('ses_c_plus_2024', 0)),
+                'income_percentage': self._pct(mun_socio.get('ses_c_plus_2024', 0), sum([
+                    mun_socio.get('ses_ab_2024', 0),
+                    mun_socio.get('ses_c_plus_2024', 0),
+                    mun_socio.get('ses_c_2024', 0),
+                    mun_socio.get('ses_c_minus_2024', 0),
+                    mun_socio.get('ses_d_plus_2024', 0),
+                    mun_socio.get('ses_d_2024', 0),
+                    mun_socio.get('ses_e_2024', 0)
+                ]))
+            },
+            {
+                'level': 'C',
+                'households': int(mun_socio.get('ses_c', 0)),
+                'household_percentage': self._pct(mun_socio.get('ses_c', 0), mun_total_households),
+                'total_income': int(mun_socio.get('ses_c_2024', 0)),
+                'income_percentage': self._pct(mun_socio.get('ses_c_2024', 0), sum([
+                    mun_socio.get('ses_ab_2024', 0),
+                    mun_socio.get('ses_c_plus_2024', 0),
+                    mun_socio.get('ses_c_2024', 0),
+                    mun_socio.get('ses_c_minus_2024', 0),
+                    mun_socio.get('ses_d_plus_2024', 0),
+                    mun_socio.get('ses_d_2024', 0),
+                    mun_socio.get('ses_e_2024', 0)
+                ]))
+            },
+            {
+                'level': 'C-',
+                'households': int(mun_socio.get('ses_c_minus', 0)),
+                'household_percentage': self._pct(mun_socio.get('ses_c_minus', 0), mun_total_households),
+                'total_income': int(mun_socio.get('ses_c_minus_2024', 0)),
+                'income_percentage': self._pct(mun_socio.get('ses_c_minus_2024', 0), sum([
+                    mun_socio.get('ses_ab_2024', 0),
+                    mun_socio.get('ses_c_plus_2024', 0),
+                    mun_socio.get('ses_c_2024', 0),
+                    mun_socio.get('ses_c_minus_2024', 0),
+                    mun_socio.get('ses_d_plus_2024', 0),
+                    mun_socio.get('ses_d_2024', 0),
+                    mun_socio.get('ses_e_2024', 0)
+                ]))
+            },
+            {
+                'level': 'D+',
+                'households': int(mun_socio.get('ses_d_plus', 0)),
+                'household_percentage': self._pct(mun_socio.get('ses_d_plus', 0), mun_total_households),
+                'total_income': int(mun_socio.get('ses_d_plus_2024', 0)),
+                'income_percentage': self._pct(mun_socio.get('ses_d_plus_2024', 0), sum([
+                    mun_socio.get('ses_ab_2024', 0),
+                    mun_socio.get('ses_c_plus_2024', 0),
+                    mun_socio.get('ses_c_2024', 0),
+                    mun_socio.get('ses_c_minus_2024', 0),
+                    mun_socio.get('ses_d_plus_2024', 0),
+                    mun_socio.get('ses_d_2024', 0),
+                    mun_socio.get('ses_e_2024', 0)
+                ]))
+            },
+            {
+                'level': 'D',
+                'households': int(mun_socio.get('ses_d', 0)),
+                'household_percentage': self._pct(mun_socio.get('ses_d', 0), mun_total_households),
+                'total_income': int(mun_socio.get('ses_d_2024', 0)),
+                'income_percentage': self._pct(mun_socio.get('ses_d_2024', 0), sum([
+                    mun_socio.get('ses_ab_2024', 0),
+                    mun_socio.get('ses_c_plus_2024', 0),
+                    mun_socio.get('ses_c_2024', 0),
+                    mun_socio.get('ses_c_minus_2024', 0),
+                    mun_socio.get('ses_d_plus_2024', 0),
+                    mun_socio.get('ses_d_2024', 0),
+                    mun_socio.get('ses_e_2024', 0)
+                ]))
+            },
+            {
+                'level': 'E',
+                'households': int(mun_socio.get('ses_e', 0)),
+                'household_percentage': self._pct(mun_socio.get('ses_e', 0), mun_total_households),
+                'total_income': int(mun_socio.get('ses_e_2024', 0)),
+                'income_percentage': self._pct(mun_socio.get('ses_e_2024', 0), sum([
+                    mun_socio.get('ses_ab_2024', 0),
+                    mun_socio.get('ses_c_plus_2024', 0),
+                    mun_socio.get('ses_c_2024', 0),
+                    mun_socio.get('ses_c_minus_2024', 0),
+                    mun_socio.get('ses_d_plus_2024', 0),
+                    mun_socio.get('ses_d_2024', 0),
+                    mun_socio.get('ses_e_2024', 0)
+                ]))
+            }
+        ]
+        
+        data['socioeconomic_income_analysis']['municipality_analysis']['income_distribution']['levels'] = mun_income_distribution_levels
+        
+        # Municipality historical trends
+        mun_historical_trends = []
+        for ses_key, level_name in zip(ses_levels, level_names):
+            trends = {
+                'level': level_name,
+                'growth_2016_2018': int(mun_socio.get(f'ses_{ses_key}_2018', 0) - mun_socio.get(f'ses_{ses_key}_2016', 0)),
+                'growth_2018_2020': int(mun_socio.get(f'ses_{ses_key}_2020', 0) - mun_socio.get(f'ses_{ses_key}_2018', 0)),
+                'growth_2020_2022': int(mun_socio.get(f'ses_{ses_key}_2022', 0) - mun_socio.get(f'ses_{ses_key}_2020', 0)),
+                'growth_2022_2024': int(mun_socio.get(f'ses_{ses_key}_2024', 0) - mun_socio.get(f'ses_{ses_key}_2022', 0)),
+                'growth_pct_2016_2018': calculate_growth(mun_socio.get(f'ses_{ses_key}_2018', 0), mun_socio.get(f'ses_{ses_key}_2016', 0)),
+                'growth_pct_2018_2020': calculate_growth(mun_socio.get(f'ses_{ses_key}_2020', 0), mun_socio.get(f'ses_{ses_key}_2018', 0)),
+                'growth_pct_2020_2022': calculate_growth(mun_socio.get(f'ses_{ses_key}_2022', 0), mun_socio.get(f'ses_{ses_key}_2020', 0)),
+                'growth_pct_2022_2024': calculate_growth(mun_socio.get(f'ses_{ses_key}_2024', 0), mun_socio.get(f'ses_{ses_key}_2022', 0))
+            }
+            mun_historical_trends.append(trends)
+        
+        data['socioeconomic_income_analysis']['municipality_analysis']['historical_trends']['growth_by_level'] = mun_historical_trends
         
         # Comparison
         area_density = area.get('population_density', 0)
