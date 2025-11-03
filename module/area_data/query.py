@@ -76,11 +76,25 @@ def build_demographics_query(boundary, geometry_column='geometry_coords', table=
             SUM(COALESCE(p_18a24_m, 0)) AS age_18_24_m
         FROM {table_name} d
         WHERE ST_Intersects(
-    d.{geometry_column},
-    (SELECT geom FROM geom_input)
-)
-
-
+            d.{geometry_column},
+            (SELECT geom FROM geom_input)
+        )
+    ),
+    pop_growth_data AS (
+        SELECT 
+            COALESCE(SUM(total_pop_2000), 0) AS population_2000,
+            COALESCE(SUM(total_pop_2005), 0) AS population_2005,
+            COALESCE(SUM(total_pop_2010), 0) AS population_2010,
+            COALESCE(SUM(total_pop_2020), 0) AS population_2020,
+            -- Simple average of growth rates (not weighted)
+            COALESCE(AVG(pop_growth_rate_2000_2005), 0) AS pop_growth_rate_2000_2005,
+            COALESCE(AVG(pop_growth_rate_2005_2010), 0) AS pop_growth_rate_2005_2010,
+            COALESCE(AVG(pop_growth_rate_2010_2020), 0) AS pop_growth_rate_2010_2020
+        FROM blackprint_db_prd.presentation.dim_pop_growth_per_ageb_locality pg
+        WHERE ST_Intersects(
+            pg.geometry_coords,
+            (SELECT geom FROM geom_input)
+        )
     )
     SELECT 
         dd.total_population,
@@ -116,13 +130,18 @@ def build_demographics_query(boundary, geometry_column='geometry_coords', table=
         dd.age_15_17_m,
         dd.age_18_24_f,
         dd.age_18_24_m,
-         -- Default population values for Querétaro
-        1404306 AS population_2000,
-        1596350 AS population_2005,
-        1827937 AS population_2010,
-        2368467 AS population_2020,
+        -- Population totals from dim_pop_growth_per_ageb_locality
+        pg.population_2000,
+        pg.population_2005,
+        pg.population_2010,
+        pg.population_2020,
+        -- Population growth rates
+        pg.pop_growth_rate_2000_2005,
+        pg.pop_growth_rate_2005_2010,
+        pg.pop_growth_rate_2010_2020,
         ROUND((SELECT area_km2 FROM area_calc), 2) AS area_km2
     FROM demographic_data dd
+    CROSS JOIN pop_growth_data pg
     """
 
     return query

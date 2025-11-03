@@ -2141,14 +2141,31 @@ class DemographicsAreaAnalysisController(AbstractAreaAnalysisController):
         return round((part / total * 100), 1) if total > 0 else 0.0
     
     def _get_population_growth(self, pop_dict, years=[2000, 2005, 2010, 2020]):
-        """Calculate population growth data."""
+        """Get population growth data from query results (using pre-calculated growth rates)."""
         pops = [pop_dict.get(f'population_{y}', 0) for y in years]
+        
+        # Get pre-calculated growth rates from query
+        growth_rates = {
+            2000: 0,  # No growth rate for first year
+            2005: pop_dict.get('pop_growth_rate_2000_2005', 0) * 100,  # Convert to percentage
+            2010: pop_dict.get('pop_growth_rate_2005_2010', 0) * 100,
+            2020: pop_dict.get('pop_growth_rate_2010_2020', 0) * 100
+        }
+        
         growth = [
-            {'year': y, 'growth_percentage': 0 if i == 0 else self._pct(pops[i] - pops[i-1], pops[i-1])}
-            for i, y in enumerate(years)]
-        growth_dict = {str(y): [int(pops[i]) if pops[i] else None, growth[i]['growth_percentage']] 
-                      for i, y in enumerate(years)}
+            {'year': y, 'growth_percentage': round(growth_rates.get(y, 0), 1)}
+            for y in years
+        ]
+        
+        growth_dict = {
+            str(y): [
+                int(pops[i]) if pops[i] else None, 
+                growth[i]['growth_percentage']
+            ] 
+            for i, y in enumerate(years)
+        }
         growth_dict['2015'] = [None, None]  # No 2015 data
+        
         return growth, growth_dict
     
     def _get_age_pyramid(self, area_dict, total_pop):
