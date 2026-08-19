@@ -8,6 +8,8 @@ import logging
 import time
 from psycopg2.extras import RealDictCursor
 import json
+#for avoiding cache in local
+import os 
 
 
 # Initialize logging
@@ -17,98 +19,60 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 def fetch_properties_layer_data_raw(city='mexico'):
-    logger.info(f"Starting fetch_properties_layer_data_raw for city: {city}")
     controller = PropertyLayerController()
     connection = None
     resp = None
     try:
-        logger.info(f"Connecting to database for {city}...")
         connection = controller.db.connect()
         cursor = connection.cursor(cursor_factory=RealDictCursor)
-        
-        logger.info(f"Generating property query for {city}...")
         query = controller.get_property_query(city=city)
-        logger.info(f"Generated query for {city}, length: {len(query)}")
-        logger.info(f"Query preview for {city} (first 300 chars): {query[:300]}...")
-        
-        logger.info(f"Executing query for {city}...")
         cursor.execute(query)
-        logger.info(f"Query executed successfully for {city}")
-        
-        logger.info(f"Fetching results for {city}...")
         res = cursor.fetchall()
-        logger.info(f"Fetched {len(res)} results for {city}")
-        
         resp = {"message": "Success", "data": {"response": res}}, 200
-        logger.info(f"Successfully created response for {city}")
         
     except Exception as e:
         logger.error(f"Error in fetch_properties_layer_data_raw for {city}: {str(e)}")
-        logger.error(f"Error type for {city}: {type(e).__name__}")
-        import traceback
-        logger.error(f"Full traceback for {city}: {traceback.format_exc()}")
-        
         if connection:
-            logger.info(f"Rolling back transaction for {city}...")
             connection.rollback()
-            logger.info(f"Transaction rolled back for city: {city}")
         resp = {"message": "Internal Server Error", "data": str(e)}, 500
-        logger.error(f"Created error response for {city}: {resp}")
         
     finally:
         if cursor:
-            logger.info(f"Closing cursor for {city}...")
             cursor.close()
-            logger.info(f"Cursor closed for city: {city}")
         if connection:
-            logger.info(f"Disconnecting from database for {city}...")
             controller.db.disconnect(connection)
-        
-        logger.info(f"Returning response for {city} with status: {resp[1] if isinstance(resp, tuple) else 'Unknown'}")
         return resp
 
 # Initialize caches for both cities - only cache successful responses
-logger.info("Starting cache initialization for property layer data...")
-
-logger.info("Fetching Mexico property layer data...")
-_property_layer_cache_mexico = fetch_properties_layer_data_raw('mexico')
-logger.info(f"Mexico cache result type: {type(_property_layer_cache_mexico)}")
-logger.info(f"Mexico cache result: {_property_layer_cache_mexico}")
-
-_property_layer_cache_mexico_json = None
-if isinstance(_property_layer_cache_mexico, tuple) and len(_property_layer_cache_mexico) == 2:
-    response_data, status_code = _property_layer_cache_mexico
-    logger.info(f"Mexico response status: {status_code}")
-    logger.info(f"Mexico response data type: {type(response_data)}")
-    if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
-        _property_layer_cache_mexico_json = json.dumps(response_data)
-        logger.info("Successfully cached Mexico property layer data")
-    else:
-        logger.warning(f"Mexico property layer data not cached - status: {status_code}, message: {response_data.get('message', 'No message')}")
+if os.getenv('ENV') == 'local':
+    _property_layer_cache_mexico = None
+    _property_layer_cache_qro = None
 else:
-    logger.warning(f"Mexico property layer data not cached - unexpected response format: {_property_layer_cache_mexico}")
+    logger.info("Initializing property layer caches...")
 
-logger.info("Fetching Queretaro property layer data...")
-_property_layer_cache_qro = fetch_properties_layer_data_raw('queretaro')
-logger.info(f"Queretaro cache result type: {type(_property_layer_cache_qro)}")
-logger.info(f"Queretaro cache result: {_property_layer_cache_qro}")
+    _property_layer_cache_mexico = fetch_properties_layer_data_raw('mexico')
 
-_property_layer_cache_qro_json = None
-if isinstance(_property_layer_cache_qro, tuple) and len(_property_layer_cache_qro) == 2:
-    response_data, status_code = _property_layer_cache_qro
-    logger.info(f"Queretaro response status: {status_code}")
-    logger.info(f"Queretaro response data type: {type(response_data)}")
-    if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
-        _property_layer_cache_qro_json = json.dumps(response_data)
-        logger.info("Successfully cached Queretaro property layer data")
-    else:
-        logger.warning(f"Queretaro property layer data not cached - status: {status_code}, message: {response_data.get('message', 'No message')}")
-        if isinstance(response_data, dict) and 'data' in response_data:
-            logger.error(f"Queretaro error details: {response_data['data']}")
-else:
-    logger.warning(f"Queretaro property layer data not cached - unexpected response format: {_property_layer_cache_qro}")
+    _property_layer_cache_mexico_json = None
+    if isinstance(_property_layer_cache_mexico, tuple) and len(_property_layer_cache_mexico) == 2:
+        response_data, status_code = _property_layer_cache_mexico
+        if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+            _property_layer_cache_mexico_json = json.dumps(response_data)
+            logger.info("Mexico property layer cache initialized")
+        else:
+            logger.warning(f"Mexico property layer data not cached - status: {status_code}")
 
-logger.info("Cache initialization completed")
+    _property_layer_cache_qro = fetch_properties_layer_data_raw('queretaro')
+
+    _property_layer_cache_qro_json = None
+    if isinstance(_property_layer_cache_qro, tuple) and len(_property_layer_cache_qro) == 2:
+        response_data, status_code = _property_layer_cache_qro
+        if status_code < 400 and isinstance(response_data, dict) and response_data.get('message', '').lower() == 'success':
+            _property_layer_cache_qro_json = json.dumps(response_data)
+            logger.info("Queretaro property layer cache initialized")
+        else:
+            logger.warning(f"Queretaro property layer data not cached - status: {status_code}")
+
+    logger.info("Cache initialization completed")
 
 # {
 #     "search_name" : "test",
@@ -127,6 +91,7 @@ class Brands(Resource):
     create_parser.add_argument('fid', type=str, required=False, help='User ID is required')
     create_parser.add_argument('category', type=str, required=False, help='Category is required')
     create_parser.add_argument('config_city', type=str, required=False, default='mexico', help='City is required')
+    create_parser.add_argument('brand_names', type=str, required=False, help='Brand names is required')
 
     def post(self):
         logger.info("Received request to fetch brands.")
@@ -135,9 +100,10 @@ class Brands(Resource):
         fid = data.get('fid')
         radius = data.get('radius')
         category = data.get('category')
-        logger.debug(f"Parsed input: fid={fid}, radius={radius} ,category={category}")
+        brand_names = data.get('brand_names')
+        logger.debug(f"Parsed input: fid={fid}, radius={radius} ,category={category}, brand_name={brand_names}")
 
-        response = brand_controller.get_brands(radius, fid, category, city=data.get('config_city'))
+        response = brand_controller.get_brands(radius, fid, category, brand_names, city=data.get('config_city'))
         logger.info(f"Successfully retrieved brands for fid={fid}, radius={radius}")
         
         return response
@@ -200,3 +166,44 @@ class PropertyLayer(Resource):
                 logger.error("Mexico property layer cache is not available - fetching fresh data")
                 controller = PropertyLayerController()
                 return controller.get_property_layer(city='mexico')
+
+class LandUseFilter(Resource):
+    """
+    API endpoint to get distinct land use values for filtering properties.
+    Supports both Mexico City and Queretaro cities.
+    """
+    create_parser = reqparse.RequestParser()
+    create_parser.add_argument('config_city', type=str, required=False, default='mexico', help='City configuration (mexico, queretaro, el_marques)', location='args')
+
+    def get(self):
+        logger.info("Received request to fetch distinct land use values.")
+        data = self.create_parser.parse_args()
+        city = data.get('config_city', 'mexico')
+        
+        logger.info(f"Fetching land use values for city: {city}")
+        
+        # Validate city parameter
+        valid_cities = ['mexico', 'queretaro', 'el_marques']
+        if city not in valid_cities:
+            logger.warning(f"Invalid city parameter: {city}")
+            return Response.bad_request(
+                message=f"Invalid city parameter: {city}",
+                data={
+                    "provided_city": city,
+                    "valid_cities": valid_cities,
+                    "note": "Use 'mexico' for Mexico City, 'queretaro' or 'el_marques' for Queretaro region"
+                }
+            )
+        
+        try:
+            controller = BrandController()
+            response = controller.get_distinct_land_use(city=city)
+            logger.info(f"Successfully retrieved land use values for city: {city}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error fetching land use values for city {city}: {str(e)}")
+            return Response.internal_server_error(
+                message=f"Failed to fetch land use values for {city}",
+                data={"city": city, "error": str(e)}
+            )

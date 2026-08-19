@@ -8,7 +8,20 @@ from flask_compress import Compress
 from decimal import Decimal
 import uuid
 import json
+from datetime import datetime, date
+
+# Custom JSON encoder to handle Decimal and datetime types
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        elif isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        return super(DecimalEncoder, self).default(obj)
+
 app = Flask(__name__)
+# Configure Flask-RESTful to use custom JSON encoder
+app.config['RESTFUL_JSON'] = {'cls': DecimalEncoder}
 api = Api(app)
 
 # Allow CORS for specific origins (localhost:3000 in this case)
@@ -29,7 +42,7 @@ def before_request():
     logger.info(f"Starting request {request.request_id}")
 # Initialize logging
 
-# setup_logging()
+setup_logging()
 
 # Retrieve the logger
 logger = logging.getLogger(__name__)
@@ -41,10 +54,13 @@ logger.info("Starting the Flask application...")
 # Import your routes
 from module.user.routes import Signup, Signin, ForgotPassword, ConfirmPasswordUpdate, UpdateUser, GetUser, UserQuestionare, VerifyUser, ResendVerification, UpdateQuestionare
 from module.search.routes import SavedSearches
+from module.area_analysis.routes import ActiveSearch, MobilityData, POIsData
 from module.group.routes import Group, GroupProperty
-from module.layers.routes import Brands, Traffic, SearchBrands, PropertyLayer
-from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch
+from module.layers.routes import  Traffic, PropertyLayer, LandUseFilter
+from module.properties.routes import Property, PropertyDemographic, StreetViewImage, UpdateRequestInfo, RequestedProperties, UserProperty, PropertyTraffic, PropertyCommercialGrowth, PropertyFilter, AdvancedMunicipalitySearch, PropertyFolderAPI, PropertyFolderDetailAPI, PropertySaveAPI, PropertyRemoveAPI
 from module.markets.routes import PropertyTypes, MarketInfo
+from module.pois.routes import POIHierarchy, POIsByCoordinates, BrandSearch, Brands
+from module.area_analysis.routes import AreaTrafficSummary, AreaAnalysisTrafficPatterns, AreaAnalysisDemographics, AreaAnalysisWeeklyTraffic, AreaAnalysisPOIHierarchy
 
 # Define API routes
 api.add_resource(Signup, '/user/signup')
@@ -54,19 +70,27 @@ api.add_resource(ConfirmPasswordUpdate, '/user/confirm-password-update')
 api.add_resource(UpdateUser, '/user/updateuser')
 api.add_resource(GetUser, '/user/getuser')
 api.add_resource(SavedSearches, '/savesearch', '/savesearch/<int:search_id>')
+
+
+
 api.add_resource(Group, '/group', '/group/<int:grp_id>')
 api.add_resource(GroupProperty, '/groupproperty')
 api.add_resource(UserQuestionare, '/user/questionare/', '/user/questionare/<int:id>')
 api.add_resource(UpdateQuestionare, '/user/updatequestionare/')
 api.add_resource(VerifyUser, '/user/verify')  # Missing '/' added
 api.add_resource(ResendVerification, '/user/resend-verification')
+# pois routes
 api.add_resource(Brands, '/brands')
-api.add_resource(SearchBrands, '/searchbrands/')
+api.add_resource(BrandSearch, '/searchbrands/')
+api.add_resource(POIHierarchy, '/pois/hierarchy')
+api.add_resource(POIsByCoordinates, '/pois/coordinates')
+
 api.add_resource(Traffic, '/traffic')
 # property related routes
 api.add_resource(Property, '/property')
 api.add_resource(UserProperty, '/property/userproperty')
 api.add_resource(PropertyLayer, '/property/layer')
+api.add_resource(LandUseFilter, '/property/land-use-filter')
 api.add_resource(PropertyDemographic, '/property/demographic')
 api.add_resource(UpdateRequestInfo, '/property/requestinfo')
 api.add_resource(StreetViewImage, '/properties/street_view_image') #act as a proxy url to serve the image
@@ -77,9 +101,25 @@ api.add_resource(PropertyCommercialGrowth, '/property/commercial-growth')
 api.add_resource(PropertyFilter, '/property/filter')
 api.add_resource(AdvancedMunicipalitySearch, '/properties/municipality_search/')
 
+# Property folder routes
+api.add_resource(PropertyFolderAPI, '/property/folders')
+api.add_resource(PropertyFolderDetailAPI, '/property/folders/<int:folder_id>')
+api.add_resource(PropertySaveAPI, '/property/save')
+api.add_resource(PropertyRemoveAPI, '/property/remove')
+
 # Markets routes
 api.add_resource(MarketInfo, '/property/marketinfo')  # Catchment and fid as parameters
 api.add_resource(PropertyTypes, '/market/propertytypes')
+
+# Area Analysis routes
+api.add_resource(AreaTrafficSummary, '/area-analysis/traffic-summary')
+api.add_resource(AreaAnalysisTrafficPatterns, '/area-analysis/traffic-patterns')
+api.add_resource(AreaAnalysisDemographics, '/area-analysis/demographics')
+api.add_resource(AreaAnalysisWeeklyTraffic, '/area-analysis/weekly-traffic')
+api.add_resource(AreaAnalysisPOIHierarchy, '/area-analysis/poi-hierarchy')
+api.add_resource(ActiveSearch, '/area-analysis/active')
+api.add_resource(MobilityData, '/area-analysis/mobility')
+api.add_resource(POIsData, '/area-analysis/poisdata')
 
 @app.after_request
 def after_request(response):

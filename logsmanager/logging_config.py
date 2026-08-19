@@ -82,7 +82,7 @@ LOGGING_CONFIG = {
     },
     "handlers": {
         "console": {
-            "level": os.environ.get("LOG_LEVEL", "DEBUG"),
+            "level": os.environ.get("LOG_LEVEL", "INFO"),
             "class": "logging.StreamHandler",
             "formatter": "verbose",
             "filters": ["request_id"]

@@ -5,6 +5,10 @@
 /utils/aioCacheUtils.py
 /.vscode
 app.log
+.env
+converted.py
+h3_test.py
+
 __pycache__/
 .vscode/
 /module/properties/new_controller.py
@@ -21,3 +25,5 @@ qro_query.txt
 qro_report.json
 mexico_report.json
 
+logos/
+brand_logos__.csv

@@ -64,9 +64,11 @@ class MarketsController:
                 query = self.query_controller.get_property_market_info_combined_query(
                     spot2_id, inmuebles24_id, propiedades_id, city
                 )
+                print("market query i am getting",query)
                 logger.debug("Using combined table query: %s", query)
                 cursor.execute(query)
                 res = cursor.fetchall()
+                print("market res i am getting",res)
                 
                 # If combined table returns results, use them
                 if res and len(res) > 0:
@@ -75,6 +77,12 @@ class MarketsController:
                     
             except Exception as combined_error:
                 logger.warning("Combined table query failed, falling back to legacy tables: %s", str(combined_error))
+                # Rollback the transaction to clear the aborted state
+                try:
+                    connection.rollback()
+                    logger.debug("Transaction rolled back after combined table failure")
+                except Exception as rollback_error:
+                    logger.warning("Failed to rollback transaction: %s", str(rollback_error))
             
             # Fallback to legacy tables if combined table fails or returns no results
             query = self.query_controller.get_property_market_info_legacy_query(
@@ -132,17 +140,39 @@ class MarketsController:
         try:
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            if city == 'mexico':
+            
+            # Try combined table first for better performance (for non-mexico cities)
+            if city != 'mexico':
+                try:
+                    query = self.query_controller.get_property_market_info_combined_query(
+                        None, ids_market_data_inmuebles24, None, city
+                    )
+                    print("query", query)
+                    cursor.execute(query)
+                    row = cursor.fetchone()
+                    if row:
+                        # If we got results, proceed with processing
+                        pass
+                    else:
+                        # No results from combined table, try legacy
+                        raise Exception("No results from combined table")
+                except Exception as combined_error:
+                    logger.warning("Combined table query failed, falling back to legacy tables: %s", str(combined_error))
+                    # Rollback the transaction to clear the aborted state
+                    try:
+                        connection.rollback()
+                        logger.debug("Transaction rolled back after combined table failure")
+                    except Exception as rollback_error:
+                        logger.warning("Failed to rollback transaction: %s", str(rollback_error))
+            
+            # Use legacy table for mexico or as fallback
+            if city == 'mexico' or not row:
                 query = self.query_controller.get_property_market_info_legacy_query(
                     None, ids_market_data_inmuebles24, None, city
                 )
-            else:
-                query = self.query_controller.get_property_market_info_combined_query(
-                    None, ids_market_data_inmuebles24, None, city
-                )
-            print("query", query)
-            cursor.execute(query)
-            row = cursor.fetchone()
+                print("query", query)
+                cursor.execute(query)
+                row = cursor.fetchone()
             if row and row.get('pictures'):
                 # pictures is expected to be a JSON array or comma-separated string
                 try:
@@ -176,16 +206,37 @@ class MarketsController:
         try:
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            if city == 'mexico':
+            
+            # Try combined table first for better performance (for non-mexico cities)
+            if city != 'mexico':
+                try:
+                    query = self.query_controller.get_property_market_info_combined_query(
+                        ids_market_data_spot2, None, None, city
+                    )
+                    cursor.execute(query)
+                    row = cursor.fetchone()
+                    if row:
+                        # If we got results, proceed with processing
+                        pass
+                    else:
+                        # No results from combined table, try legacy
+                        raise Exception("No results from combined table")
+                except Exception as combined_error:
+                    logger.warning("Combined table query failed, falling back to legacy tables: %s", str(combined_error))
+                    # Rollback the transaction to clear the aborted state
+                    try:
+                        connection.rollback()
+                        logger.debug("Transaction rolled back after combined table failure")
+                    except Exception as rollback_error:
+                        logger.warning("Failed to rollback transaction: %s", str(rollback_error))
+            
+            # Use legacy table for mexico or as fallback
+            if city == 'mexico' or not row:
                 query = self.query_controller.get_property_market_info_legacy_query(
                     ids_market_data_spot2, None, None, city
                 )
-            else:
-                query = self.query_controller.get_property_market_info_combined_query(
-                    ids_market_data_spot2, None, None, city
-                )
-            cursor.execute(query)
-            row = cursor.fetchone()
+                cursor.execute(query)
+                row = cursor.fetchone()
             
             if row and row.get('pictures') and row.get('pictures') != 'None':
                 # pictures is expected to be a JSON array or comma-separated string
@@ -218,16 +269,37 @@ class MarketsController:
         try:
             connection = self.redshift_connection.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            if city == 'mexico':
+            
+            # Try combined table first for better performance (for non-mexico cities)
+            if city != 'mexico':
+                try:
+                    query = self.query_controller.get_property_market_info_combined_query(
+                        None, None, ids_market_data_propiedades, city
+                    )
+                    cursor.execute(query)
+                    row = cursor.fetchone()
+                    if row:
+                        # If we got results, proceed with processing
+                        pass
+                    else:
+                        # No results from combined table, try legacy
+                        raise Exception("No results from combined table")
+                except Exception as combined_error:
+                    logger.warning("Combined table query failed, falling back to legacy tables: %s", str(combined_error))
+                    # Rollback the transaction to clear the aborted state
+                    try:
+                        connection.rollback()
+                        logger.debug("Transaction rolled back after combined table failure")
+                    except Exception as rollback_error:
+                        logger.warning("Failed to rollback transaction: %s", str(rollback_error))
+            
+            # Use legacy table for mexico or as fallback
+            if city == 'mexico' or not row:
                 query = self.query_controller.get_property_market_info_legacy_query(
                     None, None, ids_market_data_propiedades, city
                 )
-            else:
-                query = self.query_controller.get_property_market_info_combined_query(
-                    None, None, ids_market_data_propiedades, city
-                )
-            cursor.execute(query)
-            row = cursor.fetchone()
+                cursor.execute(query)
+                row = cursor.fetchone()
             if row:
                 # Collect all non-null and non-"None" image URLs
                 for i in range(1, 6):

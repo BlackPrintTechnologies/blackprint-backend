@@ -14,8 +14,6 @@ class PropertyLayerController:
     def get_property_query(city='mexico'):
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"Generating property query for city: {city}")
-        
         if city == 'queretaro' or city == 'el_marques':
             # QRO layer with market-data geometry (via LEFT JOIN) and safe CSV id matching
             query = f'''
@@ -29,6 +27,9 @@ class PropertyLayerController:
                     ELSE ST_Transform(mdc.geometry_coords, 4326)
                   END
                 ) AS centroid,
+                -- Add latitude and longitude from dim_market_data_combined
+                mdc.latitude,
+                mdc.longitude,
                 v.is_on_market,
                 v.ids_market_data_spot2,
                 v.ids_market_data_inmuebles24,
@@ -79,18 +80,37 @@ class PropertyLayerController:
                     ORDER BY CASE WHEN mdc.source = 'inmuebles24' THEN 1 WHEN mdc.source = 'spot2' THEN 2 ELSE 3 END
                 ) = 1
                 '''
-            logger.info(f"Generated QRO query with geometry conversion")
+
         else:
             # Mexico (existing query)
             query = f'''
-                select   
+                SELECT
                 fid,
                 centroid,
                 street_address,
                 is_on_market,
                 total_surface_area,
                 total_construction_area,
-                property_type_inmuebles24,
+                CASE
+                    WHEN property_type_spot2 IN (
+                        SELECT DISTINCT property_type
+                        FROM presentation.dim_market_data_spot2
+                        WHERE property_type IS NOT NULL
+                    )
+                        THEN property_type_spot2
+                    WHEN property_type_inmuebles24 IN (
+                        SELECT DISTINCT property_type
+                        FROM presentation.dim_market_data_inmuebles24
+                        WHERE property_type IS NOT NULL
+                    )
+                        THEN property_type_inmuebles24
+                    WHEN property_type_propiedades IN (
+                        SELECT DISTINCT property_type
+                        FROM presentation.dim_market_data_propiedades
+                        WHERE property_type IS NOT NULL
+                    )
+                        THEN property_type_propiedades
+                END AS property_type_inmuebles24,
                 year_built,
                 special_facilities,
                 unit_land_value,
@@ -109,21 +129,30 @@ class PropertyLayerController:
                 cus,
                 min_housing,
                 ids_market_data_inmuebles24
-                from blackprint_db_prd.data_product.v_parcel_v3
-                WHERE 
-                (is_on_market = 'On Market')
+            FROM data_product.v_parcel_v3
+            WHERE 
+                is_on_market = 'On Market'
                 AND (
-                property_type_spot2 IN ('Local Comercial')
-                OR property_type_inmuebles24 IN (
-                    'Local comercial',
-                    'Local en centro comercial',
-                    'Terreno comercial'
-                )
-        )
+                    property_type_spot2 IN (
+                        SELECT DISTINCT property_type
+                        FROM presentation.dim_market_data_spot2
+                        WHERE property_type IS NOT NULL
+                    )
+                    OR property_type_inmuebles24 IN (
+                        SELECT DISTINCT property_type
+                        FROM presentation.dim_market_data_inmuebles24
+                        WHERE property_type IS NOT NULL
+                    )
+                    OR property_type_propiedades IN (
+                        SELECT DISTINCT property_type
+                        FROM presentation.dim_market_data_propiedades
+                        WHERE property_type IS NOT NULL
+                    )
+                );
+
+
                 '''
-            logger.info(f"Generated Mexico query")
-        
-        logger.info(f"Final query length: {len(query)} characters")
+
         return query
     
     # Remove @cache_response decorator for now - will implement city-aware caching manually
@@ -136,68 +165,28 @@ class PropertyLayerController:
         try :
             logger.info(f"Starting get_properties_layer_data for city: {city}")
             
-            # Log the query being executed
             query = self.get_property_query(city=city)
-            logger.info(f"Generated query for city {city}: {query[:500]}...")  # Log first 500 chars
-            
             connection = self.db.connect()
-            logger.info("Database connection established successfully")
-            
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            logger.info("Cursor created successfully")
-            
-            logger.info("Executing query...")
             cursor.execute(query)
-            logger.info("Query executed successfully")
-            
             connection.commit()
-            logger.info("Transaction committed")
-            
             res = cursor.fetchall()
-            logger.info(f"Query returned {len(res)} rows")
-            
-            # Log sample data for debugging
-            if res and len(res) > 0:
-                sample_row = res[0]
-                logger.info(f"Sample row keys: {list(sample_row.keys())}")
-                logger.info(f"Sample row data: {dict(sample_row)}")
-                
-                # Check for geometry/centroid issues
-                if 'geometry' in sample_row:
-                    logger.info(f"Geometry field type: {type(sample_row['geometry'])}, value: {sample_row['geometry']}")
-                if 'centroid' in sample_row:
-                    logger.info(f"Centroid field type: {type(sample_row['centroid'])}, value: {sample_row['centroid']}")
-                
-                # Check for any null or problematic values
-                for key, value in sample_row.items():
-                    if value is None:
-                        logger.warning(f"Null value found in field: {key}")
-                    elif isinstance(value, str) and len(value) > 1000:
-                        logger.info(f"Long string value in {key}: {value[:100]}...")
-            else:
-                logger.warning("No results returned from query")
+            logger.info(f"Query returned {len(res)} rows for {city}")
             
             resp = Response.success(data={"response": res})
             logger.info("Response created successfully")
             
-        except Exception as e :
+        except Exception as e:
             logger.error(f"Error in get_properties_layer_data for city {city}: {str(e)}")
-            logger.error(f"Exception type: {type(e).__name__}")
-            import traceback
-            logger.error(f"Full traceback: {traceback.format_exc()}")
             
             if connection:
                 connection.rollback()
-                logger.info("Transaction rolled back")
             resp = Response.internal_server_error(message=str(e))
         finally:
             if cursor:
                 cursor.close()
-                logger.info("Cursor closed")
             if connection:
                 self.db.disconnect(connection)
-                logger.info("Database connection closed")
-            logger.info(f"get_properties_layer_data completed for city: {city}")
             return resp
 
 class BrandController: 
@@ -205,7 +194,7 @@ class BrandController:
         self.db = RedshiftDatabase()
     
     @staticmethod
-    def get_brand_query(catchment, fid, category_1=None, city="mexico" ):
+    def get_brand_query(catchment, fid, category_1=None, brand_names=None, city="mexico" ):
         if city == "mexico":
             id_column = "fid"
             parcel_table = 'blackprint_db_prd.data_product.v_parcel_v3'
@@ -243,19 +232,23 @@ class BrandController:
                         WHERE id_place IN (SELECT value FROM split_values) ;'''
         else :
             query = f'''SELECT brand, names_pri,  geometry_wkt, category_1 FROM {dim_places_table}
-                        WHERE  category_1 = '{category_1}' ;'''
-
+                        WHERE 1 = 1 '''
+            if category_1:
+                query += f' AND category_1 = "{category_1}"'
+            if brand_names:  
+                brand_list = "', '".join([name.strip() for name in brand_names.split(',')])
+                query += f" AND names_pri in ('{brand_list}') "
         return query
     
     # @cache_response(prefix='brands',expiration=3600)
-    def get_brands(self, radius, fid, category=None, city="mexico"): 
+    def get_brands(self, radius, fid, category=None, brand_names=None, city="mexico"): 
         connection = None
         cursor = None
         resp = None
         try :
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            query = self.get_brand_query(radius, fid, category_1=category, city=city)
+            query = self.get_brand_query(radius, fid, category_1=category, brand_names=brand_names, city=city)
             print("query=====>", query)
             cursor.execute(query)
             connection.commit()
@@ -318,56 +311,98 @@ class BrandController:
         cursor = None
         resp = None
         try:
-            logger.info("Connecting to database...")
             connection = self.db.connect()
             cursor = connection.cursor(cursor_factory=RealDictCursor)
-            
-            logger.info("Generating property query...")
             query = self.get_property_query(city=city)
-            logger.info(f"Generated query length: {len(query)}")
-            logger.info(f"Query preview (first 500 chars): {query[:500]}...")
-            
-            logger.info("Executing query...")
             cursor.execute(query)
-            logger.info("Query executed successfully")
-            
-            logger.info("Committing transaction...")
             connection.commit()
-            logger.info("Transaction committed")
-            
-            logger.info("Fetching results...")
             res = cursor.fetchall()
             logger.info(f"Property Layer Results Count: {len(res)}")
-            
-            if len(res) > 0:
-                logger.info(f"First result keys: {list(res[0].keys())}")
-                logger.info(f"Sample result: {dict(res[0])}")
             
             resp = Response.success(data={"response": res})
             logger.info("Successfully created response")
             
         except Exception as e:
             logger.error(f"Property Layer Error: {str(e)}")
+            
+            if connection:
+                connection.rollback()
+            
+            resp = Response.internal_server_error(message=str(e))
+            
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                self.db.disconnect(connection)
+            
+            return resp
+
+    def get_distinct_land_use(self, city='mexico'):
+        """
+        Get distinct land use values for the specified city.
+        Returns distinct usage_desc values for filtering purposes.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Getting distinct land use values for city: {city}")
+        
+        connection = None
+        cursor = None
+        resp = None
+        
+        try:
+            connection = self.db.connect()
+            cursor = connection.cursor(cursor_factory=RealDictCursor)
+            
+            if city == 'queretaro' or city == 'el_marques':
+                # For Queretaro, get distinct land use from v_qro view
+                query = '''
+                    SELECT DISTINCT 
+                        COALESCE(usage_desc, 'Unknown') as land_use
+                    FROM blackprint_db_prd.data_product.v_qro 
+                    WHERE usage_desc IS NOT NULL 
+                    ORDER BY land_use ASC
+                '''
+            else:
+                # For Mexico City, get distinct land use from v_parcel_v3 view
+                query = '''
+                    SELECT DISTINCT 
+                        COALESCE(usage_desc, 'Unknown') as land_use
+                    FROM blackprint_db_prd.data_product.v_parcel_v3 
+                    WHERE usage_desc IS NOT NULL 
+                    ORDER BY land_use ASC
+                '''
+            
+            cursor.execute(query)
+            res = cursor.fetchall()
+            
+            # Convert to list of land use values for easier frontend consumption
+            land_use_values = [row['land_use'] for row in res]
+            
+            resp = Response.success(data={
+                "land_use_values": land_use_values,
+                "city": city
+            })
+            logger.info(f"Successfully retrieved {len(land_use_values)} land use values for {city}")
+            
+        except Exception as e:
+            logger.error(f"Land use query error for {city}: {str(e)}")
             logger.error(f"Error type: {type(e).__name__}")
             import traceback
             logger.error(f"Full traceback: {traceback.format_exc()}")
             
             if connection:
-                logger.info("Rolling back transaction...")
                 connection.rollback()
             
-            resp = Response.internal_server_error(message=str(e))
-            logger.error(f"Created error response: {resp}")
+            resp = Response.internal_server_error(message=f"Failed to fetch land use values for {city}: {str(e)}")
             
         finally:
             if cursor:
-                logger.info("Closing cursor...")
                 cursor.close()
             if connection:
-                logger.info("Disconnecting from database...")
                 self.db.disconnect(connection)
             
-            logger.info(f"Returning response with status: {resp[1] if isinstance(resp, tuple) else 'Unknown'}")
             return resp
 
 class TrafficController:

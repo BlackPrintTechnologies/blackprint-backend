@@ -13,12 +13,28 @@ class MarketsQueryController:
         Get query for all distinct property types from market data tables
         Uses combined table approach for better performance
         """
-        query = """
-            SELECT DISTINCT property_type 
-            FROM presentation.dim_market_data_combined
-            where  property_type IS NOT NULL 
-            ORDER BY property_type
-        """
+        if city.lower() == 'mexico':
+            query = """
+                SELECT DISTINCT property_type 
+                FROM presentation.dim_market_data_inmuebles24
+                WHERE property_type IS NOT NULL 
+                UNION
+                SELECT DISTINCT property_type 
+                FROM presentation.dim_market_data_spot2
+                WHERE property_type IS NOT NULL 
+                UNION
+                SELECT DISTINCT property_type 
+                FROM presentation.dim_market_data_propiedades
+                WHERE property_type IS NOT NULL 
+                ORDER BY property_type
+            """
+        elif city.lower() == 'queretaro':
+            query = """
+                SELECT DISTINCT property_type 
+                FROM presentation.dim_market_data_combined
+                WHERE property_type IS NOT NULL 
+                ORDER BY property_type
+            """
 
         
         return query
@@ -99,7 +115,7 @@ class MarketsQueryController:
                         'inmuebles24' as source
                     FROM blackprint_db_prd.presentation.dim_market_data_combined
                     WHERE source = 'inmuebles24' AND id_market_data in ( {inmuebles24_id} )
-                      AND city = 'mexico'
+                      AND state ='Ciudad de Mexico' and city not in ('Querétaro', 'El Marqués','Corregidora');
                 """
             elif spot2_id:
                 query = f"""
@@ -122,7 +138,7 @@ class MarketsQueryController:
                         'spot2' as source
                     FROM blackprint_db_prd.presentation.dim_market_data_combined
                     WHERE source = 'spot2' AND id_market_data in ( {spot2_id} )
-                      AND city = 'mexico'
+                      AND state ='Ciudad de Mexico' and city not in ('Querétaro', 'El Marqués','Corregidora');
                 """
             elif propiedades_id:
                 query = f"""
@@ -138,7 +154,7 @@ class MarketsQueryController:
                         'propiedades' as source
                     FROM blackprint_db_prd.presentation.dim_market_data_combined
                     WHERE source = 'propiedades' AND id_market_data in ( {propiedades_id} )
-                      AND city = 'mexico'
+                      AND state ='Ciudad de Mexico' and city not in ('Querétaro', 'El Marqués','Corregidora');
                 """
             else:
                 # No valid ID
